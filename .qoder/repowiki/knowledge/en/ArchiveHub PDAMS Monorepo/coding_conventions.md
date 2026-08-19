@@ -1,0 +1,4 @@
+- All API routes are defined in the single `server.ts` entrypoint and delegate business logic exclusively to functions exported from `src/db/repository.js`.
+- Every route handler follows the same try/catch pattern returning `{ success, error/message }` JSON responses with appropriate HTTP status codes.
+- Mutating endpoints accept a `user` object in the request body to propagate actor identity into repository calls for audit logging.
+- Database access goes through Drizzle queries wrapped in `src/db/repository.js`; routes never import `pg` or Drizzle clients directly.

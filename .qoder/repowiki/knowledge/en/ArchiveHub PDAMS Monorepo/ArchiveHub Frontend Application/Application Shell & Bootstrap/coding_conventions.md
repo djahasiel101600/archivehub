@@ -1,0 +1,4 @@
+- Global application state (active tab, authentication, selected document, modal toggles) is held in the shell component and pushed down to children via props or consumed through `useArchive()` context.
+- Conditional rendering drives both route selection (switching page components by `activeTab`) and modal visibility (boolean flags like `showScannerModal`, `triggerRegisterDoc`).
+- Layout is built with Tailwind utility classes applied directly in JSX, including responsive breakpoints (e.g., `sm:p-5 md:p-8`) and dark-mode variants (`dark:` prefixes).
+- The root export wraps the content component in a provider (`ArchiveProvider`) so all descendants share the same context without re-importing it.

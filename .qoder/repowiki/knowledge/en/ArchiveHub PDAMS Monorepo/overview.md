@@ -1,0 +1,1 @@
+Single-repo ArchiveHub application that bundles a React frontend and an Express/Node backend sharing a Drizzle + PostgreSQL data layer, served by one Vite-powered dev server.

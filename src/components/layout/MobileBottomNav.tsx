@@ -6,17 +6,20 @@ import {
   FileText, 
   ArrowRightLeft, 
   QrCode,
-  Menu
+  Menu,
+  Truck
 } from 'lucide-react';
 
 interface MobileBottomNavProps {
   onOpenScanner: () => void;
+  onOpenBatchRelocate?: () => void;
   onOpenMobileMenu: () => void;
   onSelectTab: (tabId: string) => void;
 }
 
 export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
   onOpenScanner,
+  onOpenBatchRelocate,
   onOpenMobileMenu,
   onSelectTab
 }) => {
@@ -76,6 +79,21 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
             Scan
           </span>
         </button>
+
+        {/* Batch Relocate (compact, next to center scan) */}
+        {onOpenBatchRelocate && (
+          <button
+            type="button"
+            onClick={onOpenBatchRelocate}
+            className="flex flex-col items-center justify-center py-1 px-2 rounded-xl transition-all text-emerald-600 dark:text-emerald-400 active:scale-95"
+            aria-label="Batch Relocate"
+          >
+            <div className="p-1 rounded-lg">
+              <Truck className="w-5 h-5" />
+            </div>
+            <span className="text-[9px] font-bold mt-0.5 uppercase tracking-wider">Relocate</span>
+          </button>
+        )}
 
         {/* Documents */}
         <button

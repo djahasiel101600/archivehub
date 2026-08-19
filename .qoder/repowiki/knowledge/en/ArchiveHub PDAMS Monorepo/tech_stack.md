@@ -1,0 +1,1 @@
+Express + Node server paired with a Vite/React frontend, both typed via TypeScript and sharing a Drizzle ORM schema backed by PostgreSQL; esbuild produces the production server bundle and Tailwind CSS styles the UI.

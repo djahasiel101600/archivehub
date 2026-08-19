@@ -9,34 +9,35 @@ import {
   Search, 
   X, 
   ArrowRight, 
-  CheckCircle2, 
   AlertTriangle, 
   FileText, 
   MapPin, 
   ArrowRightLeft,
-  Upload
+  Layers
 } from 'lucide-react';
-import { DocumentItem, LocationItem } from '../../types';
+import { DocumentItem, LocationItem, DocumentBundle } from '../../types';
 
 interface CameraQRScannerModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSelectDocument?: (doc: DocumentItem) => void;
   onSelectLocation?: (loc: LocationItem) => void;
+  onSelectBundle?: (bundle: DocumentBundle) => void;
 }
 
 export const CameraQRScannerModal: React.FC<CameraQRScannerModalProps> = ({
   isOpen,
   onClose,
   onSelectDocument,
-  onSelectLocation
+  onSelectLocation,
+  onSelectBundle
 }) => {
-  const { lookupByQR, calculatePath } = useArchive();
+  const { lookupByQR, calculatePath, bundles, documents, setActiveTab: navigateToTab } = useArchive();
   const [manualInput, setManualInput] = useState('');
   const [activeTab, setActiveTab] = useState<'camera' | 'manual'>('camera');
   const [scanResult, setScanResult] = useState<{
-    type: 'DOCUMENT' | 'LOCATION';
-    data: DocumentItem | LocationItem;
+    type: 'DOCUMENT' | 'LOCATION' | 'BUNDLE';
+    data: DocumentItem | LocationItem | DocumentBundle;
   } | null>(null);
   const [scanError, setScanError] = useState<string | null>(null);
   const [scannerActive, setScannerActive] = useState(false);
@@ -104,7 +105,7 @@ export const CameraQRScannerModal: React.FC<CameraQRScannerModalProps> = ({
       setScanResult(result);
     } else {
       setScanResult(null);
-      setScanError(`No document or storage location found matching code: "${code}"`);
+      setScanError(`No document, bundle, or storage location found matching code: "${code}"`);
     }
   };
 
@@ -254,11 +255,13 @@ export const CameraQRScannerModal: React.FC<CameraQRScannerModalProps> = ({
                 <div className="flex items-center gap-2">
                   {scanResult.type === 'DOCUMENT' ? (
                     <FileText className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+                  ) : scanResult.type === 'BUNDLE' ? (
+                    <Layers className="w-5 h-5 text-violet-600 dark:text-violet-400" />
                   ) : (
                     <MapPin className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
                   )}
                   <span className="text-xs font-bold uppercase tracking-wider text-indigo-800 dark:text-indigo-300 bg-indigo-100 dark:bg-indigo-900/60 px-2 py-0.5 rounded">
-                    {scanResult.type === 'DOCUMENT' ? 'Document Record Identified' : 'Physical Storage Location Identified'}
+                    {scanResult.type === 'DOCUMENT' ? 'Document Record Identified' : scanResult.type === 'BUNDLE' ? 'Bundle Dossier Identified' : 'Physical Storage Location Identified'}
                   </span>
                 </div>
 
@@ -375,6 +378,90 @@ export const CameraQRScannerModal: React.FC<CameraQRScannerModalProps> = ({
                         className="inline-flex items-center gap-1.5 px-4 py-2 bg-emerald-600 text-white font-medium text-xs rounded-xl hover:bg-emerald-700 shadow-sm transition-colors"
                       >
                         Explore Storage Unit
+                        <ArrowRight className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Bundle Result Details */}
+              {scanResult.type === 'BUNDLE' && (() => {
+                const bundle = scanResult.data as DocumentBundle;
+                const bundleDocs = bundle.documentIds
+                  .map(id => documents.find(d => d.id === id))
+                  .filter((d): d is DocumentItem => d !== undefined);
+
+                return (
+                  <div className="space-y-3 bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <span className="text-xs font-mono font-bold text-violet-600 dark:text-violet-400">
+                          {bundle.bundleNumber}
+                        </span>
+                        <h4 className="font-bold text-slate-900 dark:text-slate-100 text-sm mt-0.5">
+                          {bundle.title}
+                        </h4>
+                      </div>
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full bg-violet-50 text-violet-700 border border-violet-200 dark:bg-violet-950/40 dark:text-violet-400 dark:border-violet-800/50">
+                        {bundle.status}
+                      </span>
+                    </div>
+
+                    <div className="space-y-2 pt-2 border-t border-slate-100 dark:border-slate-800 text-xs">
+                      <div>
+                        <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider block mb-1">
+                          📦 Bundle Location:
+                        </span>
+                        {bundle.locationId ? (
+                          <LocationPathBreadcrumbs locationId={bundle.locationId} badgeSize="sm" />
+                        ) : (
+                          <span className="italic text-slate-400">No physical location assigned</span>
+                        )}
+                      </div>
+                      <div>
+                        <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider block mb-1">
+                          📄 Contains {bundle.documentIds.length} document(s):
+                        </span>
+                        <div className="max-h-28 overflow-y-auto space-y-1">
+                          {bundleDocs.slice(0, 5).map(doc => (
+                            <div key={doc.id} className="flex items-center gap-2 p-1.5 bg-slate-50 dark:bg-slate-800 rounded-lg">
+                              <FileText className="w-3 h-3 text-slate-400 flex-shrink-0" />
+                              <span className="font-mono text-[10px] text-indigo-500 font-bold">{doc.documentNumber}</span>
+                              <span className="text-[11px] text-slate-600 dark:text-slate-400 truncate flex-1">{doc.title}</span>
+                            </div>
+                          ))}
+                          {bundleDocs.length > 5 && (
+                            <p className="text-[10px] text-slate-400 pl-1">+{bundleDocs.length - 5} more documents</p>
+                          )}
+                          {bundleDocs.length === 0 && (
+                            <p className="text-[11px] text-slate-400 italic">No documents found in this bundle</p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {bundle.tags && bundle.tags.length > 0 && (
+                      <div className="flex flex-wrap gap-1 pt-1">
+                        {bundle.tags.map(tag => (
+                          <span key={tag} className="px-1.5 py-0.5 text-[10px] font-medium rounded bg-violet-50 text-violet-600 dark:bg-violet-900/30 dark:text-violet-400">
+                            {tag}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+
+                    <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex justify-end gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          onClose();
+                          navigateToTab('bundles');
+                          if (onSelectBundle) onSelectBundle(bundle);
+                        }}
+                        className="inline-flex items-center gap-1.5 px-4 py-2 bg-violet-600 text-white font-medium text-xs rounded-xl hover:bg-violet-700 shadow-sm transition-colors"
+                      >
+                        View in Bundle Manager
                         <ArrowRight className="w-4 h-4" />
                       </button>
                     </div>

@@ -1,0 +1,1 @@
+React 18 with `createRoot` (Concurrent Mode), Tailwind CSS v4 imported via `@import "tailwindcss"`, and a print stylesheet for tag-sheet output.

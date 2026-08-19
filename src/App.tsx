@@ -4,6 +4,7 @@ import { Header } from './components/layout/Header';
 import { Sidebar } from './components/layout/Sidebar';
 import { MobileBottomNav } from './components/layout/MobileBottomNav';
 import { CameraQRScannerModal } from './components/scanner/CameraQRScannerModal';
+import { BatchRelocateModal } from './components/scanner/BatchRelocateModal';
 import { AuthPage } from './components/auth/AuthPage';
 
 // Pages
@@ -11,6 +12,7 @@ import { DashboardPage } from './pages/DashboardPage';
 import { LocationsPage } from './pages/LocationsPage';
 import { DocumentsPage } from './pages/DocumentsPage';
 import { DocumentDetailPage } from './pages/DocumentDetailPage';
+import { BundlesPage } from './pages/BundlesPage';
 import { CheckoutsPage } from './pages/CheckoutsPage';
 import { RetentionPage } from './pages/RetentionPage';
 import { AuditLogsPage } from './pages/AuditLogsPage';
@@ -27,6 +29,7 @@ function AppContent() {
 
   // Global Modals
   const [showScannerModal, setShowScannerModal] = useState(false);
+  const [showBatchRelocateModal, setShowBatchRelocateModal] = useState(false);
   const [triggerRegisterDoc, setTriggerRegisterDoc] = useState(false);
   const [triggerCreateLoc, setTriggerCreateLoc] = useState(false);
 
@@ -55,7 +58,8 @@ function AppContent() {
       
       {/* Top Header Navbar */}
       <Header 
-        onOpenScanner={() => setShowScannerModal(true)} 
+        onOpenScanner={() => setShowScannerModal(true)}
+        onOpenBatchRelocate={() => setShowBatchRelocateModal(true)}
         onOpenMobileMenu={() => setIsMobileMenuOpen(true)}
         onSelectTab={handleSelectTab}
       />
@@ -111,6 +115,10 @@ function AppContent() {
                 />
               )}
 
+              {activeTab === 'bundles' && (
+                <BundlesPage />
+              )}
+
               {activeTab === 'checkouts' && (
                 <CheckoutsPage
                   onSelectDocument={handleSelectDocument}
@@ -138,6 +146,7 @@ function AppContent() {
       {/* Mobile Bottom Navigation Bar (< md screens) */}
       <MobileBottomNav
         onOpenScanner={() => setShowScannerModal(true)}
+        onOpenBatchRelocate={() => setShowBatchRelocateModal(true)}
         onOpenMobileMenu={() => setIsMobileMenuOpen(true)}
         onSelectTab={handleSelectTab}
       />
@@ -156,6 +165,18 @@ function AppContent() {
             setActiveTab('locations');
             setShowScannerModal(false);
           }}
+          onSelectBundle={() => {
+            setSelectedDocId(null);
+            setShowScannerModal(false);
+          }}
+        />
+      )}
+
+      {/* Batch Relocate Modal */}
+      {showBatchRelocateModal && (
+        <BatchRelocateModal
+          isOpen={showBatchRelocateModal}
+          onClose={() => setShowBatchRelocateModal(false)}
         />
       )}
 

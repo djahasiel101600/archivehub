@@ -1,0 +1,1 @@
+The app is mounted into the DOM element with id `root`; ensure that element exists before the bundle runs. Tailwind CSS v4 is used through the `@import "tailwindcss"` directive rather than a config file.

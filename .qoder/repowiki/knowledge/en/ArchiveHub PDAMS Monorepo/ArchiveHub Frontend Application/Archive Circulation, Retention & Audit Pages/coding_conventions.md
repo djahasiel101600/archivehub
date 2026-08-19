@@ -1,0 +1,5 @@
+- Each page component destructures its required fields directly from `useArchive()` rather than passing props down, keeping pages self-contained consumers of the global store.
+- Pages follow a consistent layout pattern: a header section with an icon + title + subtitle, followed by content cards built with `bg-white dark:bg-slate-900 rounded-2xl border` containers.
+- Client-side filtering is implemented inline using `useState` for a query string and `Array.prototype.filter` against the context-provided arrays, with no external search libraries.
+- User-facing status is rendered through the shared `StatusBadge` component with a `type` prop instead of ad-hoc color logic inside each page.
+- Dark-mode support is applied uniformly via Tailwind `dark:` variants on every surface element (backgrounds, borders, text colors).

@@ -1,17 +1,14 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { DocumentItem } from '../../types';
 import { useArchive } from '../../context/ArchiveContext';
+import { suggestBundleFromDocuments } from '../../ai/suggestBundle';
+import { PhotoUploader } from '../common/PhotoUploader';
 import { 
   Layers, 
   X, 
   Plus, 
-  FolderPlus, 
-  Building2, 
-  FileText, 
-  Check,
-  Tag,
-  MapPin,
-  Sparkles
+  FolderPlus,
+  Loader2
 } from 'lucide-react';
 
 interface BundleModalProps {
@@ -59,7 +56,27 @@ export const BundleModal: React.FC<BundleModalProps> = ({
     `Consolidated archive bundle containing ${selectedDocuments.length} document(s).`
   );
   const [tagsInput, setTagsInput] = useState('Dossier, Case File');
+  const [imageUrl, setImageUrl] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSuggesting, setIsSuggesting] = useState(false);
+
+  // Fetch AI-powered suggestions when modal opens in create mode
+  useEffect(() => {
+    if (mode !== 'create' || selectedDocuments.length === 0) return;
+    let cancelled = false;
+    setIsSuggesting(true);
+    suggestBundleFromDocuments(selectedDocuments)
+      .then((suggestion) => {
+        if (cancelled) return;
+        if (suggestion.title) setBundleTitle(suggestion.title);
+        if (suggestion.description) setDescription(suggestion.description);
+        if (suggestion.tags && suggestion.tags.length > 0) setTagsInput(suggestion.tags.join(', '));
+      })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setIsSuggesting(false); });
+    return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode]);
 
   const handleCreateBundle = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -80,6 +97,7 @@ export const BundleModal: React.FC<BundleModalProps> = ({
         bundleNumber: bundleNumber.trim().toUpperCase(),
         title: bundleTitle.trim(),
         description: description.trim(),
+        imageUrl: imageUrl.trim() || undefined,
         departmentId,
         departmentName: deptObj?.name || 'General Department',
         locationId,
@@ -231,9 +249,17 @@ export const BundleModal: React.FC<BundleModalProps> = ({
               </div>
 
               <div>
-                <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                  Bundle Title / Dossier Subject *
-                </label>
+                <div className="flex items-center justify-between">
+                  <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                    Bundle Title / Dossier Subject *
+                  </label>
+                  {isSuggesting && (
+                    <span className="flex items-center gap-1 text-[10px] text-amber-600 dark:text-amber-400 font-medium">
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                      AI suggesting...
+                    </span>
+                  )}
+                </div>
                 <input
                   type="text"
                   required
@@ -286,6 +312,12 @@ export const BundleModal: React.FC<BundleModalProps> = ({
                   className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none"
                 />
               </div>
+
+              <PhotoUploader
+                value={imageUrl}
+                onChange={setImageUrl}
+                label="Bundle / Dossier Photo (Optional)"
+              />
 
             </div>
 

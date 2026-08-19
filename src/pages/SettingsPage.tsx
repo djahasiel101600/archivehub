@@ -30,12 +30,15 @@ import {
   UserCheck,
   UserX
 } from 'lucide-react';
-import { RoleCode } from '../types';
+import { RoleCode, Department } from '../types';
 import { ConfirmModal } from '../components/common/ConfirmModal';
 
 export const SettingsPage: React.FC = () => {
   const { 
     departments, 
+    addDepartment,
+    updateDepartment,
+    deleteDepartment,
     documentTypes, 
     addDocumentType,
     updateDocumentType,
@@ -67,6 +70,11 @@ export const SettingsPage: React.FC = () => {
   // Create Document Type State
   const [showCreateDocTypeModal, setShowCreateDocTypeModal] = useState(false);
   const [docTypeToDelete, setDocTypeToDelete] = useState<{ id: string; name: string } | null>(null);
+
+  // Department Management State
+  const [deptModalMode, setDeptModalMode] = useState<'create' | 'edit' | null>(null);
+  const [deptEditing, setDeptEditing] = useState<Department | null>(null);
+  const [deptToDelete, setDeptToDelete] = useState<Department | null>(null);
 
   const [newDtName, setNewDtName] = useState('');
   const [newDtCode, setNewDtCode] = useState('');
@@ -814,11 +822,24 @@ export const SettingsPage: React.FC = () => {
 
       {/* Departments Section */}
       <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm space-y-4">
-        <div className="flex items-center justify-between">
-          <h3 className="font-bold text-slate-900 dark:text-slate-100 text-sm flex items-center gap-2">
-            <Building2 className="w-4 h-4 text-indigo-600" />
-            Configured Organization Departments ({departments.length})
-          </h3>
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <div>
+            <h3 className="font-bold text-slate-900 dark:text-slate-100 text-sm flex items-center gap-2">
+              <Building2 className="w-4 h-4 text-indigo-600" />
+              Configured Organization Departments ({departments.length})
+            </h3>
+            <p className="text-[11px] text-slate-500 mt-0.5">
+              Create new departments, rename existing ones or retire units that are no longer in use.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => { setDeptEditing(null); setDeptModalMode('create'); }}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs rounded-xl shadow-xs transition-colors"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            Add Department
+          </button>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 text-xs">
@@ -826,7 +847,25 @@ export const SettingsPage: React.FC = () => {
             <div key={dept.id} className="p-3.5 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-slate-200 dark:border-slate-800 space-y-1">
               <div className="flex justify-between items-center">
                 <span className="font-mono font-bold text-indigo-600 dark:text-indigo-400">[{dept.code}]</span>
-                <span className="text-[10px] text-slate-400 font-mono">{dept.documentCount} Registered Records</span>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[10px] text-slate-400 font-mono">{dept.documentCount} Registered Records</span>
+                  <button
+                    type="button"
+                    onClick={() => { setDeptEditing(dept); setDeptModalMode('edit'); }}
+                    className="p-1 text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-200/80 dark:hover:bg-slate-700 rounded-lg transition-colors"
+                    title="Edit department"
+                  >
+                    <Edit className="w-3 h-3" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDeptToDelete(dept)}
+                    className="p-1 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg transition-colors"
+                    title="Delete department"
+                  >
+                    <Trash2 className="w-3 h-3" />
+                  </button>
+                </div>
               </div>
               <h4 className="font-bold text-slate-900 dark:text-slate-100 text-sm">{dept.name}</h4>
               <p className="text-[11px] text-slate-500">Department Head: {dept.headName}</p>
@@ -1678,6 +1717,152 @@ export const SettingsPage: React.FC = () => {
         variant="danger"
       />
 
+      {/* Department Create/Edit Modal */}
+      {deptModalMode && (
+        <DepartmentModal
+          mode={deptModalMode}
+          department={deptEditing || undefined}
+          onClose={() => { setDeptModalMode(null); setDeptEditing(null); }}
+        />
+      )}
+
+      {/* Delete Department Confirmation Modal */}
+      <ConfirmModal
+        isOpen={Boolean(deptToDelete)}
+        onClose={() => setDeptToDelete(null)}
+        onConfirm={async () => {
+          if (deptToDelete) {
+            await deleteDepartment(deptToDelete.id);
+            setDeptToDelete(null);
+          }
+        }}
+        title="Delete Organization Department"
+        message={`Are you sure you want to delete "${deptToDelete?.name || ''}" [${deptToDelete?.code || ''}]? Deletion is blocked while documents, bundles or user accounts are still assigned to this department.`}
+        confirmText="Delete Department"
+        variant="danger"
+      />
+
+    </div>
+  );
+};
+
+interface DepartmentModalProps {
+  mode: 'create' | 'edit';
+  department?: Department;
+  onClose: () => void;
+}
+
+const DepartmentModal: React.FC<DepartmentModalProps> = ({ mode, department, onClose }) => {
+  const { addDepartment, updateDepartment } = useArchive();
+  const [code, setCode] = useState(department?.code || '');
+  const [name, setName] = useState(department?.name || '');
+  const [headName, setHeadName] = useState(department?.headName || '');
+  const [saving, setSaving] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!code.trim() || !name.trim() || !headName.trim() || saving) return;
+    setSaving(true);
+    const payload = {
+      code: code.trim().toUpperCase(),
+      name: name.trim(),
+      headName: headName.trim()
+    };
+    if (mode === 'create') {
+      const created = await addDepartment(payload);
+      setSaving(false);
+      if (created) onClose();
+    } else if (department) {
+      await updateDepartment(department.id, payload);
+      setSaving(false);
+      onClose();
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 animate-in fade-in">
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-md w-full max-h-[90vh] flex flex-col overflow-hidden my-auto shadow-2xl">
+        <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 px-6 py-4 bg-slate-50 dark:bg-slate-800/50 flex-shrink-0">
+          <h3 className="font-extrabold text-slate-900 dark:text-slate-100 text-sm flex items-center gap-2">
+            <Building2 className="w-4 h-4 text-indigo-600" />
+            {mode === 'create' ? 'Add New Department' : `Edit Department — ${department?.code}`}
+          </h3>
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-slate-400 hover:text-slate-600 p-1"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="flex-1 flex flex-col min-h-0">
+          <div className="p-6 space-y-3 overflow-y-auto flex-1 text-xs">
+            <div>
+              <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                Department Code *
+              </label>
+              <input
+                type="text"
+                required
+                maxLength={20}
+                value={code}
+                onChange={(e) => setCode(e.target.value)}
+                placeholder="e.g. HRD, FIN, OPS"
+                className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none font-mono uppercase font-bold text-indigo-600"
+              />
+            </div>
+
+            <div>
+              <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                Department Name *
+              </label>
+              <input
+                type="text"
+                required
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="e.g. Human Resource Development"
+                className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none font-medium"
+              />
+              {mode === 'edit' && (
+                <p className="text-[10px] text-slate-400 mt-1">Renaming a department also updates the stored department name on its documents, bundles, document types and user accounts.</p>
+              )}
+            </div>
+
+            <div>
+              <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                Department Head *
+              </label>
+              <input
+                type="text"
+                required
+                value={headName}
+                onChange={(e) => setHeadName(e.target.value)}
+                placeholder="e.g. Juan Dela Cruz"
+                className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none font-medium"
+              />
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-2 border-t border-slate-100 dark:border-slate-800 px-6 py-4 bg-slate-50 dark:bg-slate-800/50 flex-shrink-0">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 text-xs font-semibold text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={saving}
+              className="px-5 py-2 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl shadow-md shadow-indigo-600/20 disabled:opacity-50 transition-colors"
+            >
+              {saving ? 'Saving...' : (mode === 'create' ? 'Create Department' : 'Save Changes')}
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   );
 };

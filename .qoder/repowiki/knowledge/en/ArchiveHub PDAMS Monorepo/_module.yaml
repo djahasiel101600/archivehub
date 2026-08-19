@@ -1,0 +1,16 @@
+schema_version: 1
+module_path: ""
+title: ArchiveHub PDAMS Monorepo
+scope:
+    - .gitignore
+    - package.json
+    - server.ts
+    - vite.config.ts
+    - tsconfig.json
+    - index.html
+    - metadata.json
+    - bun.lock
+    - package-lock.json
+source_files: []
+depends_on: []
+related_to: []

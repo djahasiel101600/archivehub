@@ -1,0 +1,1 @@
+Bootstraps the React application and renders the authenticated shell that composes layout, navigation, pages, and global modals around a shared ArchiveContext.

@@ -15,7 +15,8 @@ import {
   Archive,
   LogOut,
   ChevronDown,
-  User as UserIcon
+  User as UserIcon,
+  Layers
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -35,6 +36,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     documents, 
     locations, 
     checkouts, 
+    bundles,
     resetDataToDefaults,
     currentUser,
     setCurrentUser,
@@ -54,6 +56,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'dashboard', label: 'Dashboard & Overview', icon: LayoutDashboard },
     { id: 'locations', label: 'Physical Storage Tree', icon: Network, badge: locations.length },
     { id: 'documents', label: 'Document Catalogue', icon: FileText, badge: totalDocs },
+    { id: 'bundles', label: 'Bundles & Dossiers', icon: Layers, badge: bundles.length || undefined },
     { 
       id: 'checkouts', 
       label: 'Circulation Desk', 

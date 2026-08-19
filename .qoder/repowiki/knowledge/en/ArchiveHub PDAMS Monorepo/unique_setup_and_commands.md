@@ -1,0 +1,1 @@
+`npm run dev` starts the combined dev server via tsx; `npm run build` emits the SPA to `dist/` and bundles `server.ts` to `dist/server.cjs`; `npm run start` serves the production bundle on port 3031; `npm run preview` serves the built SPA locally; `npm run lint` type-checks with `tsc --noEmit`.

@@ -102,6 +102,7 @@ export interface DocumentBundle {
   bundleNumber: string; // e.g. BNDL-2026-0001
   title: string; // e.g. "Q1 Infrastructure Procurement Dossier"
   description?: string;
+  imageUrl?: string; // Photo of the physical bundle/dossier/folder
   departmentId: string;
   departmentName: string;
   locationId?: string; // Physical storage location of the bundle container/dossier

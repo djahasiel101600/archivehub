@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useArchive } from '../context/ArchiveContext';
 import { StatusBadge } from '../components/common/StatusBadge';
 import { LocationPathBreadcrumbs } from '../components/common/LocationPathBreadcrumbs';
@@ -28,7 +28,13 @@ import {
   Square,
   BookmarkCheck,
   Check,
-  Edit
+  Edit,
+  Lock,
+  Unlock,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight
 } from 'lucide-react';
 import { DocumentStatus, ConfidentialityLevel, DocumentCondition, DocumentItem } from '../types';
 import { ConfirmModal } from '../components/common/ConfirmModal';
@@ -61,11 +67,19 @@ export const DocumentsPage: React.FC<DocumentsPageProps> = ({
   } = useArchive();
 
   const [viewMode, setViewMode] = useState<'table' | 'grid'>('table');
+  const [frozenCol, setFrozenCol] = useState(true);
   const [selectedDept, setSelectedDept] = useState<string>('ALL');
   const [selectedType, setSelectedType] = useState<string>('ALL');
   const [selectedStatus, setSelectedStatus] = useState<string>('ALL');
   const [selectedConf, setSelectedConf] = useState<string>('ALL');
   const [selectedBundleFilter, setSelectedBundleFilter] = useState<string>('ALL');
+  const [filterDateFrom, setFilterDateFrom] = useState('');
+  const [filterDateTo, setFilterDateTo] = useState('');
+
+  // Pagination State
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
+  const resultsTopRef = useRef<HTMLDivElement | null>(null);
 
   // Bulk Selection & Modals State
   const [selectedDocIds, setSelectedDocIds] = useState<string[]>([]);
@@ -258,8 +272,59 @@ export const DocumentsPage: React.FC<DocumentsPageProps> = ({
       }
     }
 
+    // Date Range Filter (based on createdAt / date registered)
+    if (filterDateFrom || filterDateTo) {
+      const docDate = doc.createdAt ? doc.createdAt.split('T')[0] : '';
+      if (filterDateFrom && docDate < filterDateFrom) return false;
+      if (filterDateTo && docDate > filterDateTo) return false;
+    }
+
     return true;
   });
+
+  // Pagination derived values
+  const totalPages = Math.max(1, Math.ceil(filteredDocs.length / pageSize));
+  const safePage = Math.min(currentPage, totalPages);
+  const paginatedDocs = filteredDocs.slice((safePage - 1) * pageSize, safePage * pageSize);
+  const rangeStart = filteredDocs.length === 0 ? 0 : (safePage - 1) * pageSize + 1;
+  const rangeEnd = Math.min(safePage * pageSize, filteredDocs.length);
+
+  // Reset to the first page whenever any filter / search input changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [globalSearchQuery, selectedDept, selectedType, selectedStatus, selectedConf, selectedBundleFilter, filterDateFrom, filterDateTo, viewMode]);
+
+  const goToPage = (page: number) => {
+    const clamped = Math.max(1, Math.min(page, totalPages));
+    setCurrentPage(clamped);
+    resultsTopRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
+  const getPageNumbers = (): (number | string)[] => {
+    const pages: (number | string)[] = [];
+    if (totalPages <= 7) {
+      for (let i = 1; i <= totalPages; i++) pages.push(i);
+    } else {
+      pages.push(1);
+      if (safePage > 3) pages.push('ellipsis-start');
+      const start = Math.max(2, safePage - 1);
+      const end = Math.min(totalPages - 1, safePage + 1);
+      for (let i = start; i <= end; i++) pages.push(i);
+      if (safePage < totalPages - 2) pages.push('ellipsis-end');
+      pages.push(totalPages);
+    }
+    return pages;
+  };
+
+  const handleToggleSelectPage = () => {
+    const pageIds = paginatedDocs.map(d => d.id);
+    const allSelected = pageIds.length > 0 && pageIds.every(id => selectedDocIds.includes(id));
+    if (allSelected) {
+      setSelectedDocIds(prev => prev.filter(id => !pageIds.includes(id)));
+    } else {
+      setSelectedDocIds(prev => Array.from(new Set([...prev, ...pageIds])));
+    }
+  };
 
   const selectedDocuments = documents.filter(d => selectedDocIds.includes(d.id));
 
@@ -381,22 +446,113 @@ export const DocumentsPage: React.FC<DocumentsPageProps> = ({
             </select>
           </div>
 
+          {/* Date Registered Filter */}
+          <div className="col-span-1 sm:col-span-2 lg:col-span-6">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2.5 pt-2 border-t border-slate-100 dark:border-slate-800">
+              <span className="flex items-center gap-1.5 text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider whitespace-nowrap">
+                <Calendar className="w-3.5 h-3.5" />
+                Date Registered:
+              </span>
+              <div className="flex items-center gap-1 flex-wrap">
+                {(() => {
+                  const t = new Date().toISOString().split('T')[0];
+                  const ago = (days: number) => { const d = new Date(); d.setDate(d.getDate() - days); return d.toISOString().split('T')[0]; };
+                  const mStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0];
+                  return ([
+                    { label: 'Today', from: t, to: t },
+                    { label: 'Yesterday', from: ago(1), to: ago(1) },
+                    { label: 'Last 7 Days', from: ago(7), to: t },
+                    { label: 'Last 30 Days', from: ago(30), to: t },
+                    { label: 'This Month', from: mStart, to: t },
+                  ] as { label: string; from: string; to: string }[]).map(p => {
+                    const active = filterDateFrom === p.from && filterDateTo === p.to;
+                    return (
+                      <button
+                        key={p.label}
+                        type="button"
+                        onClick={() => { setFilterDateFrom(p.from); setFilterDateTo(p.to); }}
+                        className={`px-2.5 py-1 rounded-lg text-[10px] font-bold border transition-all ${
+                          active
+                            ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
+                            : 'bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:border-indigo-300 dark:hover:border-indigo-700'
+                        }`}
+                      >
+                        {p.label}
+                      </button>
+                    );
+                  });
+                })()}
+              </div>
+              <div className="flex items-center gap-1.5 ml-auto">
+                <input
+                  type="date"
+                  value={filterDateFrom}
+                  onChange={(e) => setFilterDateFrom(e.target.value)}
+                  className="px-2 py-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-[11px] outline-none"
+                  title="From date"
+                />
+                <span className="text-[10px] text-slate-400 font-bold">→</span>
+                <input
+                  type="date"
+                  value={filterDateTo}
+                  onChange={(e) => setFilterDateTo(e.target.value)}
+                  className="px-2 py-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-[11px] outline-none"
+                  title="To date"
+                />
+                {(filterDateFrom || filterDateTo) && (
+                  <button
+                    type="button"
+                    onClick={() => { setFilterDateFrom(''); setFilterDateTo(''); }}
+                    className="p-1 text-slate-400 hover:text-rose-500 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/50 transition-colors"
+                    title="Clear date filter"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+
         </div>
 
         {/* Results Bar & View Toggle */}
         <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-800 text-xs text-slate-500">
           <div className="flex items-center gap-3">
             <span>
-              Showing <strong className="text-slate-900 dark:text-slate-100">{filteredDocs.length}</strong> of {documents.length} physical records
+              Showing <strong className="text-slate-900 dark:text-slate-100">{rangeStart}–{rangeEnd}</strong> of <strong className="text-slate-900 dark:text-slate-100">{filteredDocs.length}</strong> filtered records ({documents.length} total)
             </span>
             {selectedDocIds.length > 0 && (
               <span className="text-indigo-600 dark:text-indigo-400 font-bold bg-indigo-50 dark:bg-indigo-950/80 px-2 py-0.5 rounded-lg border border-indigo-200 dark:border-indigo-800">
                 {selectedDocIds.length} item(s) selected
               </span>
             )}
+            {filteredDocs.length > 0 && selectedDocIds.length < filteredDocs.length && paginatedDocs.length > 0 && paginatedDocs.every(d => selectedDocIds.includes(d.id)) && (
+              <button
+                type="button"
+                onClick={handleSelectAllFiltered}
+                className="text-indigo-600 dark:text-indigo-400 font-semibold hover:underline"
+              >
+                Select all {filteredDocs.length} filtered
+              </button>
+            )}
           </div>
 
           <div className="flex items-center gap-1">
+            {viewMode === 'table' && (
+              <button
+                type="button"
+                onClick={() => setFrozenCol(prev => !prev)}
+                title={frozenCol ? 'Unlock Title & Subject column' : 'Lock Title & Subject column'}
+                className={`p-1.5 rounded-lg border flex items-center gap-1 text-[10px] font-semibold transition-all ${
+                  frozenCol
+                    ? 'bg-indigo-50 border-indigo-200 text-indigo-600 dark:bg-indigo-950 dark:border-indigo-800 dark:text-indigo-400'
+                    : 'border-slate-200 text-slate-400 hover:text-slate-600 dark:border-slate-700'
+                }`}
+              >
+                {frozenCol ? <Lock className="w-3.5 h-3.5" /> : <Unlock className="w-3.5 h-3.5" />}
+                <span className="hidden sm:inline">{frozenCol ? 'Locked' : 'Unlocked'}</span>
+              </button>
+            )}
             <button
               type="button"
               onClick={() => setViewMode('table')}
@@ -475,6 +631,7 @@ export const DocumentsPage: React.FC<DocumentsPageProps> = ({
       )}
 
       {/* Main Table / Grid Results View */}
+      <div ref={resultsTopRef} className="scroll-mt-24">
       {viewMode === 'table' ? (
         <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
           <div className="overflow-x-auto">
@@ -482,17 +639,17 @@ export const DocumentsPage: React.FC<DocumentsPageProps> = ({
               <thead className="bg-slate-100 dark:bg-slate-800/80 border-b border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 uppercase font-mono font-bold tracking-wider">
                 <tr>
                   {/* Select All Checkbox */}
-                  <th className="px-3 py-3.5 w-10 text-center border-r border-slate-200/80 dark:border-slate-800/80">
+                  <th className={`px-3 py-3.5 w-10 text-center border-r border-slate-200/80 dark:border-slate-800/80 ${frozenCol ? 'sticky left-0 z-30 bg-slate-100 dark:bg-slate-800/80' : ''}`}>
                     <input
                       type="checkbox"
-                      checked={filteredDocs.length > 0 && selectedDocIds.length === filteredDocs.length}
-                      onChange={handleSelectAllFiltered}
+                      checked={paginatedDocs.length > 0 && paginatedDocs.every(d => selectedDocIds.includes(d.id))}
+                      onChange={handleToggleSelectPage}
                       className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 cursor-pointer"
-                      title="Select / Deselect All Filtered"
+                      title="Select / Deselect Current Page"
                     />
                   </th>
-                  {/* Column 1: Title & Subject (Non-freezing for full responsive scrolling) */}
-                  <th className="border-r border-slate-200/80 dark:border-slate-800/80 min-w-[240px] max-w-[320px] px-4 py-3.5">
+                  {/* Column 1: Title & Subject */}
+                  <th className={`border-r border-slate-200/80 dark:border-slate-800/80 min-w-[240px] max-w-[320px] px-4 py-3.5 ${frozenCol ? 'sticky left-[40px] z-20 bg-slate-100 dark:bg-slate-800/80 shadow-[4px_0_8px_-4px_rgba(0,0,0,0.12)]' : ''}`}>
                     Title & Subject
                   </th>
                   <th className="px-4 py-3.5 min-w-[170px] whitespace-nowrap border-r border-slate-200/80 dark:border-slate-800/80">Doc & Ref #</th>
@@ -505,7 +662,7 @@ export const DocumentsPage: React.FC<DocumentsPageProps> = ({
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200/80 dark:divide-slate-800 font-medium">
-                {filteredDocs.map(doc => {
+                {paginatedDocs.map(doc => {
                   const isCheckedOut = doc.status === 'CHECKED_OUT';
                   const isSelected = selectedDocIds.includes(doc.id);
                   const parentBundle = bundles.find(b => b.documentIds.includes(doc.id) || b.id === doc.bundleId || b.bundleNumber === doc.bundleNumber);
@@ -522,7 +679,7 @@ export const DocumentsPage: React.FC<DocumentsPageProps> = ({
                     >
                       {/* Selection Checkbox */}
                       <td 
-                        className="px-3 py-3 w-10 text-center border-r border-slate-200/60 dark:border-slate-800/60"
+                        className={`px-3 py-3 w-10 text-center border-r border-slate-200/60 dark:border-slate-800/60 ${frozenCol ? `sticky left-0 z-30 ${isSelected ? 'bg-indigo-50/90 dark:bg-indigo-950/60' : 'bg-white dark:bg-slate-900 group-hover:bg-slate-50/90 dark:group-hover:bg-slate-800/60'}` : ''}`}
                         onClick={(e) => e.stopPropagation()}
                       >
                         <input
@@ -533,9 +690,9 @@ export const DocumentsPage: React.FC<DocumentsPageProps> = ({
                         />
                       </td>
 
-                      {/* Column 1: Title & Subject (Non-freezing for full responsive scrolling) */}
+                      {/* Column 1: Title & Subject */}
                       <td 
-                        className="border-r border-slate-200/80 dark:border-slate-800/80 min-w-[240px] max-w-[320px] px-4 py-3"
+                        className={`border-r border-slate-200/80 dark:border-slate-800/80 min-w-[240px] max-w-[320px] px-4 py-3 ${frozenCol ? `sticky left-[40px] z-20 shadow-[4px_0_8px_-4px_rgba(0,0,0,0.12)] ${isSelected ? 'bg-indigo-50/90 dark:bg-indigo-950/60' : 'bg-white dark:bg-slate-900 group-hover:bg-slate-50/90 dark:group-hover:bg-slate-800/60'}` : ''}`}
                         title={doc.title}
                       >
                         <div className="font-bold text-slate-900 dark:text-slate-100 text-xs sm:text-sm line-clamp-2 leading-snug group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
@@ -679,7 +836,7 @@ export const DocumentsPage: React.FC<DocumentsPageProps> = ({
       ) : (
         /* Grid Card View */
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredDocs.map(doc => {
+          {paginatedDocs.map(doc => {
             const isSelected = selectedDocIds.includes(doc.id);
             const parentBundle = bundles.find(b => b.documentIds.includes(doc.id) || b.id === doc.bundleId || b.bundleNumber === doc.bundleNumber);
 
@@ -773,6 +930,87 @@ export const DocumentsPage: React.FC<DocumentsPageProps> = ({
               </div>
             );
           })}
+        </div>
+      )}
+      </div>
+
+      {/* Pagination Controls */}
+      {filteredDocs.length > 0 && (
+        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm px-4 py-3 flex flex-col sm:flex-row items-center justify-between gap-3">
+          <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+            <span className="font-semibold">Rows per page</span>
+            <select
+              value={pageSize}
+              onChange={(e) => { setPageSize(Number(e.target.value)); setCurrentPage(1); }}
+              className="px-2 py-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg outline-none font-medium"
+            >
+              {[10, 25, 50, 100].map(n => (
+                <option key={n} value={n}>{n}</option>
+              ))}
+            </select>
+            <span className="sm:ml-2">
+              Page <strong className="text-slate-900 dark:text-slate-100">{safePage}</strong> of {totalPages}
+            </span>
+          </div>
+
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => goToPage(1)}
+              disabled={safePage === 1}
+              title="First page"
+              className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            >
+              <ChevronsLeft className="w-4 h-4" />
+            </button>
+            <button
+              type="button"
+              onClick={() => goToPage(safePage - 1)}
+              disabled={safePage === 1}
+              title="Previous page"
+              className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+
+            {getPageNumbers().map(p => (
+              typeof p === 'number' ? (
+                <button
+                  key={p}
+                  type="button"
+                  onClick={() => goToPage(p)}
+                  className={`min-w-[30px] px-2 py-1.5 rounded-lg text-xs font-bold border transition-all ${
+                    p === safePage
+                      ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
+                      : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'
+                  }`}
+                >
+                  {p}
+                </button>
+              ) : (
+                <span key={p} className="px-1 text-xs text-slate-400">…</span>
+              )
+            ))}
+
+            <button
+              type="button"
+              onClick={() => goToPage(safePage + 1)}
+              disabled={safePage === totalPages}
+              title="Next page"
+              className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+            <button
+              type="button"
+              onClick={() => goToPage(totalPages)}
+              disabled={safePage === totalPages}
+              title="Last page"
+              className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            >
+              <ChevronsRight className="w-4 h-4" />
+            </button>
+          </div>
         </div>
       )}
 

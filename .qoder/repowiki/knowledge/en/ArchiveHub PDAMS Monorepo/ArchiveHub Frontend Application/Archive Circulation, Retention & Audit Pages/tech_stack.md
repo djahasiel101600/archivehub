@@ -1,0 +1,1 @@
+React functional components with TypeScript, Tailwind CSS utility classes for styling, and Lucide React icons; state management via a custom `ArchiveContext` hook.

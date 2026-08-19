@@ -1,0 +1,5 @@
+- Location hierarchy queries are implemented as pure functions in `locationUtils.ts` that take the full `locations` array plus an id, rather than mutating or caching state inside the component.
+- Default visuals per `LocationType` are centralized in a `Record<LocationType, string>` map (`DEFAULT_TYPE_IMAGES`) and resolved through a single accessor (`getLocationImage`) instead of inline switch statements in JSX.
+- User actions that modify the store go through context dispatchers (`addLocation`, `updateLocation`, `deleteLocation`) rather than direct state writes, keeping the page read-only over its own local state.
+- Modal-driven interactions follow a consistent pattern: boolean flag + item-id state pair, conditional rendering of a fixed-position overlay, and explicit close/reset handlers that clear both flags.
+- Tree nodes are rendered recursively via a nested `renderTreeNode` function that computes children from the flat list using `getChildrenLocations` and tracks expansion with a `Set<string>` of node ids.

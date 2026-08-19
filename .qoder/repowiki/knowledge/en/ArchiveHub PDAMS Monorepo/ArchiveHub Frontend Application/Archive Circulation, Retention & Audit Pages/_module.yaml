@@ -1,0 +1,11 @@
+schema_version: 1
+module_path: frontend_app/checkouts_retention
+title: Archive Circulation, Retention & Audit Pages
+scope:
+    - src/pages/CheckoutsPage.tsx
+    - src/pages/RetentionPage.tsx
+    - src/pages/AuditLogsPage.tsx
+source_files: []
+depends_on: []
+related_to:
+    - path: frontend_app/app_shell

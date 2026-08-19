@@ -106,7 +106,11 @@ export const documents = pgTable('documents', {
   customMetadata: jsonb('custom_metadata'),
   customFieldValues: jsonb('custom_field_values'),
   conditionNotes: text('condition_notes'),
-  
+
+  bundleId: varchar('bundle_id', { length: 50 }),
+  bundleNumber: varchar('bundle_number', { length: 100 }),
+  bundleTitle: varchar('bundle_title', { length: 500 }),
+
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow()
 });
@@ -187,7 +191,27 @@ export const disposalRecords = pgTable('disposal_records', {
   notes: text('notes')
 });
 
-// 10. Audit Logs Table
+// 10. Bundles & Dossiers Table
+export const bundles = pgTable('bundles', {
+  id: varchar('id', { length: 50 }).primaryKey(),
+  bundleNumber: varchar('bundle_number', { length: 100 }).notNull().unique(),
+  title: varchar('title', { length: 500 }).notNull(),
+  description: text('description'),
+  imageUrl: text('image_url'),
+  departmentId: varchar('department_id', { length: 50 }).notNull(),
+  departmentName: varchar('department_name', { length: 255 }).notNull(),
+  locationId: varchar('location_id', { length: 50 }),
+  locationPath: text('location_path'),
+  documentIds: jsonb('document_ids').default([]),
+  status: varchar('status', { length: 50 }).notNull().default('ACTIVE'),
+  qrCode: varchar('qr_code', { length: 100 }).notNull().unique(),
+  barcode: varchar('barcode', { length: 100 }).notNull(),
+  tags: jsonb('tags').default([]),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow()
+});
+
+// 11. Audit Logs Table
 export const auditLogs = pgTable('audit_logs', {
   id: varchar('id', { length: 50 }).primaryKey(),
   userId: varchar('user_id', { length: 50 }),

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useArchive } from '../../context/ArchiveContext';
+import { ProfileModal } from '../auth/ProfileModal';
 import { 
   Archive, 
   Search, 
@@ -14,17 +15,20 @@ import {
   Info,
   LogOut,
   Settings,
-  Menu
+  Menu,
+  Truck
 } from 'lucide-react';
 
 interface HeaderProps {
   onOpenScanner: () => void;
+  onOpenBatchRelocate?: () => void;
   onOpenMobileMenu?: () => void;
   onSelectTab?: (tabId: string) => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({ 
-  onOpenScanner, 
+  onOpenScanner,
+  onOpenBatchRelocate,
   onOpenMobileMenu,
   onSelectTab 
 }) => {
@@ -44,6 +48,7 @@ export const Header: React.FC<HeaderProps> = ({
   const [showUserDropdown, setShowUserDropdown] = useState(false);
   const [showNotifDropdown, setShowNotifDropdown] = useState(false);
   const [showMobileSearch, setShowMobileSearch] = useState(false);
+  const [showProfileModal, setShowProfileModal] = useState(false);
 
   const overdueCount = checkouts.filter(c => c.status === 'OVERDUE').length;
 
@@ -141,6 +146,19 @@ export const Header: React.FC<HeaderProps> = ({
             <QrCode className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
             <span className="hidden sm:inline">Scan Tag / QR</span>
           </button>
+
+          {/* Batch Relocate Trigger */}
+          {onOpenBatchRelocate && (
+            <button
+              type="button"
+              onClick={onOpenBatchRelocate}
+              className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-2 text-xs font-semibold text-emerald-700 dark:text-emerald-300 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/60 dark:hover:bg-emerald-900/60 border border-emerald-200/80 dark:border-emerald-800 rounded-xl transition-all shadow-xs"
+              title="Batch relocate documents by scanning QR codes"
+            >
+              <Truck className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+              <span className="hidden sm:inline">Batch Relocate</span>
+            </button>
+          )}
 
           {/* Notifications Center */}
           <div className="relative">
@@ -275,6 +293,18 @@ export const Header: React.FC<HeaderProps> = ({
                   <button
                     type="button"
                     onClick={() => {
+                      setShowProfileModal(true);
+                      setShowUserDropdown(false);
+                    }}
+                    className="w-full text-left px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors flex items-center gap-2"
+                  >
+                    <UserIcon className="w-3.5 h-3.5 text-slate-400" />
+                    My Profile & Account
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
                       setActiveTab('settings');
                       if (onSelectTab) onSelectTab('settings');
                       setShowUserDropdown(false);
@@ -335,6 +365,10 @@ export const Header: React.FC<HeaderProps> = ({
             )}
           </div>
         </div>
+      )}
+      {/* My Profile Modal */}
+      {showProfileModal && (
+        <ProfileModal onClose={() => setShowProfileModal(false)} />
       )}
     </header>
   );

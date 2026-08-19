@@ -1,0 +1,40 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: archivehub-app
+    ports:
+      - "3031:3031"
+    environment:
+      NODE_ENV: production
+      # Connects to the bundled PostgreSQL service. To point at Supabase or
+      # another external database instead, override DATABASE_URL in .env and
+      # remove PGSSL (or set it to require).
+      DATABASE_URL: postgresql://archivehub:${POSTGRES_PASSWORD:-archivehub_secret}@db:5432/archivehub
+      PGSSL: disable
+      SESSION_SECRET: ${SESSION_SECRET:-change-me-to-a-long-random-string}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  db:
+    image: postgres:16-alpine
+    container_name: archivehub-db
+    environment:
+      POSTGRES_USER: archivehub
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-archivehub_secret}
+      POSTGRES_DB: archivehub
+    volumes:
+      - archivehub_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U archivehub -d archivehub"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    restart: unless-stopped
+
+volumes:
+  archivehub_pg_data:

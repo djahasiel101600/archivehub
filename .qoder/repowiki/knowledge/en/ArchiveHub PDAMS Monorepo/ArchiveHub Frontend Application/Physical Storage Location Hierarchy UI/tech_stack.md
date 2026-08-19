@@ -1,0 +1,1 @@
+React functional components with hooks, Tailwind CSS for styling, lucide-react icons, and static image assets bundled via Vite/Webpack imports.

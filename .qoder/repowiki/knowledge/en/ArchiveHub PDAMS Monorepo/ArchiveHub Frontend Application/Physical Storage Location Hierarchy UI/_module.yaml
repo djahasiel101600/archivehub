@@ -1,0 +1,11 @@
+schema_version: 1
+module_path: frontend_app/locations
+title: Physical Storage Location Hierarchy UI
+scope:
+    - src/pages/LocationsPage.tsx
+    - src/utils/locationUtils.ts
+    - src/utils/locationImages.ts
+source_files: []
+depends_on: []
+related_to:
+    - path: frontend_app/app_shell

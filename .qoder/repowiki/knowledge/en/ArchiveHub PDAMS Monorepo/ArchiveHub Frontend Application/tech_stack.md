@@ -1,0 +1,1 @@
+React + TypeScript with Vite; Tailwind CSS for styling; SQLite via the local `db/` layer; QR/barcode scanning through `components/scanner/CameraQRScannerModal`; context-driven state via `context/ArchiveContext.tsx`.

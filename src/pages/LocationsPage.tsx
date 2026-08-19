@@ -93,6 +93,26 @@ export const LocationsPage: React.FC<LocationsPageProps> = ({
   const [editParentId, setEditParentId] = useState<string | null>(null);
   const [editImageUrl, setEditImageUrl] = useState('');
 
+  // Hover preview for storage unit images
+  const [imagePreview, setImagePreview] = useState<{ src: string; title: string; x: number; y: number } | null>(null);
+
+  const PREVIEW_WIDTH = 288;
+  const PREVIEW_HEIGHT = 320;
+
+  const showImagePreview = (e: React.MouseEvent<HTMLElement>, src: string, title: string) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    let x = rect.right + 12;
+    if (x + PREVIEW_WIDTH > window.innerWidth - 8) {
+      x = rect.left - PREVIEW_WIDTH - 12;
+    }
+    if (x < 8) x = 8;
+    let y = rect.top + rect.height / 2 - PREVIEW_HEIGHT / 2;
+    y = Math.max(8, Math.min(y, window.innerHeight - PREVIEW_HEIGHT - 8));
+    setImagePreview({ src, title, x, y });
+  };
+
+  const hideImagePreview = () => setImagePreview(null);
+
   const handleOpenEditModal = (loc: LocationItem) => {
     setEditingLocation(loc);
     setEditName(loc.name || '');
@@ -510,7 +530,10 @@ export const LocationsPage: React.FC<LocationsPageProps> = ({
                                 src={getLocationImage(child)}
                                 alt={child.name}
                                 referrerPolicy="no-referrer"
-                                className="w-12 h-12 object-cover rounded-xl border border-slate-200 dark:border-slate-700 flex-shrink-0 group-hover:scale-105 transition-transform"
+                                className="w-12 h-12 object-cover rounded-xl border border-slate-200 dark:border-slate-700 flex-shrink-0 group-hover:scale-105 transition-transform cursor-zoom-in"
+                                onMouseEnter={(e) => showImagePreview(e, getLocationImage(child), `${child.code} — ${child.name}`)}
+                                onMouseLeave={hideImagePreview}
+                                onClick={hideImagePreview}
                               />
                               <div className="truncate">
                                 <span className="block font-bold text-xs text-slate-900 dark:text-slate-100 truncate group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
@@ -1006,6 +1029,26 @@ export const LocationsPage: React.FC<LocationsPageProps> = ({
           confirmText="Delete Storage Unit"
           variant="danger"
         />
+      )}
+
+      {/* Hover preview popover for storage unit images */}
+      {imagePreview && (
+        <div
+          className="fixed z-[100] pointer-events-none"
+          style={{ left: imagePreview.x, top: imagePreview.y, width: PREVIEW_WIDTH }}
+        >
+          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-2xl overflow-hidden">
+            <img
+              src={imagePreview.src}
+              alt={imagePreview.title}
+              className="w-full max-h-64 object-contain bg-slate-50 dark:bg-slate-800"
+              referrerPolicy="no-referrer"
+            />
+            <div className="px-3 py-2 text-xs font-semibold text-slate-600 dark:text-slate-300 border-t border-slate-100 dark:border-slate-800 truncate">
+              {imagePreview.title}
+            </div>
+          </div>
+        </div>
       )}
 
     </div>

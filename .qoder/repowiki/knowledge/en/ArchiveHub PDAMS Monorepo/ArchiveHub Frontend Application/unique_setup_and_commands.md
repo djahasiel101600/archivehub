@@ -1,0 +1,1 @@
+Entry point is `src/main.tsx` rendering `App.tsx`; no build-time wiring beyond standard Vite — new tabs/pages are added by importing the page component and adding a case to the `activeTab === '...'` switch inside `AppContent`.

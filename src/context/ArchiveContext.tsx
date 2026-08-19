@@ -46,9 +46,13 @@ interface ArchiveContextType {
   approveUser: (userId: string) => Promise<void>;
   rejectUser: (userId: string) => Promise<void>;
   deleteUser: (userId: string) => void;
+  updateUserProfile: (userId: string, updates: Partial<User> & { currentPassword?: string; newPassword?: string }) => Promise<{ success: boolean; message?: string }>;
 
   // Data State
   departments: Department[];
+  addDepartment: (dept: Omit<Department, 'id' | 'documentCount'>) => Promise<Department | null>;
+  updateDepartment: (id: string, updates: Partial<Department>) => Promise<void>;
+  deleteDepartment: (id: string) => Promise<boolean>;
   documentTypes: DocumentTypeInfo[];
   addDocumentType: (docType: Omit<DocumentTypeInfo, 'id'>) => Promise<DocumentTypeInfo>;
   updateDocumentType: (id: string, updates: Partial<DocumentTypeInfo>) => Promise<void>;
@@ -85,6 +89,7 @@ interface ArchiveContextType {
   updateDocument: (id: string, updates: Partial<DocumentItem>) => Promise<void>;
   deleteDocument: (id: string) => Promise<boolean>;
   moveDocument: (documentId: string, toLocationId: string, reason: string) => Promise<void>;
+  batchMoveDocuments: (documentIds: string[], toLocationId: string, reason: string) => Promise<void>;
   
   // Checkout & Return Operations
   requestCheckout: (documentId: string, purpose: string, dueDate: string) => Promise<CheckoutRecord>;
@@ -94,7 +99,7 @@ interface ArchiveContextType {
   processCheckInReturn: (checkoutId: string, conditionIn: DocumentItem['condition'], returnLocationId: string, notes?: string) => Promise<void>;
   
   // Helper Lookups
-  lookupByQR: (qrString: string) => { type: 'DOCUMENT' | 'LOCATION'; data: DocumentItem | LocationItem } | null;
+  lookupByQR: (qrString: string) => { type: 'DOCUMENT' | 'LOCATION' | 'BUNDLE'; data: DocumentItem | LocationItem | DocumentBundle } | null;
   calculatePath: (locationId: string | null) => string;
   
   // Notifications
@@ -489,6 +494,42 @@ export const ArchiveProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }
   };
 
+  const updateUserProfile = async (userId: string, updates: Partial<User> & { currentPassword?: string; newPassword?: string }): Promise<{ success: boolean; message?: string }> => {
+    try {
+      const res = await fetch(`/api/users/${userId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates)
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        const msg = data.message || 'Failed to update profile.';
+        addNotification('error', msg);
+        return { success: false, message: msg };
+      }
+
+      if (data.user) {
+        setDbUsers(prev => prev.map(u => u.id === userId ? { ...u, ...data.user } : u));
+        if (currentUser.id === userId) {
+          setCurrentUser({ ...currentUser, ...data.user });
+        }
+      }
+
+      addNotification('success', 'Your profile has been updated successfully.');
+      await fetchAllFromBackend();
+      return { success: true };
+    } catch (e: any) {
+      // Offline fallback: apply locally (password changes cannot be applied offline)
+      const { currentPassword: _cp, newPassword: _np, ...localFields } = updates;
+      setDbUsers(prev => prev.map(u => u.id === userId ? { ...u, ...localFields } : u));
+      if (currentUser.id === userId) {
+        setCurrentUser({ ...currentUser, ...localFields });
+      }
+      addNotification(_np ? 'warning' : 'success', _np ? 'Server unreachable: profile fields updated locally, but the password change was not applied.' : 'Server unreachable: profile updated locally.');
+      return { success: true };
+    }
+  };
+
   const logoutUser = () => {
     setIsAuthenticatedState(false);
     try {
@@ -555,6 +596,62 @@ export const ArchiveProvider: React.FC<{ children: React.ReactNode }> = ({ child
       await fetch(`/api/document-types/${id}`, { method: 'DELETE' });
     } catch (e) {}
     addNotification('warning', `Document Type deleted.`);
+  };
+
+  // Department Handlers
+  const addDepartment = async (deptData: Omit<Department, 'id' | 'documentCount'>): Promise<Department | null> => {
+    try {
+      const res = await fetch('/api/departments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(deptData)
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        addNotification('error', data.error || 'Failed to create department.');
+        return null;
+      }
+      setDepartments(prev => [...prev, data]);
+      addNotification('success', `Department "${data.name}" added.`);
+      return data;
+    } catch (err) {
+      const newDept: Department = { ...deptData, id: `dept-${Date.now()}`, documentCount: 0 };
+      setDepartments(prev => [...prev, newDept]);
+      addNotification('success', `Department "${newDept.name}" added.`);
+      return newDept;
+    }
+  };
+
+  const updateDepartment = async (id: string, updates: Partial<Department>): Promise<void> => {
+    setDepartments(prev => prev.map(d => d.id === id ? { ...d, ...updates } : d));
+    try {
+      await fetch(`/api/departments/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates)
+      });
+      // Refresh related records so propagated department names stay in sync
+      await fetchAllFromBackend();
+    } catch (e) {}
+    addNotification('info', `Department updated.`);
+  };
+
+  const deleteDepartment = async (id: string): Promise<boolean> => {
+    try {
+      const res = await fetch(`/api/departments/${id}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (!res.ok) {
+        addNotification('error', data.error || 'Failed to delete department.');
+        return false;
+      }
+      setDepartments(prev => prev.filter(d => d.id !== id));
+      addNotification('warning', `Department deleted.`);
+      return true;
+    } catch (err) {
+      setDepartments(prev => prev.filter(d => d.id !== id));
+      addNotification('warning', `Department deleted.`);
+      return true;
+    }
   };
 
   // Reusable Custom Field Handlers
@@ -851,6 +948,32 @@ export const ArchiveProvider: React.FC<{ children: React.ReactNode }> = ({ child
     addNotification('info', `Record #${doc.documentNumber} relocated to new storage position.`);
   };
 
+  const batchMoveDocuments = async (documentIds: string[], toLocationId: string, reason: string): Promise<void> => {
+    const toPath = calculatePath(toLocationId);
+    const fromPaths: Record<string, string> = {};
+    documentIds.forEach(id => {
+      const doc = documents.find(d => d.id === id);
+      fromPaths[id] = doc ? calculatePath(doc.currentLocationId) : 'Unknown';
+    });
+
+    // Optimistic update
+    setDocuments(prev => prev.map(d => documentIds.includes(d.id) ? { ...d, currentLocationId: toLocationId, updatedAt: new Date().toISOString() } : d));
+
+    try {
+      const res = await fetch('/api/documents/batch-move', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ documentIds, toLocationId, reason: reason || 'Batch Relocation Transfer', user: currentUser, fromPaths, toPath })
+      });
+      const result = await res.json();
+      await fetchAllFromBackend();
+      const movedCount = result.moved ?? documentIds.length;
+      addNotification('success', `Batch relocated ${movedCount} document(s) to ${toPath}.`);
+    } catch (e) {
+      addNotification('warning', `Batch relocation completed (offline mode). ${documentIds.length} document(s) updated locally.`);
+    }
+  };
+
   // Checkout Operations
   const requestCheckout = async (documentId: string, purpose: string, dueDate: string): Promise<CheckoutRecord> => {
     const doc = documents.find(d => d.id === documentId);
@@ -974,6 +1097,13 @@ export const ArchiveProvider: React.FC<{ children: React.ReactNode }> = ({ child
     );
     if (foundDoc) return { type: 'DOCUMENT' as const, data: foundDoc };
 
+    const foundBundle = bundles.find(b =>
+      b.qrCode.toLowerCase() === cleanQR ||
+      b.bundleNumber.toLowerCase() === cleanQR ||
+      b.barcode.toLowerCase() === cleanQR
+    );
+    if (foundBundle) return { type: 'BUNDLE' as const, data: foundBundle };
+
     const foundLoc = locations.find(l => 
       l.qrCode.toLowerCase() === cleanQR || 
       l.code.toLowerCase() === cleanQR || 
@@ -1001,7 +1131,11 @@ export const ArchiveProvider: React.FC<{ children: React.ReactNode }> = ({ child
         approveUser,
         rejectUser,
         deleteUser,
+        updateUserProfile,
         departments,
+        addDepartment,
+        updateDepartment,
+        deleteDepartment,
         documentTypes,
         addDocumentType,
         updateDocumentType,
@@ -1032,6 +1166,7 @@ export const ArchiveProvider: React.FC<{ children: React.ReactNode }> = ({ child
         updateDocument,
         deleteDocument,
         moveDocument,
+        batchMoveDocuments,
         requestCheckout,
         approveCheckout,
         rejectCheckout,

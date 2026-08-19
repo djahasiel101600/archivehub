@@ -1,0 +1,1 @@
+React frontend that wires authentication, a tab-based shell, shared ArchiveContext state, and per-domain pages (locations, documents, checkouts, retention, audit) into a single archive management application.

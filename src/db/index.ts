@@ -44,11 +44,21 @@ export function getPool(): pg.Pool | null {
     try {
       const isRemote = !databaseUrl.includes('localhost') && !databaseUrl.includes('127.0.0.1');
 
+      // Explicit override wins: PGSSL=disable is required for plain PostgreSQL
+      // containers (e.g. the db service in docker compose) whose hostname is
+      // neither localhost nor a Supabase host.
+      const pgssl = (process.env.PGSSL || '').toLowerCase();
+      const sslConfig = pgssl === 'disable'
+        ? false
+        : pgssl === 'require' || pgssl === 'prefer'
+          ? { rejectUnauthorized: false }
+          : (isRemote || databaseUrl.includes('supabase') || databaseUrl.includes('sslmode=require')
+              ? { rejectUnauthorized: false }
+              : false);
+
       poolInstance = new Pool({
         connectionString: databaseUrl,
-        ssl: isRemote || databaseUrl.includes('supabase') || databaseUrl.includes('sslmode=require') 
-          ? { rejectUnauthorized: false } 
-          : false,
+        ssl: sslConfig,
         connectionTimeoutMillis: 5000
       });
 

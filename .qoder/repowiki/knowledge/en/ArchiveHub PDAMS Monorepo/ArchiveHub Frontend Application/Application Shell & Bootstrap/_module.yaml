@@ -1,0 +1,12 @@
+schema_version: 1
+module_path: frontend_app/app_shell
+title: Application Shell & Bootstrap
+scope:
+    - src/App.tsx
+    - src/main.tsx
+    - src/index.css
+source_files: []
+depends_on: []
+related_to:
+    - path: frontend_app/checkouts_retention
+    - path: frontend_app/locations

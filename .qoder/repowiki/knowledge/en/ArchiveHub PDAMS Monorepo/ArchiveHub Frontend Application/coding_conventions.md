@@ -1,0 +1,5 @@
+- Pages are plain React components exported from `src/pages/` and mounted conditionally in `App.tsx` based on an `activeTab` string key managed by `ArchiveContext`.
+- Cross-page shared state (documents, locations, checkouts, auth flag) is read/written exclusively through the `useArchive()` hook from `context/ArchiveContext.tsx` rather than prop drilling.
+- Feature-specific UI fragments live under `src/components/<domain>/` (e.g., `documents/`, `scanner/`, `auth/`) while generic UI lives under `components/common/`.
+- Data access goes through the centralized `db/` repository/schema layer instead of direct fetch calls inside components.
+- Authentication gating is applied at the route level via `apiGuard.ts` / `session.ts` so unauthenticated users see `AuthPage` before any tab content.

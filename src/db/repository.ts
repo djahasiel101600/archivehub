@@ -13,6 +13,83 @@ import {
   ReusableCustomField,
   DocumentBundle
 } from '../types.js';
+import { hashPassword } from '../auth/session.js';
+
+function toStringArray(value: unknown): string[] {
+  if (Array.isArray(value)) return value.map((v) => String(v)).filter(Boolean);
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value);
+      return Array.isArray(parsed) ? parsed.map((v) => String(v)).filter(Boolean) : [];
+    } catch {
+      return value ? [value] : [];
+    }
+  }
+  return [];
+}
+
+function mapUserRow(r: any): User {
+  return {
+    id: r.id,
+    email: r.email,
+    password: r.password,
+    fullName: r.full_name,
+    role: r.role,
+    departmentId: r.department_id,
+    departmentName: r.department_name,
+    avatarUrl: r.avatar_url,
+    title: r.title,
+    approvalStatus: r.approval_status || 'APPROVED',
+    createdAt: r.created_at ? new Date(r.created_at).toISOString() : undefined
+  };
+}
+
+function mapBundleRow(r: any): DocumentBundle {
+  return {
+    id: r.id,
+    bundleNumber: r.bundle_number,
+    title: r.title,
+    description: r.description,
+    imageUrl: r.image_url,
+    departmentId: r.department_id,
+    departmentName: r.department_name,
+    locationId: r.location_id,
+    locationPath: r.location_path,
+    documentIds: toStringArray(r.document_ids),
+    status: r.status,
+    qrCode: r.qr_code,
+    barcode: r.barcode,
+    tags: toStringArray(r.tags),
+    createdAt: r.created_at ? new Date(r.created_at).toISOString() : new Date().toISOString(),
+    updatedAt: r.updated_at ? new Date(r.updated_at).toISOString() : new Date().toISOString()
+  };
+}
+
+export function applyMemorySeed(data: {
+  users: User[];
+  departments: Department[];
+  documentTypes: DocumentTypeInfo[];
+  locations: LocationItem[];
+  documents: DocumentItem[];
+  checkouts: CheckoutRecord[];
+  movements: MovementRecord[];
+  retentionPolicies: RetentionPolicy[];
+  auditLogs: AuditLogRecord[];
+  reusableCustomFields: ReusableCustomField[];
+  bundles: DocumentBundle[];
+}): void {
+  memoryUsers = data.users;
+  memoryDepartments = data.departments;
+  memoryDocumentTypes = data.documentTypes;
+  memoryLocations = data.locations;
+  memoryDocuments = data.documents;
+  memoryCheckouts = data.checkouts;
+  memoryMovements = data.movements;
+  memoryRetentionPolicies = data.retentionPolicies;
+  memoryAuditLogs = data.auditLogs;
+  memoryReusableCustomFields = data.reusableCustomFields;
+  memoryBundles = data.bundles;
+}
 
 // Fallback in-memory state when PostgreSQL is not connected
 let memoryUsers: User[] = [];
@@ -36,22 +113,24 @@ export async function getUsers(): Promise<User[]> {
   if (!isDbAvailable()) return memoryUsers;
   try {
     const res = await pgPool!.query('SELECT * FROM users ORDER BY created_at ASC');
-    return res.rows.map(r => ({
-      id: r.id,
-      email: r.email,
-      password: r.password,
-      fullName: r.full_name,
-      role: r.role,
-      departmentId: r.department_id,
-      departmentName: r.department_name,
-      avatarUrl: r.avatar_url,
-      title: r.title,
-      approvalStatus: r.approval_status || 'APPROVED',
-      createdAt: r.created_at ? new Date(r.created_at).toISOString() : undefined
-    }));
+    return res.rows.map(mapUserRow);
   } catch (err) {
     console.warn('[Repository] getUsers DB query failed, falling back to memory mode:', err);
     return memoryUsers;
+  }
+}
+
+export async function getUserById(id: string): Promise<User | null> {
+  if (!isDbAvailable()) {
+    return memoryUsers.find(u => u.id === id) || null;
+  }
+  try {
+    const res = await pgPool!.query('SELECT * FROM users WHERE id = $1 LIMIT 1', [id]);
+    if (res.rows.length === 0) return null;
+    return mapUserRow(res.rows[0]);
+  } catch (err) {
+    console.warn('[Repository] getUserById DB query failed, falling back to memory mode:', err);
+    return memoryUsers.find(u => u.id === id) || null;
   }
 }
 
@@ -63,31 +142,21 @@ export async function getUserByEmail(email: string): Promise<User | null> {
   try {
     const res = await pgPool!.query('SELECT * FROM users WHERE LOWER(email) = $1 LIMIT 1', [cleanEmail]);
     if (res.rows.length === 0) return null;
-    const r = res.rows[0];
-    return {
-      id: r.id,
-      email: r.email,
-      password: r.password,
-      fullName: r.full_name,
-      role: r.role,
-      departmentId: r.department_id,
-      departmentName: r.department_name,
-      avatarUrl: r.avatar_url,
-      title: r.title,
-      approvalStatus: r.approval_status || 'APPROVED',
-      createdAt: r.created_at ? new Date(r.created_at).toISOString() : undefined
-    };
+    return mapUserRow(res.rows[0]);
   } catch (err) {
     console.warn('[Repository] getUserByEmail DB query failed, falling back to memory mode:', err);
     return memoryUsers.find(u => u.email.toLowerCase() === cleanEmail) || null;
   }
 }
 
-export async function createUser(userData: Omit<User, 'id'>): Promise<User> {
-  const id = 'usr-reg-' + Date.now();
+export async function createUser(userData: Omit<User, 'id'> & { id?: string }): Promise<User> {
+  const id = userData.id || 'usr-reg-' + Date.now();
+  const rawPassword = userData.password || 'password123';
+  const hashed = rawPassword.startsWith('$2') ? rawPassword : hashPassword(rawPassword);
   const newUser: User = { 
     ...userData, 
     id, 
+    password: hashed,
     approvalStatus: userData.approvalStatus || 'PENDING_APPROVAL',
     createdAt: new Date().toISOString() 
   };
@@ -104,7 +173,7 @@ export async function createUser(userData: Omit<User, 'id'>): Promise<User> {
     `, [
       newUser.id,
       newUser.email.toLowerCase(),
-      newUser.password || 'password123',
+      newUser.password,
       newUser.fullName,
       newUser.role,
       newUser.departmentId,
@@ -137,22 +206,69 @@ export async function updateUserApproval(id: string, status: 'APPROVED' | 'REJEC
       [status, id]
     );
     if (res.rows.length === 0) return userInMemory || null;
-    const r = res.rows[0];
-    return {
-      id: r.id,
-      email: r.email,
-      password: r.password,
-      fullName: r.full_name,
-      role: r.role,
-      departmentId: r.department_id,
-      departmentName: r.department_name,
-      avatarUrl: r.avatar_url,
-      title: r.title,
-      approvalStatus: r.approval_status,
-      createdAt: r.created_at ? new Date(r.created_at).toISOString() : undefined
-    };
+    return mapUserRow(res.rows[0]);
   } catch (err) {
     console.warn('[Repository] updateUserApproval DB query failed, using memory:', err);
+    return userInMemory || null;
+  }
+}
+
+export async function updateUserPassword(id: string, hashedPassword: string): Promise<void> {
+  const userInMemory = memoryUsers.find(u => u.id === id);
+  if (userInMemory) userInMemory.password = hashedPassword;
+  if (!isDbAvailable()) return;
+  try {
+    await pgPool!.query('UPDATE users SET password = $1 WHERE id = $2', [hashedPassword, id]);
+  } catch (err) {
+    console.warn('[Repository] updateUserPassword failed:', err);
+  }
+}
+
+export type UserProfileUpdates = Partial<Pick<User, 'fullName' | 'email' | 'title' | 'avatarUrl' | 'departmentId' | 'departmentName'>>;
+
+export async function updateUser(id: string, updates: UserProfileUpdates): Promise<User | null> {
+  // Reject email changes that would collide with another account
+  if (updates.email !== undefined && isDbAvailable()) {
+    const dup = await pgPool!.query(
+      'SELECT COUNT(*)::int AS c FROM users WHERE LOWER(email) = $1 AND id <> $2',
+      [updates.email.trim().toLowerCase(), id]
+    );
+    if (dup.rows[0].c > 0) {
+      throw new Error('Another account with this email address already exists.');
+    }
+  }
+
+  const userInMemory = memoryUsers.find(u => u.id === id);
+  if (userInMemory) {
+    Object.assign(userInMemory, updates, updates.email !== undefined ? { email: updates.email.trim().toLowerCase() } : {});
+  }
+
+  if (!isDbAvailable()) {
+    return userInMemory || null;
+  }
+
+  try {
+    const fields: string[] = [];
+    const values: any[] = [];
+    let idx = 1;
+
+    if (updates.fullName !== undefined) { fields.push(`full_name = $${idx++}`); values.push(updates.fullName); }
+    if (updates.email !== undefined) { fields.push(`email = $${idx++}`); values.push(updates.email.trim().toLowerCase()); }
+    if (updates.title !== undefined) { fields.push(`title = $${idx++}`); values.push(updates.title || null); }
+    if (updates.avatarUrl !== undefined) { fields.push(`avatar_url = $${idx++}`); values.push(updates.avatarUrl || null); }
+    if (updates.departmentId !== undefined) { fields.push(`department_id = $${idx++}`); values.push(updates.departmentId); }
+    if (updates.departmentName !== undefined) { fields.push(`department_name = $${idx++}`); values.push(updates.departmentName); }
+
+    if (fields.length === 0) {
+      return userInMemory || await getUserById(id);
+    }
+
+    values.push(id);
+    const res = await pgPool!.query(`UPDATE users SET ${fields.join(', ')} WHERE id = $${idx} RETURNING *`, values);
+    if (res.rows.length === 0) return userInMemory || null;
+    return mapUserRow(res.rows[0]);
+  } catch (err) {
+    console.warn('[Repository] updateUser DB query failed, using memory:', err);
     return userInMemory || null;
   }
 }
@@ -187,6 +303,89 @@ export async function getDepartments(): Promise<Department[]> {
   } catch (err) {
     console.warn('[Repository] getDepartments DB query failed, using memory state:', err);
     return memoryDepartments;
+  }
+}
+
+export async function createDepartment(deptData: Omit<Department, 'id' | 'documentCount'>): Promise<Department> {
+  const id = 'dept-' + Date.now();
+  const newDept: Department = { ...deptData, id, documentCount: 0 };
+
+  if (!isDbAvailable()) {
+    memoryDepartments.push(newDept);
+    return newDept;
+  }
+
+  // Reject duplicate codes before attempting the insert
+  const dupCheck = await pgPool!.query('SELECT COUNT(*)::int AS c FROM departments WHERE code = $1', [newDept.code]);
+  if (dupCheck.rows[0].c > 0) {
+    throw new Error(`A department with code "${newDept.code}" already exists.`);
+  }
+
+  try {
+    await pgPool!.query(
+      'INSERT INTO departments (id, code, name, head_name, document_count) VALUES ($1, $2, $3, $4, 0)',
+      [newDept.id, newDept.code, newDept.name, newDept.headName]
+    );
+  } catch (err) {
+    console.warn('[Repository] createDepartment DB query failed, using memory state:', err);
+    memoryDepartments.push(newDept);
+  }
+
+  return newDept;
+}
+
+export async function updateDepartment(id: string, updates: Partial<Department>): Promise<void> {
+  if (!isDbAvailable()) {
+    memoryDepartments = memoryDepartments.map(d => d.id === id ? { ...d, ...updates } : d);
+    return;
+  }
+
+  try {
+    const fields: string[] = [];
+    const values: any[] = [];
+    let idx = 1;
+
+    if (updates.code !== undefined) { fields.push(`code = $${idx++}`); values.push(updates.code); }
+    if (updates.name !== undefined) { fields.push(`name = $${idx++}`); values.push(updates.name); }
+    if (updates.headName !== undefined) { fields.push(`head_name = $${idx++}`); values.push(updates.headName); }
+
+    if (fields.length > 0) {
+      values.push(id);
+      await pgPool!.query(`UPDATE departments SET ${fields.join(', ')} WHERE id = $${idx}`, values);
+    }
+
+    // Keep denormalized department names consistent across records
+    if (updates.name !== undefined) {
+      await pgPool!.query('UPDATE documents SET department_name = $1 WHERE department_id = $2', [updates.name, id]);
+      await pgPool!.query('UPDATE bundles SET department_name = $1 WHERE department_id = $2', [updates.name, id]);
+      await pgPool!.query('UPDATE document_types SET department_name = $1 WHERE department_id = $2', [updates.name, id]);
+      await pgPool!.query('UPDATE users SET department_name = $1 WHERE department_id = $2', [updates.name, id]);
+    }
+  } catch (err) {
+    console.warn('[Repository] updateDepartment DB query failed, updating memory:', err);
+    memoryDepartments = memoryDepartments.map(d => d.id === id ? { ...d, ...updates } : d);
+  }
+}
+
+export async function deleteDepartment(id: string): Promise<void> {
+  if (!isDbAvailable()) {
+    memoryDepartments = memoryDepartments.filter(d => d.id !== id);
+    return;
+  }
+
+  // Guard: block deletion while records, bundles or users still reference the department
+  const docRef = await pgPool!.query('SELECT COUNT(*)::int AS c FROM documents WHERE department_id = $1', [id]);
+  const bundleRef = await pgPool!.query('SELECT COUNT(*)::int AS c FROM bundles WHERE department_id = $1', [id]);
+  const userRef = await pgPool!.query('SELECT COUNT(*)::int AS c FROM users WHERE department_id = $1', [id]);
+  if (docRef.rows[0].c > 0 || bundleRef.rows[0].c > 0 || userRef.rows[0].c > 0) {
+    throw new Error(`Cannot delete this department yet: ${docRef.rows[0].c} documents, ${bundleRef.rows[0].c} bundles and ${userRef.rows[0].c} users are still assigned to it. Reassign them first.`);
+  }
+
+  try {
+    await pgPool!.query('DELETE FROM departments WHERE id = $1', [id]);
+  } catch (err) {
+    console.warn('[Repository] deleteDepartment DB query failed, updating memory:', err);
+    memoryDepartments = memoryDepartments.filter(d => d.id !== id);
   }
 }
 
@@ -244,17 +443,17 @@ export async function updateDocumentType(id: string, updates: Partial<DocumentTy
     const values: any[] = [];
     let idx = 1;
 
-    if (updates.name !== undefined) { fields.push(`name = ${idx++}`); values.push(updates.name); }
-    if (updates.code !== undefined) { fields.push(`code = ${idx++}`); values.push(updates.code); }
-    if (updates.retentionYears !== undefined) { fields.push(`retention_years = ${idx++}`); values.push(updates.retentionYears); }
-    if (updates.description !== undefined) { fields.push(`description = ${idx++}`); values.push(updates.description); }
-    if (updates.departmentId !== undefined) { fields.push(`department_id = ${idx++}`); values.push(updates.departmentId); }
-    if (updates.departmentName !== undefined) { fields.push(`department_name = ${idx++}`); values.push(updates.departmentName); }
-    if (updates.customFields !== undefined) { fields.push(`custom_fields = ${idx++}`); values.push(JSON.stringify(updates.customFields)); }
+    if (updates.name !== undefined) { fields.push(`name = $${idx++}`); values.push(updates.name); }
+    if (updates.code !== undefined) { fields.push(`code = $${idx++}`); values.push(updates.code); }
+    if (updates.retentionYears !== undefined) { fields.push(`retention_years = $${idx++}`); values.push(updates.retentionYears); }
+    if (updates.description !== undefined) { fields.push(`description = $${idx++}`); values.push(updates.description); }
+    if (updates.departmentId !== undefined) { fields.push(`department_id = $${idx++}`); values.push(updates.departmentId); }
+    if (updates.departmentName !== undefined) { fields.push(`department_name = $${idx++}`); values.push(updates.departmentName); }
+    if (updates.customFields !== undefined) { fields.push(`custom_fields = $${idx++}`); values.push(JSON.stringify(updates.customFields)); }
 
     if (fields.length > 0) {
       values.push(id);
-      await pgPool!.query(`UPDATE document_types SET ${fields.join(', ')} WHERE id = ${idx}`, values);
+      await pgPool!.query(`UPDATE document_types SET ${fields.join(', ')} WHERE id = $${idx}`, values);
     }
   } catch (err) {
     console.warn('[Repository] updateDocumentType DB query failed, updating memory:', err);
@@ -436,6 +635,7 @@ export async function getDocuments(): Promise<DocumentItem[]> {
       digitalFileSize: r.digital_file_size,
       digitalFileType: r.digital_file_type,
       digitalFileVersion: r.digital_file_version,
+      digitalFilePath: r.digital_file_path || undefined,
       customMetadata: r.custom_metadata || [],
       customFieldValues: r.custom_field_values || {},
       conditionNotes: r.condition_notes,
@@ -1260,18 +1460,18 @@ export async function updateReusableCustomField(id: string, updates: Partial<Reu
     const values: any[] = [];
     let idx = 1;
 
-    if (updates.name !== undefined) { fields.push(`name = ${idx++}`); values.push(updates.name); }
-    if (updates.label !== undefined) { fields.push(`label = ${idx++}`); values.push(updates.label); }
-    if (updates.type !== undefined) { fields.push(`type = ${idx++}`); values.push(updates.type); }
-    if (updates.options !== undefined) { fields.push(`options = ${idx++}`); values.push(JSON.stringify(updates.options)); }
-    if (updates.placeholder !== undefined) { fields.push(`placeholder = ${idx++}`); values.push(updates.placeholder); }
-    if (updates.required !== undefined) { fields.push(`required = ${idx++}`); values.push(updates.required); }
-    if (updates.description !== undefined) { fields.push(`description = ${idx++}`); values.push(updates.description); }
-    if (updates.category !== undefined) { fields.push(`category = ${idx++}`); values.push(updates.category); }
+    if (updates.name !== undefined) { fields.push(`name = $${idx++}`); values.push(updates.name); }
+    if (updates.label !== undefined) { fields.push(`label = $${idx++}`); values.push(updates.label); }
+    if (updates.type !== undefined) { fields.push(`type = $${idx++}`); values.push(updates.type); }
+    if (updates.options !== undefined) { fields.push(`options = $${idx++}`); values.push(JSON.stringify(updates.options)); }
+    if (updates.placeholder !== undefined) { fields.push(`placeholder = $${idx++}`); values.push(updates.placeholder); }
+    if (updates.required !== undefined) { fields.push(`required = $${idx++}`); values.push(updates.required); }
+    if (updates.description !== undefined) { fields.push(`description = $${idx++}`); values.push(updates.description); }
+    if (updates.category !== undefined) { fields.push(`category = $${idx++}`); values.push(updates.category); }
 
     if (fields.length > 0) {
       values.push(id);
-      await pgPool!.query(`UPDATE reusable_custom_fields SET ${fields.join(', ')} WHERE id = ${idx}`, values);
+      await pgPool!.query(`UPDATE reusable_custom_fields SET ${fields.join(', ')} WHERE id = $${idx}`, values);
     }
   } catch (err) {
     console.warn('[Repository] updateReusableCustomField DB query failed, updating memory:', err);
@@ -1297,23 +1497,7 @@ export async function getBundles(): Promise<DocumentBundle[]> {
   if (!isDbAvailable()) return memoryBundles;
   try {
     const res = await pgPool!.query('SELECT * FROM bundles ORDER BY created_at DESC');
-    return res.rows.map(r => ({
-      id: r.id,
-      bundleNumber: r.bundle_number,
-      title: r.title,
-      description: r.description,
-      departmentId: r.department_id,
-      departmentName: r.department_name,
-      locationId: r.location_id,
-      locationPath: r.location_path,
-      documentIds: r.document_ids || [],
-      status: r.status,
-      qrCode: r.qr_code,
-      barcode: r.barcode,
-      tags: r.tags || [],
-      createdAt: r.created_at ? new Date(r.created_at).toISOString() : new Date().toISOString(),
-      updatedAt: r.updated_at ? new Date(r.updated_at).toISOString() : new Date().toISOString()
-    }));
+    return res.rows.map(mapBundleRow);
   } catch (err) {
     console.warn('[Repository] getBundles DB query failed, using memory state:', err);
     return memoryBundles;
@@ -1354,10 +1538,11 @@ export async function createBundle(data: Omit<DocumentBundle, 'id' | 'createdAt'
     try {
       await client.query('BEGIN');
       await client.query(`
-        INSERT INTO bundles (id, bundle_number, title, description, department_id, department_name, location_id, location_path, document_ids, status, qr_code, barcode, tags)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+        INSERT INTO bundles (id, bundle_number, title, description, image_url, department_id, department_name, location_id, location_path, document_ids, status, qr_code, barcode, tags)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
       `, [
         newBundle.id, newBundle.bundleNumber, newBundle.title, newBundle.description || null,
+        newBundle.imageUrl || null,
         newBundle.departmentId, newBundle.departmentName, newBundle.locationId || null,
         newBundle.locationPath || null, JSON.stringify(newBundle.documentIds || []),
         newBundle.status || 'ACTIVE', newBundle.qrCode, newBundle.barcode, JSON.stringify(newBundle.tags || [])
@@ -1416,21 +1601,22 @@ export async function updateBundle(id: string, updates: Partial<DocumentBundle>,
     const values: any[] = [];
     let idx = 1;
 
-    if (updates.title !== undefined) { fields.push(`title = ${idx++}`); values.push(updates.title); }
-    if (updates.description !== undefined) { fields.push(`description = ${idx++}`); values.push(updates.description); }
-    if (updates.departmentId !== undefined) { fields.push(`department_id = ${idx++}`); values.push(updates.departmentId); }
-    if (updates.departmentName !== undefined) { fields.push(`department_name = ${idx++}`); values.push(updates.departmentName); }
-    if (updates.locationId !== undefined) { fields.push(`location_id = ${idx++}`); values.push(updates.locationId); }
-    if (updates.locationPath !== undefined) { fields.push(`location_path = ${idx++}`); values.push(updates.locationPath); }
-    if (updates.documentIds !== undefined) { fields.push(`document_ids = ${idx++}`); values.push(JSON.stringify(updates.documentIds)); }
-    if (updates.status !== undefined) { fields.push(`status = ${idx++}`); values.push(updates.status); }
-    if (updates.tags !== undefined) { fields.push(`tags = ${idx++}`); values.push(JSON.stringify(updates.tags)); }
+    if (updates.title !== undefined) { fields.push(`title = $${idx++}`); values.push(updates.title); }
+    if (updates.description !== undefined) { fields.push(`description = $${idx++}`); values.push(updates.description); }
+    if (updates.imageUrl !== undefined) { fields.push(`image_url = $${idx++}`); values.push(updates.imageUrl); }
+    if (updates.departmentId !== undefined) { fields.push(`department_id = $${idx++}`); values.push(updates.departmentId); }
+    if (updates.departmentName !== undefined) { fields.push(`department_name = $${idx++}`); values.push(updates.departmentName); }
+    if (updates.locationId !== undefined) { fields.push(`location_id = $${idx++}`); values.push(updates.locationId); }
+    if (updates.locationPath !== undefined) { fields.push(`location_path = $${idx++}`); values.push(updates.locationPath); }
+    if (updates.documentIds !== undefined) { fields.push(`document_ids = $${idx++}`); values.push(JSON.stringify(updates.documentIds)); }
+    if (updates.status !== undefined) { fields.push(`status = $${idx++}`); values.push(updates.status); }
+    if (updates.tags !== undefined) { fields.push(`tags = $${idx++}`); values.push(JSON.stringify(updates.tags)); }
 
     fields.push(`updated_at = NOW()`);
 
     if (fields.length > 0) {
       values.push(id);
-      await pgPool!.query(`UPDATE bundles SET ${fields.join(', ')} WHERE id = ${idx}`, values);
+      await pgPool!.query(`UPDATE bundles SET ${fields.join(', ')} WHERE id = $${idx}`, values);
     }
   } catch (err) {
     console.warn('[Repository] updateBundle DB query failed, updating memory:', err);

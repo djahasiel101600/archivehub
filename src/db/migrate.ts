@@ -251,6 +251,7 @@ export async function runMigrations(): Promise<void> {
         bundle_number VARCHAR(100) NOT NULL UNIQUE,
         title VARCHAR(500) NOT NULL,
         description TEXT,
+        image_url TEXT,
         department_id VARCHAR(50) NOT NULL,
         department_name VARCHAR(255) NOT NULL,
         location_id VARCHAR(50),
@@ -263,6 +264,10 @@ export async function runMigrations(): Promise<void> {
         created_at TIMESTAMPTZ DEFAULT NOW(),
         updated_at TIMESTAMPTZ DEFAULT NOW()
       );
+    `);
+
+    await client.query(`
+ALTER TABLE bundles ADD COLUMN IF NOT EXISTS image_url TEXT;
     `);
 
     await client.query('COMMIT');
