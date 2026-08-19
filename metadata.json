@@ -1,0 +1,6 @@
+{
+  "name": "ArchiveHub",
+  "description": "Physical & Digital Archive Management System (PDAMS) for tracking records, locations, checkouts, and lifecycle retention.",
+  "requestFramePermissions": ["camera"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

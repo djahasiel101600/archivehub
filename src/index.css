@@ -1,0 +1,22 @@
+@import "tailwindcss";
+
+@media print {
+  body {
+    background: #ffffff !important;
+    color: #000000 !important;
+  }
+
+  /* Hide navigation, headers, sidebars, and non-printable overlays */
+  header, nav, aside, .no-print, button, input, select {
+    display: none !important;
+  }
+
+  /* Ensure print targets are visible and have proper page-break behavior */
+  .printable-area, #printable-tag-sheet {
+    display: block !important;
+    visibility: visible !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+}
