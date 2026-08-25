@@ -8,6 +8,14 @@
 - [types.ts](file://src/types.ts)
 </cite>
 
+## Update Summary
+**Changes Made**
+- Enhanced user profile management with comprehensive update methods including email validation and password updates
+- Added complete department CRUD operations with dependency checking and cascade updates
+- Implemented advanced batch processing capabilities for bundle operations and document associations
+- Strengthened security measures with parameterized queries throughout all repository methods
+- Added comprehensive data backup and restore functionality with transactional integrity
+
 ## Table of Contents
 1. [Introduction](#introduction)
 2. [Project Structure](#project-structure)
@@ -20,7 +28,7 @@
 9. [Conclusion](#conclusion)
 
 ## Introduction
-This document explains ArchiveHub’s repository pattern implementation for data access. The repository layer abstracts database operations behind a clean, typed interface and provides CRUD methods, complex queries, and transaction handling across multiple entities (users, departments, document types, locations, documents, checkouts, movements, retention policies, disposal records, bundles, reusable custom fields, and audit logs). It also details connection management via a PostgreSQL pool, the use of Drizzle ORM for type-safe schema definitions, and strategies for query optimization, caching, and error handling.
+This document explains ArchiveHub's repository pattern implementation for data access. The repository layer abstracts database operations behind a clean, typed interface and provides CRUD methods, complex queries, and transaction handling across multiple entities (users, departments, document types, locations, documents, checkouts, movements, retention policies, disposal records, bundles, reusable custom fields, and audit logs). It also details connection management via a PostgreSQL pool, the use of Drizzle ORM for type-safe schema definitions, and strategies for query optimization, caching, and error handling.
 
 ## Project Structure
 The data access layer is organized into three primary files:
@@ -63,10 +71,10 @@ Key responsibilities:
 - Auditing: Consistent creation of audit log entries for critical actions.
 
 **Section sources**
-- [repository.ts:1-1597](file://src/db/repository.ts#L1-L1597)
-- [index.ts:1-136](file://src/db/index.ts#L1-L136)
-- [schema.ts:1-228](file://src/db/schema.ts#L1-L228)
-- [types.ts:1-283](file://src/types.ts#L1-L283)
+- [repository.ts:1-1839](file://src/db/repository.ts#L1-L1839)
+- [index.ts:1-146](file://src/db/index.ts#L1-L146)
+- [schema.ts:1-229](file://src/db/schema.ts#L1-L229)
+- [types.ts:1-284](file://src/types.ts#L1-L284)
 
 ## Architecture Overview
 The repository layer sits between application logic and persistence. It uses a PostgreSQL pool for durable storage and falls back to in-memory arrays when the database is unavailable. Drizzle ORM is configured with the schema for type safety, while many repository methods still use parameterized SQL queries for performance and flexibility.
@@ -107,28 +115,40 @@ Optimization notes:
 
 **Section sources**
 - [index.ts:16-95](file://src/db/index.ts#L16-L95)
-- [index.ts:97-136](file://src/db/index.ts#L97-L136)
+- [index.ts:97-146](file://src/db/index.ts#L97-L146)
 
 ### Entity Repositories and Methods
 
-#### Users
+#### Users - Enhanced Profile Management
 - Read: List users, find by ID, find by email (normalized).
 - Create: Hashes password if needed, sets default approval status, persists to DB or memory.
-- Update: Approval status and password updates with fallback behavior.
+- Update: Comprehensive profile updates with email collision detection, partial field updates, and timestamp management.
 - Delete: Removes user from DB or memory.
+- Approval Management: Dedicated methods for approving/rejecting user accounts with status transitions.
+- Password Management: Secure password updates with proper hashing.
 
 Security and validation:
 - Email normalization reduces case-sensitivity issues.
 - Password hashing is applied before storage.
+- Email collision detection prevents duplicate accounts.
+- Partial updates only modify specified fields for efficiency.
 
 **Section sources**
-- [repository.ts:111-239](file://src/db/repository.ts#L111-L239)
+- [repository.ts:111-289](file://src/db/repository.ts#L111-L289)
 
-#### Departments
-- Read: List departments ordered by name.
+#### Departments - Complete CRUD Operations
+- Read: List departments ordered by name with denormalized information.
+- Create: Generates unique IDs, validates uniqueness of codes, persists to DB or memory.
+- Update: Dynamic field updates with cascade updates to maintain consistency across related tables.
+- Delete: Validates no dependencies exist before deletion (documents, bundles, users).
+
+Enhanced features:
+- Dependency checking prevents orphaned references.
+- Cascade updates maintain denormalized department names across all related tables.
+- Transactional integrity for complex update operations.
 
 **Section sources**
-- [repository.ts:241-257](file://src/db/repository.ts#L241-L257)
+- [repository.ts:291-390](file://src/db/repository.ts#L291-L390)
 
 #### Document Types
 - Read: List document types with custom fields.
@@ -137,7 +157,7 @@ Security and validation:
 - Delete: Removes document type.
 
 **Section sources**
-- [repository.ts:259-342](file://src/db/repository.ts#L259-L342)
+- [repository.ts:392-475](file://src/db/repository.ts#L392-L475)
 
 #### Locations
 - Read: List locations with hierarchical support.
@@ -146,7 +166,7 @@ Security and validation:
 - Delete: Validates no child locations or dependent documents exist before deletion.
 
 **Section sources**
-- [repository.ts:344-468](file://src/db/repository.ts#L344-L468)
+- [repository.ts:477-601](file://src/db/repository.ts#L477-L601)
 
 #### Documents
 - Read: List documents with full metadata mapping.
@@ -160,7 +180,7 @@ Complexity considerations:
 - Transactions ensure consistency across related tables.
 
 **Section sources**
-- [repository.ts:470-804](file://src/db/repository.ts#L470-L804)
+- [repository.ts:603-937](file://src/db/repository.ts#L603-L937)
 
 #### Checkouts
 - Read: List checkouts ordered by creation time.
@@ -173,19 +193,19 @@ Transaction patterns:
 - Each workflow uses BEGIN/COMMIT/ROLLBACK to maintain integrity across multiple table updates.
 
 **Section sources**
-- [repository.ts:806-1122](file://src/db/repository.ts#L806-L1122)
+- [repository.ts:939-1255](file://src/db/repository.ts#L939-L1255)
 
 #### Movements
 - Read: List movements with timestamps normalized to ISO strings.
 
 **Section sources**
-- [repository.ts:1124-1150](file://src/db/repository.ts#L1124-L1150)
+- [repository.ts:1257-1283](file://src/db/repository.ts#L1257-L1283)
 
 #### Retention Policies
 - Read: List policies sorted by document type name.
 
 **Section sources**
-- [repository.ts:1152-1169](file://src/db/repository.ts#L1152-L1169)
+- [repository.ts:1285-1302](file://src/db/repository.ts#L1285-L1302)
 
 #### Disposal Records
 - Note: No explicit repository methods were found in the analyzed file; schema exists for modeling disposal records.
@@ -193,7 +213,7 @@ Transaction patterns:
 **Section sources**
 - [schema.ts:179-192](file://src/db/schema.ts#L179-L192)
 
-#### Bundles and Dossiers
+#### Bundles and Dossiers - Advanced Batch Processing
 - Read: List bundles with mapped fields.
 - Create: Inserts bundle, optionally links multiple documents in one batch update, and creates an audit log entry.
 - Update: Supports partial updates including JSONB arrays for document IDs and tags.
@@ -202,9 +222,10 @@ Transaction patterns:
 
 Batch operations:
 - Uses ANY(array) to update multiple documents in a single statement for performance.
+- Transactional integrity ensures all document associations are updated consistently.
 
 **Section sources**
-- [repository.ts:1362-1596](file://src/db/repository.ts#L1362-L1596)
+- [repository.ts:1495-1731](file://src/db/repository.ts#L1495-L1731)
 
 #### Reusable Custom Fields
 - Read: List custom fields with defaults.
@@ -213,14 +234,14 @@ Batch operations:
 - Delete: Removes field.
 
 **Section sources**
-- [repository.ts:1266-1360](file://src/db/repository.ts#L1266-L1360)
+- [repository.ts:1399-1493](file://src/db/repository.ts#L1399-L1493)
 
 #### Audit Logs
 - Read: List logs with normalized timestamps.
 - Create: Persists audit entries with optional before/after values.
 
 **Section sources**
-- [repository.ts:1171-1217](file://src/db/repository.ts#L1171-L1217)
+- [repository.ts:1304-1350](file://src/db/repository.ts#L1304-L1350)
 
 ### Data Validation, Sanitization, and Security
 - Input sanitization:
@@ -230,14 +251,19 @@ Batch operations:
   - Parameterized queries prevent SQL injection across all repository methods.
   - Password hashing before storage.
   - Strict status transitions enforced by repository logic during checkout lifecycles.
+  - Email collision detection prevents duplicate accounts.
+  - Dependency validation prevents orphaned references.
 - Validation:
   - Pre-checks before deletions (e.g., locations with children or dependencies).
   - Status guards (e.g., preventing deletion of checked-out documents).
+  - Department dependency checking before deletion.
 
 **Section sources**
 - [repository.ts:18-29](file://src/db/repository.ts#L18-L29)
 - [repository.ts:136-149](file://src/db/repository.ts#L136-L149)
 - [repository.ts:151-189](file://src/db/repository.ts#L151-L189)
+- [repository.ts:230-239](file://src/db/repository.ts#L230-L239)
+- [repository.ts:376-382](file://src/db/repository.ts#L376-L382)
 - [repository.ts:441-468](file://src/db/repository.ts#L441-L468)
 - [repository.ts:717-740](file://src/db/repository.ts#L717-L740)
 
@@ -277,6 +303,7 @@ Limitations:
   - Checkout request updates both checkout and document status.
   - Checkout dispatch and return involve multiple updates and movement records.
   - Bundle create/delete/unlink operations are transactional.
+  - Data import/export operations run as single transactions.
 - Error handling:
   - On exception, transactions roll back and errors propagate to callers.
   - Fallback to in-memory state occurs only when the entire operation cannot proceed against the database.
@@ -300,6 +327,15 @@ Rollback --> End
 - [repository.ts:1054-1122](file://src/db/repository.ts#L1054-L1122)
 - [repository.ts:1374-1456](file://src/db/repository.ts#L1374-L1456)
 - [repository.ts:1492-1526](file://src/db/repository.ts#L1492-L1526)
+
+### Data Backup and Restore Capabilities
+- Export functionality: Exports all data from whitelisted tables in a standardized format.
+- Import functionality: Restores data with transactional integrity and chunked processing.
+- Safety measures: Whitelisted table set prevents unauthorized table access.
+- Performance optimization: Chunked inserts handle large datasets efficiently.
+
+**Section sources**
+- [repository.ts:1733-1839](file://src/db/repository.ts#L1733-L1839)
 
 ## Dependency Analysis
 The repository depends on:
@@ -325,13 +361,13 @@ Repo --> Auth
 - [repository.ts:1-16](file://src/db/repository.ts#L1-L16)
 - [index.ts:1-7](file://src/db/index.ts#L1-L7)
 - [schema.ts:1-10](file://src/db/schema.ts#L1-L10)
-- [types.ts:1-283](file://src/types.ts#L1-L283)
+- [types.ts:1-284](file://src/types.ts#L1-L284)
 
 **Section sources**
 - [repository.ts:1-16](file://src/db/repository.ts#L1-L16)
 - [index.ts:1-7](file://src/db/index.ts#L1-L7)
 - [schema.ts:1-10](file://src/db/schema.ts#L1-L10)
-- [types.ts:1-283](file://src/types.ts#L1-L283)
+- [types.ts:1-284](file://src/types.ts#L1-L284)
 
 ## Performance Considerations
 - Connection pooling:
@@ -344,13 +380,13 @@ Repo --> Auth
   - Dynamic field construction reduces write payloads.
 - In-memory fallback:
   - Useful for development and resilience but should not be relied upon for production caching due to lack of persistence and concurrency controls.
+- Chunked processing:
+  - Large dataset imports use chunked inserts to stay within driver parameter limits.
 
 Recommendations:
 - Add database indexes for high-frequency filters and joins.
 - Consider query plans for large datasets and adjust pagination accordingly.
 - Monitor pool metrics and tune max connections based on workload.
-
-[No sources needed since this section provides general guidance]
 
 ## Troubleshooting Guide
 Common issues and resolutions:
@@ -362,19 +398,23 @@ Common issues and resolutions:
   - Repository methods fall back to in-memory state; inspect logs for warnings and fix underlying SQL or schema mismatches.
 - Deletion constraints:
   - Location deletion blocked if children or dependent documents exist; resolve references before deletion.
+  - Department deletion blocked if documents, bundles, or users still reference it; reassign them first.
 - Checkout state inconsistencies:
   - Ensure transactions complete successfully; check rollback logs and validate status transitions.
+- Email conflicts:
+  - User profile updates reject emails that collide with existing accounts.
 
 Operational tips:
 - Use clearCustomDataFromDb to reset test environments safely.
 - Validate inputs early to avoid costly transaction rollbacks.
+- Monitor transaction logs for failed operations that fell back to memory mode.
 
 **Section sources**
-- [index.ts:97-136](file://src/db/index.ts#L97-L136)
+- [index.ts:97-146](file://src/db/index.ts#L97-L146)
+- [repository.ts:376-382](file://src/db/repository.ts#L376-L382)
 - [repository.ts:441-468](file://src/db/repository.ts#L441-L468)
 - [repository.ts:1219-1264](file://src/db/repository.ts#L1219-L1264)
+- [repository.ts:1352-1397](file://src/db/repository.ts#L1352-L1397)
 
 ## Conclusion
-ArchiveHub’s repository pattern delivers a resilient, type-safe data access layer that abstracts database interactions behind a consistent API. It combines PostgreSQL connection pooling, Drizzle schema definitions, and robust fallback mechanisms to ensure reliability. Transactional workflows maintain data integrity across complex operations, while parameterized queries and selective updates optimize performance and security. For production deployments, consider adding indexes, monitoring pool health, and replacing in-memory fallbacks with proper caching layers.
-
-[No sources needed since this section summarizes without analyzing specific files]
+ArchiveHub's repository pattern delivers a resilient, type-safe data access layer that abstracts database interactions behind a consistent API. It combines PostgreSQL connection pooling, Drizzle schema definitions, and robust fallback mechanisms to ensure reliability. The enhanced user profile management, complete department CRUD operations, advanced batch processing capabilities, and strengthened security measures provide a comprehensive foundation for archive management operations. Transactional workflows maintain data integrity across complex operations, while parameterized queries and selective updates optimize performance and security. For production deployments, consider adding indexes, monitoring pool health, and replacing in-memory fallbacks with proper caching layers.

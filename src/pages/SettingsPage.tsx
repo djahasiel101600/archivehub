@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useArchive } from '../context/ArchiveContext';
 import { 
   Settings, 
@@ -64,7 +64,9 @@ export const SettingsPage: React.FC = () => {
     addNotification,
     dbHealth,
     refreshDbHealth,
-    reseedDatabase
+    reseedDatabase,
+    exportAllData,
+    importAllData
   } = useArchive();
 
   // Create Document Type State
@@ -320,26 +322,58 @@ export const SettingsPage: React.FC = () => {
     }
   };
 
-  const handleExportJSON = () => {
-    const dataObj = {
-      exportDate: new Date().toISOString(),
-      locations,
-      documents,
-      checkouts,
-      movements,
-      auditLogs,
-      registeredUsers
-    };
+  // Data Backup & Restore State
+  const importFileRef = useRef<HTMLInputElement>(null);
+  const [pendingImport, setPendingImport] = useState<{ payload: any; fileName: string } | null>(null);
+  const [isExporting, setIsExporting] = useState(false);
+  const [isImporting, setIsImporting] = useState(false);
 
-    const jsonStr = JSON.stringify(dataObj, null, 2);
-    const blob = new Blob([jsonStr], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `ArchiveHub_Database_Backup_${new Date().toISOString().split('T')[0]}.json`;
-    link.click();
-    URL.revokeObjectURL(url);
-    addNotification('success', 'Database backup exported successfully.');
+  const handleExportFullBackup = async () => {
+    setIsExporting(true);
+    const res = await exportAllData();
+    setIsExporting(false);
+    if (res.success && res.blob) {
+      const url = URL.createObjectURL(res.blob);
+      const link = document.createElement('a');
+      const stamp = new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-');
+      link.href = url;
+      link.download = `archivehub-backup-${stamp}.json`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+      addNotification('success', 'Full database backup downloaded.');
+    }
+  };
+
+  const handleImportFileSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const payload = JSON.parse(text);
+      if (payload?.format !== 'archivehub-export' || typeof payload.tables !== 'object' || payload.tables === null) {
+        addNotification('error', 'Invalid backup file: expected an ArchiveHub export JSON produced by "Export Full Backup".');
+        return;
+      }
+      setPendingImport({ payload, fileName: file.name });
+    } catch {
+      addNotification('error', 'Could not read the selected file: it is not valid JSON.');
+    }
+  };
+
+  const confirmImportRestore = async () => {
+    if (!pendingImport) return;
+    setIsImporting(true);
+    const res = await importAllData(pendingImport.payload);
+    setIsImporting(false);
+    setPendingImport(null);
+    if (res.success) {
+      const counts: Record<string, number> = res.counts || {};
+      const total = Object.values(counts).reduce((sum, n) => sum + n, 0);
+      addNotification('success', `Backup restored successfully: ${total} records imported across all tables.`);
+    }
   };
 
   return (
@@ -467,22 +501,41 @@ export const SettingsPage: React.FC = () => {
             <div className="flex items-center gap-2">
               <Database className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
               <h3 className="font-bold text-slate-900 dark:text-slate-100 text-sm">
-                Database Records & Backup Export
+                Database Records & Backup Management
               </h3>
             </div>
             <p className="text-xs text-slate-500 dark:text-slate-400 max-w-2xl">
-              System live catalog metrics across physical archive storage hierarchies, document registrations, and circulation records.
+              Export a full backup of every table (documents, locations, bundles, users, checkouts, movements, audit logs, and settings) or restore the database from a previously exported backup file.
             </p>
           </div>
 
-          <button
-            type="button"
-            onClick={handleExportJSON}
-            className="inline-flex items-center gap-1.5 px-4 py-2 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 text-xs font-bold rounded-xl transition-colors border border-indigo-200/80 dark:border-indigo-800 shadow-sm"
-          >
-            <Download className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
-            Export Database JSON Backup
-          </button>
+          <div className="flex flex-wrap items-center gap-2">
+            <input
+              ref={importFileRef}
+              type="file"
+              accept="application/json,.json"
+              className="hidden"
+              onChange={handleImportFileSelected}
+            />
+            <button
+              type="button"
+              onClick={handleExportFullBackup}
+              disabled={isExporting}
+              className="inline-flex items-center gap-1.5 px-4 py-2 bg-indigo-50 hover:bg-indigo-100 disabled:opacity-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 text-xs font-bold rounded-xl transition-colors border border-indigo-200/80 dark:border-indigo-800 shadow-sm"
+            >
+              <Download className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+              {isExporting ? 'Preparing Export...' : 'Export Full Backup'}
+            </button>
+            <button
+              type="button"
+              onClick={() => importFileRef.current?.click()}
+              disabled={isImporting}
+              className="inline-flex items-center gap-1.5 px-4 py-2 bg-amber-50 hover:bg-amber-100 disabled:opacity-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 text-xs font-bold rounded-xl transition-colors border border-amber-200/80 dark:border-amber-800 shadow-sm"
+            >
+              <Upload className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+              {isImporting ? 'Restoring...' : 'Import / Restore Backup'}
+            </button>
+          </div>
         </div>
 
         {/* Dataset Details & Stats */}
@@ -1430,6 +1483,17 @@ export const SettingsPage: React.FC = () => {
         title="Delete Reusable Custom Field"
         message={`Are you sure you want to remove "${rcfToDelete?.name || ''}" from the Reusable Fields Library? Existing document types already using this field will retain their field definition.`}
         confirmText="Delete from Library"
+        variant="danger"
+      />
+
+      {/* Import / Restore Backup Confirmation Modal */}
+      <ConfirmModal
+        isOpen={Boolean(pendingImport)}
+        onClose={() => { if (!isImporting) setPendingImport(null); }}
+        onConfirm={confirmImportRestore}
+        title="Restore Database from Backup"
+        message={`You are about to import "${pendingImport?.fileName || ''}". This will completely REPLACE all current data (documents, locations, bundles, users, checkouts, movements, audit logs, and settings) with the contents of the backup file. This action cannot be undone. Do you want to continue?`}
+        confirmText={isImporting ? 'Restoring...' : 'Yes, Restore Backup'}
         variant="danger"
       />
 

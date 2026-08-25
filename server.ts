@@ -15,6 +15,19 @@ async function startServer() {
   const app = express();
   const PORT = 3031;
 
+  // Full-database restore endpoint. Registered before the default JSON parser so
+  // backup files larger than the standard 10 MB body limit are accepted.
+  app.post("/api/import", express.json({ limit: "200mb" }), async (req, res) => {
+    try {
+      const counts = await repo.importAllData(req.body);
+      res.json({ success: true, counts });
+    } catch (err: any) {
+      const message = err?.message || "Import failed.";
+      const status = message.includes("Invalid backup file") ? 400 : 500;
+      res.status(status).json({ success: false, message });
+    }
+  });
+
   app.use(express.json({ limit: "10mb" }));
 
   // Check PostgreSQL health and auto-run migrations & seed on server startup
@@ -126,6 +139,16 @@ async function startServer() {
       res.json(users.map(sanitizeUser));
     } catch (err: any) {
       res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Full-database backup export (all tables as raw rows)
+  app.get("/api/export", async (req, res) => {
+    try {
+      const payload = await repo.exportAllData();
+      res.json(payload);
+    } catch (err: any) {
+      res.status(500).json({ success: false, message: err.message });
     }
   });
 

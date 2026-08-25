@@ -47,6 +47,9 @@ interface ArchiveContextType {
   rejectUser: (userId: string) => Promise<void>;
   deleteUser: (userId: string) => void;
   updateUserProfile: (userId: string, updates: Partial<User> & { currentPassword?: string; newPassword?: string }) => Promise<{ success: boolean; message?: string }>;
+  // Data Backup & Restore
+  exportAllData: () => Promise<{ success: boolean; message?: string; blob?: Blob }>;
+  importAllData: (payload: any) => Promise<{ success: boolean; message?: string; counts?: Record<string, number> }>;
 
   // Data State
   departments: Department[];
@@ -351,6 +354,46 @@ export const ArchiveProvider: React.FC<{ children: React.ReactNode }> = ({ child
       setIsAuthenticatedState(true);
       addNotification('success', `Signed in as ${foundUser.fullName} (${foundUser.role}).`);
       return { success: true, user: foundUser };
+    }
+  };
+
+  // --- DATA BACKUP & RESTORE ---
+  const exportAllData = async (): Promise<{ success: boolean; message?: string; blob?: Blob }> => {
+    try {
+      const res = await fetch('/api/export');
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        const msg = data?.message || `Export failed (HTTP ${res.status}).`;
+        addNotification('error', msg);
+        return { success: false, message: msg };
+      }
+      const blob = await res.blob();
+      return { success: true, blob };
+    } catch (e: any) {
+      addNotification('error', `Export request failed: ${e.message}`);
+      return { success: false, message: e.message };
+    }
+  };
+
+  const importAllData = async (payload: any): Promise<{ success: boolean; message?: string; counts?: Record<string, number> }> => {
+    try {
+      const res = await fetch('/api/import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data?.success) {
+        const msg = data?.message || `Import failed (HTTP ${res.status}).`;
+        addNotification('error', msg);
+        return { success: false, message: msg };
+      }
+      // Backup replaced the entire database: resync every entity collection.
+      await fetchAllFromBackend();
+      return { success: true, counts: data.counts };
+    } catch (e: any) {
+      addNotification('error', `Import request failed: ${e.message}`);
+      return { success: false, message: e.message };
     }
   };
 
@@ -1132,6 +1175,8 @@ export const ArchiveProvider: React.FC<{ children: React.ReactNode }> = ({ child
         rejectUser,
         deleteUser,
         updateUserProfile,
+        exportAllData,
+        importAllData,
         departments,
         addDepartment,
         updateDepartment,

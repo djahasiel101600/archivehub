@@ -1729,3 +1729,110 @@ export async function removeDocumentFromBundle(bundleId: string, docId: string, 
     });
   }
 }
+
+// --- DATA BACKUP & RESTORE ---
+// Whitelisted table set: export dumps and import restores operate only on these
+// tables, always using raw snake_case rows (the canonical storage format).
+export const BACKUP_TABLES = [
+  'departments',
+  'users',
+  'document_types',
+  'reusable_custom_fields',
+  'locations',
+  'documents',
+  'bundles',
+  'checkouts',
+  'movements',
+  'retention_policies',
+  'disposal_records',
+  'audit_logs'
+] as const;
+
+export interface BackupPayload {
+  format: 'archivehub-export';
+  version: number;
+  exportedAt: string;
+  tables: Record<string, any[]>;
+}
+
+export async function exportAllData(): Promise<BackupPayload> {
+  if (!isDbAvailable()) {
+    throw new Error('Data export requires a connected PostgreSQL database. The server is currently running in memory fallback mode.');
+  }
+
+  const tables: Record<string, any[]> = {};
+  for (const table of BACKUP_TABLES) {
+    const res = await pgPool!.query(`SELECT * FROM ${table}`);
+    tables[table] = res.rows;
+  }
+
+  return {
+    format: 'archivehub-export',
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    tables
+  };
+}
+
+export async function importAllData(payload: any): Promise<Record<string, number>> {
+  if (!isDbAvailable()) {
+    throw new Error('Data import requires a connected PostgreSQL database. The server is currently running in memory fallback mode.');
+  }
+
+  if (!payload || payload.format !== 'archivehub-export' || typeof payload.tables !== 'object' || payload.tables === null) {
+    throw new Error('Invalid backup file: expected an ArchiveHub export JSON produced by "Export Full Backup".');
+  }
+
+  const counts: Record<string, number> = {};
+  const client = await pgPool!.connect();
+  try {
+    // Full restore runs as one transaction: either every table is replaced or nothing changes.
+    await client.query('BEGIN');
+
+    for (const table of BACKUP_TABLES) {
+      await client.query(`DELETE FROM ${table}`);
+
+      const rows = Array.isArray(payload.tables[table]) ? payload.tables[table] : [];
+      counts[table] = rows.length;
+      if (rows.length === 0) continue;
+
+      // Insert only columns that actually exist on the table (extra keys in the file are ignored)
+      const probe = await client.query(`SELECT * FROM ${table} LIMIT 0`);
+      const cols = probe.fields.map(f => f.name);
+      // pg type OIDs: json = 114, jsonb = 3802. Values for these columns must be sent
+      // as serialized JSON text (scalar JSON values cannot round-trip as raw params).
+      const jsonCols = new Set(probe.fields.filter(f => f.dataTypeID === 114 || f.dataTypeID === 3802).map(f => f.name));
+
+      // Chunked multi-row insert to stay comfortably under the driver parameter limit
+      const CHUNK = 500;
+      for (let i = 0; i < rows.length; i += CHUNK) {
+        const chunk = rows.slice(i, i + CHUNK);
+        const values: any[] = [];
+        const rowPlaceholders: string[] = [];
+        let idx = 1;
+        for (const row of chunk) {
+          const ph: string[] = [];
+          for (const c of cols) {
+            ph.push(`$${idx++}`);
+            const raw = row && typeof row === 'object' && (row as any)[c] !== undefined ? (row as any)[c] : null;
+            values.push(jsonCols.has(c) && raw !== null ? JSON.stringify(raw) : raw);
+          }
+          rowPlaceholders.push(`(${ph.join(', ')})`);
+        }
+        await client.query(
+          `INSERT INTO ${table} (${cols.join(', ')}) VALUES ${rowPlaceholders.join(', ')}`,
+          values
+        );
+      }
+    }
+
+    await client.query('COMMIT');
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+
+  return counts;
+}
