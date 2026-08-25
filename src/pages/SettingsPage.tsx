@@ -30,7 +30,7 @@ import {
   UserCheck,
   UserX
 } from 'lucide-react';
-import { RoleCode, Department } from '../types';
+import { RoleCode, Department, DocumentTypeInfo, CustomFieldDefinition, CustomFieldType } from '../types';
 import { ConfirmModal } from '../components/common/ConfirmModal';
 
 export const SettingsPage: React.FC = () => {
@@ -106,6 +106,71 @@ export const SettingsPage: React.FC = () => {
     setNewDtRetentionYears(5);
     setNewDtDeptId('ALL');
     setShowCreateDocTypeModal(false);
+  };
+
+  // Edit Document Type State (existing custom field types are locked)
+  const [editingDocType, setEditingDocType] = useState<DocumentTypeInfo | null>(null);
+  const [editDtName, setEditDtName] = useState('');
+  const [editDtCode, setEditDtCode] = useState('');
+  const [editDtDescription, setEditDtDescription] = useState('');
+  const [editDtRetentionYears, setEditDtRetentionYears] = useState(5);
+  const [editDtDeptId, setEditDtDeptId] = useState<string>('ALL');
+  const [editDtFields, setEditDtFields] = useState<CustomFieldDefinition[]>([]);
+
+  const openEditDocTypeModal = (dt: DocumentTypeInfo) => {
+    setEditingDocType(dt);
+    setEditDtName(dt.name);
+    setEditDtCode(dt.code);
+    setEditDtDescription(dt.description || '');
+    setEditDtRetentionYears(dt.retentionYears);
+    setEditDtDeptId(dt.departmentId || 'ALL');
+    setEditDtFields((dt.customFields || []).map(f => ({ ...f, options: f.options ? [...f.options] : undefined })));
+  };
+
+  const updateEditDtField = (fieldId: string, patch: Partial<CustomFieldDefinition>) => {
+    setEditDtFields(prev => prev.map(f => f.id === fieldId ? { ...f, ...patch } : f));
+  };
+
+  const removeEditDtField = (fieldId: string) => {
+    setEditDtFields(prev => prev.filter(f => f.id !== fieldId));
+  };
+
+  const addEditDtFieldDraft = () => {
+    setEditDtFields(prev => [...prev, {
+      id: `cf-draft-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      name: '',
+      label: '',
+      type: 'text',
+      required: true
+    }]);
+  };
+
+  const handleEditDocTypeSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingDocType || !editDtName.trim() || !editDtCode.trim()) return;
+
+    const deptObj = departments.find(d => d.id === editDtDeptId);
+    const cleanedFields = editDtFields
+      .filter(f => f.label.trim())
+      .map(f => ({
+        ...f,
+        name: f.name || f.label.trim(),
+        label: f.label.trim(),
+        options: f.type === 'select' ? (f.options || []).map(o => o.trim()).filter(Boolean) : undefined
+      }));
+
+    updateDocumentType(editingDocType.id, {
+      name: editDtName.trim(),
+      code: editDtCode.trim().toUpperCase(),
+      description: editDtDescription.trim() || 'Custom Document Classification Type',
+      retentionYears: Number(editDtRetentionYears) || 5,
+      departmentId: editDtDeptId === 'ALL' ? undefined : editDtDeptId,
+      departmentName: editDtDeptId === 'ALL' ? 'All Departments (Universal)' : (deptObj?.name || 'General Department'),
+      customFields: cleanedFields
+    });
+
+    addNotification('success', `Document Type "${editDtName.trim()}" updated.`);
+    setEditingDocType(null);
   };
 
   // Reusable Custom Fields Library State
@@ -1081,6 +1146,14 @@ export const SettingsPage: React.FC = () => {
                     </span>
                     <button
                       type="button"
+                      onClick={() => openEditDocTypeModal(dt)}
+                      className="text-slate-400 hover:text-indigo-600 p-1"
+                      title="Edit Document Type"
+                    >
+                      <Edit className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      type="button"
                       onClick={() => setDocTypeToDelete({ id: dt.id, name: dt.name })}
                       className="text-slate-400 hover:text-rose-600 p-1"
                       title="Delete Document Type"
@@ -1758,6 +1831,214 @@ export const SettingsPage: React.FC = () => {
                   className="px-5 py-2 text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl font-semibold shadow-md shadow-indigo-600/20"
                 >
                   Create Document Type
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Document Type Modal */}
+      {editingDocType && (
+        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 animate-in fade-in">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-lg w-full max-h-[90vh] flex flex-col overflow-hidden my-auto shadow-2xl">
+            <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 px-6 py-4 bg-slate-50 dark:bg-slate-800/50 flex-shrink-0">
+              <h3 className="font-extrabold text-slate-900 dark:text-slate-100 text-sm flex items-center gap-2">
+                <Edit className="w-4 h-4 text-indigo-600" />
+                Edit Document Classification Type
+              </h3>
+              <button
+                type="button"
+                onClick={() => setEditingDocType(null)}
+                className="text-slate-400 hover:text-slate-600 p-1"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleEditDocTypeSubmit} className="flex-1 flex flex-col min-h-0">
+              <div className="p-6 space-y-3 overflow-y-auto flex-1 text-xs">
+                <div>
+                  <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                    Document Type Name *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={editDtName}
+                    onChange={(e) => setEditDtName(e.target.value)}
+                    placeholder="e.g. Environmental Impact Assessment, Executive Order"
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none font-medium"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                    Owning Department Association *
+                  </label>
+                  <select
+                    value={editDtDeptId}
+                    onChange={(e) => setEditDtDeptId(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none font-medium"
+                  >
+                    <option value="ALL">Universal (All Departments)</option>
+                    {departments.map(d => (
+                      <option key={d.id} value={d.id}>{d.name} ({d.code})</option>
+                    ))}
+                  </select>
+                  <p className="text-[10px] text-slate-400 mt-1">When adding physical documents, this document type will only show up when its tied department is selected.</p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                      Classification Code *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={editDtCode}
+                      onChange={(e) => setEditDtCode(e.target.value)}
+                      placeholder="e.g. EIA, EO, CWR"
+                      className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none font-mono uppercase font-bold text-indigo-600"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                      Retention Period (Years) *
+                    </label>
+                    <input
+                      type="number"
+                      required
+                      min={1}
+                      max={100}
+                      value={editDtRetentionYears}
+                      onChange={(e) => setEditDtRetentionYears(Number(e.target.value))}
+                      className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none font-bold text-slate-900 dark:text-slate-100"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                    Description / Archival Purpose
+                  </label>
+                  <textarea
+                    rows={3}
+                    value={editDtDescription}
+                    onChange={(e) => setEditDtDescription(e.target.value)}
+                    placeholder="Describe the scope, compliance rules, or archival category..."
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none resize-none font-medium"
+                  />
+                </div>
+
+                {/* Custom Fields Schema Editor */}
+                <div className="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className="font-bold text-slate-700 dark:text-slate-300">Custom Fields Schema ({editDtFields.length})</span>
+                      <p className="text-[10px] text-slate-400 mt-0.5 flex items-center gap-1">
+                        <Lock className="w-3 h-3" />
+                        Field types of existing fields are locked to protect data already recorded on documents. You may still edit labels/options or add new fields.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={addEditDtFieldDraft}
+                      className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-[11px] rounded-lg flex-shrink-0"
+                    >
+                      <Plus className="w-3 h-3" />
+                      Add Field
+                    </button>
+                  </div>
+
+                  {editDtFields.length === 0 ? (
+                    <p className="text-[11px] text-slate-400 italic py-1">No custom fields defined for this document type.</p>
+                  ) : (
+                    editDtFields.map(cf => {
+                      const isOriginal = Boolean(editingDocType.customFields?.some(f => f.id === cf.id));
+                      return (
+                        <div key={cf.id} className="p-3 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-slate-200 dark:border-slate-700 space-y-2">
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="text"
+                              value={cf.label}
+                              onChange={(e) => updateEditDtField(cf.id, { label: e.target.value })}
+                              placeholder="Field label, e.g. Fund Source"
+                              className="flex-1 px-2.5 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg outline-none font-medium"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => removeEditDtField(cf.id)}
+                              className="text-slate-400 hover:text-rose-600 p-1 flex-shrink-0"
+                              title="Remove Field"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <select
+                              value={cf.type}
+                              disabled={isOriginal}
+                              onChange={(e) => updateEditDtField(cf.id, { type: e.target.value as CustomFieldType })}
+                              className={`px-2.5 py-1.5 border border-slate-200 dark:border-slate-700 rounded-lg font-medium font-mono uppercase text-[10px] ${isOriginal
+                                ? 'bg-slate-100 dark:bg-slate-800 text-slate-400 cursor-not-allowed'
+                                : 'bg-white dark:bg-slate-900 outline-none'}`}
+                              title={isOriginal ? 'Field type cannot be changed once defined' : 'Field type'}
+                            >
+                              <option value="text">Text</option>
+                              <option value="number">Number</option>
+                              <option value="date">Date</option>
+                              <option value="select">Select</option>
+                            </select>
+                            {isOriginal && (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-slate-400">
+                                <Lock className="w-3 h-3" />
+                                Type locked
+                              </span>
+                            )}
+                            <label className="ml-auto inline-flex items-center gap-1.5 text-[11px] font-medium text-slate-600 dark:text-slate-400 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={cf.required ?? false}
+                                onChange={(e) => updateEditDtField(cf.id, { required: e.target.checked })}
+                                className="w-3.5 h-3.5 rounded border-slate-300 text-indigo-600"
+                              />
+                              Required
+                            </label>
+                          </div>
+
+                          {cf.type === 'select' && (
+                            <input
+                              type="text"
+                              value={(cf.options || []).join(', ')}
+                              onChange={(e) => updateEditDtField(cf.id, { options: e.target.value.split(',') })}
+                              placeholder="Options separated by commas, e.g. Low, Medium, High"
+                              className="w-full px-2.5 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg outline-none font-medium"
+                            />
+                          )}
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+
+              <div className="px-6 py-4 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-100 dark:border-slate-800 flex justify-end gap-2 flex-shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setEditingDocType(null)}
+                  className="px-4 py-2 text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 rounded-xl font-medium"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl font-semibold shadow-md shadow-indigo-600/20"
+                >
+                  Save Changes
                 </button>
               </div>
             </form>
