@@ -1,6 +1,6 @@
 schema_version: 1
 module_path: frontend_app
-title: ArchiveHub Frontend Application
+title: Archive Management Frontend Application
 scope:
     - src/
 source_files: []

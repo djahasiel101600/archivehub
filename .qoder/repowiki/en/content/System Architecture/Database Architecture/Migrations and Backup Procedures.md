@@ -8,8 +8,17 @@
 - [src/db/schema.ts](file://src/db/schema.ts)
 - [src/db/seed.ts](file://src/db/seed.ts)
 - [src/db/repository.ts](file://src/db/repository.ts)
+- [src/pages/SettingsPage.tsx](file://src/pages/SettingsPage.tsx)
 - [package.json](file://package.json)
 </cite>
+
+## Update Summary
+**Changes Made**
+- Enhanced backup procedures with comprehensive full database backup and restore system
+- Added transactional operations for data integrity during import/export
+- Implemented whitelisted tables support for controlled data access
+- Integrated automated schema detection for robust restore operations
+- Updated UI components for backup management functionality
 
 ## Table of Contents
 1. [Introduction](#introduction)
@@ -24,17 +33,17 @@
 10. [Appendices](#appendices)
 
 ## Introduction
-This document explains how ArchiveHub manages database migrations, seeding, backups, and disaster recovery. It focuses on the current implementation that uses PostgreSQL with Drizzle ORM for schema definitions and a custom migration routine executed at server startup. It also covers backup/export capabilities exposed via the UI and API, and provides best practices for production operations, schema change management, data integrity, monitoring, and alerting.
+This document explains how ArchiveHub manages database migrations, seeding, backups, and disaster recovery. It focuses on the current implementation that uses PostgreSQL with Drizzle ORM for schema definitions and a custom migration routine executed at server startup. The system now includes enhanced backup capabilities with comprehensive full database backup and restore functionality, transactional operations, whitelisted tables support, and automated schema detection for robust data management.
 
 ## Project Structure
-ArchiveHub’s database layer is organized under src/db:
+ArchiveHub's database layer is organized under src/db:
 - index.ts: Database pool initialization, health checks, and environment configuration
 - migrate.ts: Custom migration script that ensures all required tables exist
 - schema.ts: Drizzle ORM table definitions (source of truth for schema)
 - seed.ts: Seed guard to avoid overwriting live data
-- repository.ts: Data access layer with fallback memory mode and utilities like clearing data
+- repository.ts: Data access layer with fallback memory mode, utilities like clearing data, and comprehensive backup/restore functionality
 
-The server bootstraps database connectivity, runs migrations, seeds initial data when appropriate, and exposes endpoints for health checks and administrative actions.
+The server bootstraps database connectivity, runs migrations, seeds initial data when appropriate, and exposes endpoints for health checks, administrative actions, and backup operations.
 
 ```mermaid
 graph TB
@@ -42,10 +51,12 @@ A["server.ts"] --> B["src/db/index.ts"]
 A --> C["src/db/migrate.ts"]
 A --> D["src/db/seed.ts"]
 A --> E["src/db/repository.ts"]
-B --> F["PostgreSQL"]
-C --> F
-D --> F
-E --> F
+A --> F["src/pages/SettingsPage.tsx"]
+B --> G["PostgreSQL"]
+C --> G
+D --> G
+E --> G
+F --> E
 ```
 
 **Diagram sources**
@@ -54,6 +65,7 @@ E --> F
 - [src/db/migrate.ts:3-14](file://src/db/migrate.ts#L3-L14)
 - [src/db/seed.ts:3-23](file://src/db/seed.ts#L3-L23)
 - [src/db/repository.ts:106-108](file://src/db/repository.ts#L106-L108)
+- [src/pages/SettingsPage.tsx:331-347](file://src/pages/SettingsPage.tsx#L331-L347)
 
 **Section sources**
 - [server.ts:13-38](file://server.ts#L13-L38)
@@ -67,12 +79,14 @@ E --> F
 - Migration engine: A single transactional migration routine in src/db/migrate.ts creates or updates tables using raw SQL with IF NOT EXISTS and ALTER TABLE ADD COLUMN IF NOT EXISTS patterns.
 - Schema definitions: Drizzle schema in src/db/schema.ts defines typed tables used by the ORM layer.
 - Seeding guard: src/db/seed.ts prevents accidental overwrite of existing user data unless forced.
-- Repository and fallback: src/db/repository.ts provides data access with in-memory fallback when PostgreSQL is unavailable and includes a clear-data utility.
+- Repository and fallback: src/db/repository.ts provides data access with in-memory fallback when PostgreSQL is unavailable, includes clear-data utility, and now features comprehensive backup/restore functionality with transactional operations.
+- UI backup interface: Settings page provides user-friendly backup export and restore capabilities.
 
 Key responsibilities:
 - Ensure schema consistency across environments
 - Provide safe seeding behavior
 - Offer health monitoring and graceful degradation
+- Enable comprehensive data backup and restore with transactional integrity
 
 **Section sources**
 - [src/db/index.ts:36-78](file://src/db/index.ts#L36-L78)
@@ -80,9 +94,10 @@ Key responsibilities:
 - [src/db/schema.ts:12-228](file://src/db/schema.ts#L12-L228)
 - [src/db/seed.ts:3-23](file://src/db/seed.ts#L3-L23)
 - [src/db/repository.ts:106-108](file://src/db/repository.ts#L106-L108)
+- [src/pages/SettingsPage.tsx:331-347](file://src/pages/SettingsPage.tsx#L331-L347)
 
 ## Architecture Overview
-At application startup, the server checks database connectivity, then executes migrations and optionally seeds data. The health endpoint exposes DB status. Administrative endpoints allow re-running migrations and seeding, as well as clearing operational data.
+At application startup, the server checks database connectivity, then executes migrations and optionally seeds data. The health endpoint exposes DB status. Administrative endpoints allow re-running migrations and seeding, as well as clearing operational data. The enhanced backup system provides comprehensive data export and restore capabilities through both API endpoints and UI controls.
 
 ```mermaid
 sequenceDiagram
@@ -90,6 +105,8 @@ participant App as "server.ts"
 participant DB as "src/db/index.ts"
 participant Mig as "src/db/migrate.ts"
 participant Seed as "src/db/seed.ts"
+participant Repo as "src/db/repository.ts"
+participant UI as "src/pages/SettingsPage.tsx"
 App->>DB : checkDatabaseHealth()
 alt Connected
 App->>Mig : runMigrations()
@@ -98,6 +115,8 @@ Note over App,Seed : On success, app continues serving requests
 else Not connected
 App-->>App : Run in fallback memory mode
 end
+UI->>Repo : exportAllData() / importAllData()
+Repo->>DB : Transactional backup/restore operations
 ```
 
 **Diagram sources**
@@ -105,6 +124,7 @@ end
 - [src/db/index.ts:97-135](file://src/db/index.ts#L97-L135)
 - [src/db/migrate.ts:3-14](file://src/db/migrate.ts#L3-L14)
 - [src/db/seed.ts:3-23](file://src/db/seed.ts#L3-L23)
+- [src/pages/SettingsPage.tsx:331-347](file://src/pages/SettingsPage.tsx#L331-L347)
 
 ## Detailed Component Analysis
 
@@ -164,62 +184,101 @@ Operational notes:
 - [server.ts:53-72](file://server.ts#L53-L72)
 - [src/db/seed.ts:3-23](file://src/db/seed.ts#L3-L23)
 
-### Backup Strategies
-Current built-in options:
-- JSON export from UI: The Settings page includes an “Export Database JSON Backup” action that serializes key entities into a downloadable JSON file. This is a snapshot of the current in-memory or DB-backed dataset.
-- Clear data utility: An endpoint clears operational tables (checkouts, movements, disposal_records, retention_policies, audit_logs, documents, locations, bundles) using TRUNCATE CASCADE with a fallback DELETE sequence if necessary.
+### Enhanced Backup and Restore System
 
-Recommended strategies beyond current implementation:
-- Full database backups: Use your PostgreSQL provider’s native tools (e.g., pg_dump) or managed service snapshots to create consistent full backups. Schedule regular full backups based on RPO.
-- Incremental backups: Enable WAL archiving and use point-in-time recovery (PITR) to capture continuous changes between full backups.
-- Point-in-time recovery: Restore to a specific timestamp using PITR to minimize data loss during incidents.
+**Updated** The backup system now provides comprehensive full database backup and restore capabilities with transactional operations, whitelisted tables support, and automated schema detection.
 
-Implementation guidance:
-- Store backups securely with encryption at rest and restrict access.
-- Validate backups regularly by restoring to a staging environment.
-- Automate backup scheduling and retention policies.
+#### Backup Tables Whitelist
+The system operates on a predefined whitelist of tables to ensure data integrity and security:
+- departments, users, document_types, reusable_custom_fields
+- locations, documents, bundles
+- checkouts, movements, retention_policies
+- disposal_records, audit_logs
+
+#### Export Functionality
+- **API Endpoint**: `GET /api/export` returns complete database snapshot as JSON
+- **UI Integration**: Settings page provides "Export Full Backup" button for user-friendly access
+- **Format**: Standardized `archivehub-export` format with metadata including timestamp and version
+- **Security**: Only whitelisted tables are exported, preventing sensitive data exposure
+
+#### Import and Restore Functionality
+- **API Endpoint**: `POST /api/import` accepts backup files with 200MB size limit
+- **Transactional Operations**: All restore operations run within a single transaction for atomicity
+- **Automated Schema Detection**: Uses `SELECT * FROM table LIMIT 0` to detect actual table structure
+- **JSON Column Handling**: Special handling for JSON/JSONB columns with proper serialization
+- **Chunked Processing**: Processes large datasets in chunks of 500 rows to avoid parameter limits
+
+```mermaid
+flowchart TD
+Export[Export Request] --> Validate[Validate Database Connection]
+Validate --> QueryTables[Query Whitelisted Tables]
+QueryTables --> FormatData[Format as archivehub-export]
+FormatData --> ReturnExport[Return JSON Payload]
+Import[Import Request] --> ValidateBackup[Validate Backup Format]
+ValidateBackup --> BeginTransaction[BEGIN Transaction]
+BeginTransaction --> ClearTables[DELETE FROM Each Table]
+ClearTables --> DetectSchema[AUTO DETECT SCHEMA]
+DetectSchema --> ChunkInsert[CHUNKED INSERT (500 rows)]
+ChunkInsert --> HandleJSON[Handle JSON Columns]
+HandleJSON --> CommitTransaction[COMMIT Transaction]
+CommitTransaction --> ReturnSuccess[Return Success with Counts]
+```
+
+**Diagram sources**
+- [src/db/repository.ts:1758-1775](file://src/db/repository.ts#L1758-L1775)
+- [src/db/repository.ts:1777-1838](file://src/db/repository.ts#L1777-L1838)
+- [server.ts:145-153](file://server.ts#L145-L153)
+- [server.ts:20-29](file://server.ts#L20-L29)
+
+#### UI Integration
+The Settings page provides intuitive backup management:
+- **Export Button**: One-click backup download with timestamped filenames
+- **Import Interface**: File upload with validation and confirmation dialogs
+- **Status Feedback**: Real-time progress indicators and success/error notifications
+- **Safety Checks**: Validates backup file format before processing
 
 **Section sources**
-- [src/pages/SettingsPage.tsx:315-335](file://src/pages/SettingsPage.tsx#L315-L335)
-- [src/db/repository.ts:1232-1257](file://src/db/repository.ts#L1232-L1257)
+- [src/db/repository.ts:1733-1839](file://src/db/repository.ts#L1733-L1839)
+- [server.ts:145-153](file://server.ts#L145-L153)
+- [server.ts:20-29](file://server.ts#L20-L29)
+- [src/pages/SettingsPage.tsx:331-377](file://src/pages/SettingsPage.tsx#L331-L377)
 
 ### Disaster Recovery and Restoration
-- Restore process:
-  - For full backups: Restore the latest full backup to a new instance or cluster, then apply WAL archives up to the desired recovery point.
-  - For PITR: Configure restore_target_time to recover to a precise moment before failure.
-- Validation: After restoration, verify schema and data integrity by running health checks and smoke tests against critical endpoints.
-- Rollback plan: Maintain tested rollback scripts for migrations and be prepared to revert to a known-good backup if a deployment fails.
+- **Full Backup Restore**: Use the `/api/import` endpoint or UI to restore complete database state
+- **Point-in-Time Recovery**: Combine application backups with PostgreSQL WAL archiving for precise recovery points
+- **Validation**: After restoration, verify data integrity by checking record counts and running health checks
+- **Rollback Plan**: Maintain tested rollback procedures and keep recent backups available
 
 Note: Implement automated restore drills to ensure recovery time objectives (RTO) are achievable.
 
-[No sources needed since this section provides general guidance]
-
 ### Testing Strategies for Migrations
-- Idempotency: Re-run migrations multiple times to ensure they succeed without side effects.
-- Pre-deployment checks: Validate schema alignment between schema.ts and migrate.ts.
-- Integration tests: Spin up a temporary database, run migrations, seed data, and execute representative queries to validate behavior.
-- Rollback tests: Execute manual rollback scripts in a test environment to confirm reversibility.
-
-[No sources needed since this section provides general guidance]
+- **Idempotency**: Re-run migrations multiple times to ensure they succeed without side effects.
+- **Pre-deployment checks**: Validate schema alignment between schema.ts and migrate.ts.
+- **Integration tests**: Spin up a temporary database, run migrations, seed data, and execute representative queries to validate behavior.
+- **Rollback tests**: Execute manual rollback scripts in a test environment to confirm reversibility.
+- **Backup/Restore Tests**: Verify backup export/import cycles work correctly with various data volumes.
 
 ### Best Practices for Production Databases
-- Schema changes:
+- **Schema Changes**:
   - Prefer additive changes (new columns, new tables) in production.
   - Use zero-downtime deployment patterns: add columns with defaults, deploy code that supports both old and new schemas, backfill data, then remove legacy fields.
-- Environment separation:
+- **Environment Separation**:
   - Never run seed with force=true in production.
   - Use separate databases for dev, staging, and production.
-- Data integrity:
+- **Data Integrity**:
   - Enforce constraints and indexes in schema.ts and ensure migrate.ts reflects them.
   - Audit critical changes via audit logs.
-- Access control:
+  - Use transactional backup/restore operations for data consistency.
+- **Access Control**:
   - Limit admin endpoints to authorized roles.
   - Rotate credentials and secrets regularly.
-
-[No sources needed since this section provides general guidance]
+- **Backup Strategy**:
+  - Schedule regular full backups using the built-in export functionality.
+  - Store backups securely with encryption at rest and restrict access.
+  - Validate backups regularly by restoring to a staging environment.
 
 ## Dependency Analysis
-The following diagram shows runtime dependencies among core modules involved in migrations, seeding, and data access.
+The following diagram shows runtime dependencies among core modules involved in migrations, seeding, backup, and data access.
 
 ```mermaid
 graph LR
@@ -227,10 +286,12 @@ Server["server.ts"] --> Index["src/db/index.ts"]
 Server --> Migrate["src/db/migrate.ts"]
 Server --> Seed["src/db/seed.ts"]
 Server --> Repo["src/db/repository.ts"]
+Server --> UI["src/pages/SettingsPage.tsx"]
 Index --> PG["PostgreSQL"]
 Migrate --> PG
 Seed --> PG
 Repo --> PG
+UI --> Repo
 ```
 
 **Diagram sources**
@@ -239,6 +300,7 @@ Repo --> PG
 - [src/db/migrate.ts:3-14](file://src/db/migrate.ts#L3-L14)
 - [src/db/seed.ts:3-23](file://src/db/seed.ts#L3-L23)
 - [src/db/repository.ts:106-108](file://src/db/repository.ts#L106-L108)
+- [src/pages/SettingsPage.tsx:331-347](file://src/pages/SettingsPage.tsx#L331-L347)
 
 **Section sources**
 - [server.ts:13-38](file://server.ts#L13-L38)
@@ -248,32 +310,39 @@ Repo --> PG
 - [src/db/repository.ts:106-108](file://src/db/repository.ts#L106-L108)
 
 ## Performance Considerations
-- Connection pooling: The pool is initialized once and reused. Ensure pool size is tuned for expected concurrency and database capacity.
-- Health checks: Frequent health checks can add overhead; schedule them at reasonable intervals.
-- Migration cost: Large migrations should be scheduled during maintenance windows. Consider batching DDL operations and minimizing locks.
-- Memory fallback: In-memory mode is useful for resilience but does not persist data; rely on it only temporarily.
-
-[No sources needed since this section provides general guidance]
+- **Connection pooling**: The pool is initialized once and reused. Ensure pool size is tuned for expected concurrency and database capacity.
+- **Health checks**: Frequent health checks can add overhead; schedule them at reasonable intervals.
+- **Migration cost**: Large migrations should be scheduled during maintenance windows. Consider batching DDL operations and minimizing locks.
+- **Memory fallback**: In-memory mode is useful for resilience but does not persist data; rely on it only temporarily.
+- **Backup performance**: 
+  - Export operations query all whitelisted tables sequentially
+  - Import operations use chunked processing (500 rows per batch) to optimize memory usage
+  - Transactional restores ensure data consistency but may lock tables during operation
+  - Consider scheduling large imports during off-peak hours
 
 ## Troubleshooting Guide
 Common issues and resolutions:
-- DATABASE_URL not configured:
+- **DATABASE_URL not configured**:
   - Symptom: Health check reports missing or placeholder URL; migrations skipped.
   - Resolution: Provide a valid DATABASE_URL in .env or environment variables.
-- Migration errors:
+- **Migration errors**:
   - Symptom: Transaction rollback and error logged.
   - Resolution: Inspect error details, fix schema drift between schema.ts and migrate.ts, and re-run migrations in a safe environment.
-- Seed blocked due to existing data:
+- **Seed blocked due to existing data**:
   - Symptom: Seed exits early because users already exist.
   - Resolution: Use force=true only in controlled environments; otherwise, manage seed data separately.
-- Clear data failures:
+- **Clear data failures**:
   - Symptom: TRUNCATE CASCADE fails; fallback DELETE may also fail due to constraints.
   - Resolution: Resolve foreign key constraints or order of deletes; consider disabling constraints temporarily in a controlled manner.
+- **Backup/Restore Issues**:
+  - Symptom: Invalid backup file errors or import failures.
+  - Resolution: Ensure backup files are generated by ArchiveHub's export function; verify database connection; check table schema compatibility.
 
 Monitoring and alerting:
 - Expose /api/health to monitor database connectivity and include timestamps.
 - Set up alerts for failed health checks and migration errors.
 - Track error rates and response times for critical endpoints.
+- Monitor backup/restore operation success rates and performance metrics.
 
 **Section sources**
 - [src/db/index.ts:97-135](file://src/db/index.ts#L97-L135)
@@ -281,28 +350,41 @@ Monitoring and alerting:
 - [src/db/migrate.ts:270-277](file://src/db/migrate.ts#L270-L277)
 - [src/db/seed.ts:11-22](file://src/db/seed.ts#L11-L22)
 - [src/db/repository.ts:1232-1257](file://src/db/repository.ts#L1232-L1257)
+- [src/db/repository.ts:1777-1838](file://src/db/repository.ts#L1777-L1838)
 
 ## Conclusion
-ArchiveHub implements a pragmatic, idempotent migration approach with Drizzle schema definitions and a startup-driven migration runner. Seeding is guarded to protect live data, and basic backup/export functionality is available via the UI. For robust production operations, adopt formal versioned migrations, automated full and incremental backups with PITR, and comprehensive monitoring and alerting. Follow the best practices outlined here to maintain data integrity and availability during updates.
-
-[No sources needed since this section summarizes without analyzing specific files]
+ArchiveHub implements a pragmatic, idempotent migration approach with Drizzle schema definitions and a startup-driven migration runner. Seeding is guarded to protect live data, and the enhanced backup system provides comprehensive data export and restore capabilities with transactional integrity, whitelisted tables support, and automated schema detection. For robust production operations, adopt formal versioned migrations, automated full and incremental backups with PITR, and comprehensive monitoring and alerting. Follow the best practices outlined here to maintain data integrity and availability during updates.
 
 ## Appendices
 
 ### Appendix A: Key Endpoints and Scripts
-- Startup flow: Health check -> migrations -> seed (non-force)
-- Health: GET /api/health
-- Seed: POST /api/seed (runs migrations and seeds with force=true)
-- Clear data: POST /api/clear-data (clears operational tables)
+- **Startup flow**: Health check -> migrations -> seed (non-force)
+- **Health**: GET /api/health
+- **Seed**: POST /api/seed (runs migrations and seeds with force=true)
+- **Clear data**: POST /api/clear-data (clears operational tables)
+- **Export backup**: GET /api/export (returns full database backup as JSON)
+- **Import backup**: POST /api/import (accepts backup files up to 200MB)
 
 **Section sources**
 - [server.ts:19-38](file://server.ts#L19-L38)
 - [server.ts:42-82](file://server.ts#L42-L82)
+- [server.ts:145-153](file://server.ts#L145-L153)
+- [server.ts:20-29](file://server.ts#L20-L29)
 
 ### Appendix B: Dependencies and Tools
-- PostgreSQL driver and ORM: pg, drizzle-orm
-- Dev tooling: drizzle-kit for schema-related tasks
-- Build and run: tsx for development, esbuild for production bundle
+- **PostgreSQL driver and ORM**: pg, drizzle-orm
+- **Dev tooling**: drizzle-kit for schema-related tasks
+- **Build and run**: tsx for development, esbuild for production bundle
 
 **Section sources**
 - [package.json:14-47](file://package.json#L14-L47)
+
+### Appendix C: Backup Table Whitelist
+The following tables are included in backup operations:
+- **Core entities**: departments, users, document_types, reusable_custom_fields
+- **Storage**: locations, documents, bundles
+- **Operations**: checkouts, movements, retention_policies
+- **Compliance**: disposal_records, audit_logs
+
+**Section sources**
+- [src/db/repository.ts:1736-1749](file://src/db/repository.ts#L1736-L1749)

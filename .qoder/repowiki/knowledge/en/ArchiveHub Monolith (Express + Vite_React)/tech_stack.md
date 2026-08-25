@@ -1,0 +1,1 @@
+Express + Node server paired with a Vite/React SPA, both typed via TypeScript; Drizzle ORM over PostgreSQL; esbuild bundles the production server bundle; Tailwind CSS styles the UI; QR/barcode libraries (`qrcode`, `jsbarcode`, `html5-qrcode`) support document identification workflows.

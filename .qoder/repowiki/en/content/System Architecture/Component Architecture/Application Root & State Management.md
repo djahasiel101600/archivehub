@@ -13,7 +13,15 @@
 - [CameraQRScannerModal.tsx](file://src/components/scanner/CameraQRScannerModal.tsx)
 - [DashboardPage.tsx](file://src/pages/DashboardPage.tsx)
 - [DocumentsPage.tsx](file://src/pages/DocumentsPage.tsx)
+- [SettingsPage.tsx](file://src/pages/SettingsPage.tsx)
 </cite>
+
+## Update Summary
+**Changes Made**
+- Added comprehensive documentation for the new backup and restore functionality
+- Updated ArchiveContext section to include exportAllData() and importAllData() methods
+- Added SettingsPage integration details for backup operations
+- Enhanced context API surface documentation with backup capabilities
 
 ## Table of Contents
 1. [Introduction](#introduction)
@@ -27,10 +35,10 @@
 9. [Conclusion](#conclusion)
 
 ## Introduction
-This document explains ArchiveHub’s application root and state management architecture. It focuses on how the app bootstraps, how global state is provided via a context provider, and how authentication, tab-based navigation, and modal states are coordinated across components. It also details the context API surface used to manage active tabs, user authentication, selected documents, and global modals, with examples of how components consume and update state.
+This document explains ArchiveHub's application root and state management architecture. It focuses on how the app bootstraps, how global state is provided via a context provider, and how authentication, tab-based navigation, modal states, and data backup/restore operations are coordinated across components. It also details the context API surface used to manage active tabs, user authentication, selected documents, global modals, and comprehensive database backup functionality, with examples of how components consume and update state.
 
 ## Project Structure
-At runtime, React renders the root component from the entry file, which wraps the entire UI with a provider that centralizes state and side effects. The root component then decides whether to show an authentication screen or the main application shell based on authentication status. Inside the main shell, a header, sidebar, mobile bottom nav, and a content area render pages conditionally based on the active tab. Global modals (e.g., QR scanner) are rendered at the root level for consistent overlay behavior.
+At runtime, React renders the root component from the entry file, which wraps the entire UI with a provider that centralizes state and side effects. The root component then decides whether to show an authentication screen or the main application shell based on authentication status. Inside the main shell, a header, sidebar, mobile bottom nav, and a content area render pages conditionally based on the active tab. Global modals (e.g., QR scanner) are rendered at the root level for consistent overlay behavior. The application now includes comprehensive backup and restore capabilities through the Settings page.
 
 ```mermaid
 graph TB
@@ -50,12 +58,16 @@ H --> |audit| N["AuditLogsPage"]
 H --> |settings| O["SettingsPage"]
 D --> P["DocumentDetailPage (selectedDocId)"]
 D --> Q["CameraQRScannerModal (global modal)"]
+O --> R["Backup Operations"]
+R --> S["Export Full Backup"]
+R --> T["Import/Restore Backup"]
 ```
 
 **Diagram sources**
 - [main.tsx:6-10](file://src/main.tsx#L6-L10)
 - [App.tsx:166-172](file://src/App.tsx#L166-L172)
 - [App.tsx:19-164](file://src/App.tsx#L19-L164)
+- [SettingsPage.tsx:331-377](file://src/pages/SettingsPage.tsx#L331-L377)
 
 **Section sources**
 - [main.tsx:1-11](file://src/main.tsx#L1-L11)
@@ -64,10 +76,11 @@ D --> Q["CameraQRScannerModal (global modal)"]
 ## Core Components
 - App (root): Wraps the application with ArchiveProvider to supply global state and actions to all descendants.
 - AppContent: Orchestrates authentication gating, tab routing, selected document view, and global modal visibility.
-- ArchiveProvider: Centralizes state for users, documents, locations, checkouts, audit logs, notifications, database health, and UI flags like activeTab and globalSearchQuery. Exposes CRUD operations, auth flows, and helper lookups.
+- ArchiveProvider: Centralizes state for users, documents, locations, checkouts, audit logs, notifications, database health, and UI flags like activeTab and globalSearchQuery. Exposes CRUD operations, auth flows, helper lookups, and comprehensive backup/restore functionality.
 - AuthPage: Handles sign-in and sign-up flows using context auth methods; supports pending approval messaging.
 - Header, Sidebar, MobileBottomNav: Navigation and controls that read/write shared state (activeTab, currentUser, search, notifications).
 - CameraQRScannerModal: Global modal for scanning QR/barcodes and navigating to documents or locations.
+- SettingsPage: Provides user interface for database backup operations including full export and restore functionality.
 
 Key responsibilities:
 - Authentication gating and session persistence
@@ -75,6 +88,7 @@ Key responsibilities:
 - Selected document detail view
 - Global modals and notifications
 - Data synchronization with backend APIs
+- Comprehensive database backup and restore operations
 
 **Section sources**
 - [App.tsx:166-172](file://src/App.tsx#L166-L172)
@@ -85,9 +99,10 @@ Key responsibilities:
 - [Sidebar.tsx:27-44](file://src/components/layout/Sidebar.tsx#L27-L44)
 - [MobileBottomNav.tsx:18-28](file://src/components/layout/MobileBottomNav.tsx#L18-L28)
 - [CameraQRScannerModal.tsx:28-43](file://src/components/scanner/CameraQRScannerModal.tsx#L28-L43)
+- [SettingsPage.tsx:331-377](file://src/pages/SettingsPage.tsx#L331-L377)
 
 ## Architecture Overview
-The application uses a single-page, tab-based routing model driven by a shared activeTab state. Authentication is enforced at the root level: if not authenticated, only the authentication screen is shown. Once authenticated, the main layout renders pages based on activeTab. Global modals are controlled by local state in AppContent but can be triggered from anywhere via callbacks passed down to child components.
+The application uses a single-page, tab-based routing model driven by a shared activeTab state. Authentication is enforced at the root level: if not authenticated, only the authentication screen is shown. Once authenticated, the main layout renders pages based on activeTab. Global modals are controlled by local state in AppContent but can be triggered from anywhere via callbacks passed down to child components. The application now includes comprehensive backup and restore capabilities integrated into the Settings page.
 
 ```mermaid
 sequenceDiagram
@@ -97,6 +112,7 @@ participant Provider as "ArchiveProvider"
 participant Content as "AppContent"
 participant Pages as "Pages"
 participant Modal as "CameraQRScannerModal"
+participant Settings as "SettingsPage"
 Entry->>App : Render <App />
 App->>Provider : Wrap children with ArchiveProvider
 Provider-->>Content : Provide state + actions
@@ -107,6 +123,9 @@ else Authenticated
 Content->>Content : Determine page by activeTab
 Content-->>Pages : Render Dashboard/Locations/Documents/etc.
 Content-->>Modal : Show/hide scanner modal via props
+Note over Settings : Backup Operations
+Settings->>Provider : exportAllData() / importAllData()
+Provider-->>Settings : Backup results with notifications
 end
 ```
 
@@ -114,6 +133,7 @@ end
 - [main.tsx:6-10](file://src/main.tsx#L6-L10)
 - [App.tsx:166-172](file://src/App.tsx#L166-L172)
 - [App.tsx:19-164](file://src/App.tsx#L19-L164)
+- [SettingsPage.tsx:331-377](file://src/pages/SettingsPage.tsx#L331-L377)
 
 ## Detailed Component Analysis
 
@@ -147,6 +167,9 @@ State managed includes:
 - User and authentication:
   - currentUser, isAuthenticated, setCurrentUser, loginUser, signupUser, logoutUser, approveUser, rejectUser, deleteUser.
   - Session persistence via localStorage key for cross-session login.
+- **Data Backup & Restore:**
+  - exportAllData(): Exports complete database backup as JSON blob with error handling and notifications.
+  - importAllData(payload): Restores database from backup payload with validation, transaction safety, and automatic resync.
 - Data collections:
   - departments, documentTypes, reusableCustomFields, bundles, locations, documents, checkouts, movements, auditLogs.
 - UI globals:
@@ -168,14 +191,46 @@ Navigation and modal integration:
 - activeTab drives page rendering in AppContent.
 - Notifications are surfaced in Header dropdowns and updated via addNotification/dismissNotification.
 
+**Updated** Added comprehensive backup and restore functionality:
+- exportAllData() method provides full database export as downloadable JSON blob
+- importAllData() method handles secure backup restoration with transaction safety
+- Both methods include comprehensive error handling and user feedback via notifications
+- Import operation automatically triggers full data resync after successful restoration
+
 Complexity notes:
 - Many async operations use optimistic updates followed by server calls; errors fall back to local state changes and user feedback via notifications.
+- Backup operations ensure data integrity through proper error handling and notification system integration.
 
 **Section sources**
 - [ArchiveContext.tsx:16-109](file://src/context/ArchiveContext.tsx#L16-L109)
 - [ArchiveContext.tsx:115-297](file://src/context/ArchiveContext.tsx#L115-L297)
 - [ArchiveContext.tsx:300-514](file://src/context/ArchiveContext.tsx#L300-L514)
 - [ArchiveContext.tsx:516-800](file://src/context/ArchiveContext.tsx#L516-L800)
+- [ArchiveContext.tsx:361-398](file://src/context/ArchiveContext.tsx#L361-L398)
+
+### SettingsPage.tsx: Backup Operations Interface
+**New Section** The Settings page provides the user interface for database backup and restore operations:
+
+- Export functionality:
+  - handleExportFullBackup(): Initiates full database export and downloads JSON file with timestamped filename
+  - Uses exportAllData() context method to retrieve backup data
+  - Creates downloadable blob with proper file naming convention
+  - Provides user feedback through notifications
+
+- Import functionality:
+  - handleImportFileSelected(): Validates uploaded backup files for format compatibility
+  - confirmImportRestore(): Executes backup restoration with transaction safety
+  - Displays import progress and results through notifications
+  - Automatically refreshes application state after successful restoration
+
+Integration points:
+- Calls exportAllData/importAllData from context for backup operations
+- Updates UI state for loading indicators and confirmation dialogs
+- Provides comprehensive error handling and user feedback
+
+**Section sources**
+- [SettingsPage.tsx:331-377](file://src/pages/SettingsPage.tsx#L331-L377)
+- [SettingsPage.tsx:529-538](file://src/pages/SettingsPage.tsx#L529-L538)
 
 ### AuthPage.tsx: Authentication Flow
 - Uses context auth methods to sign in or sign up.
@@ -258,11 +313,13 @@ App --> Sidebar["Sidebar.tsx"]
 App --> MobileNav["MobileBottomNav.tsx"]
 App --> Pages["Pages (Dashboard/Documents/etc.)"]
 App --> Modal["CameraQRScannerModal.tsx"]
+App --> Settings["SettingsPage.tsx"]
 Header --> Provider
 Sidebar --> Provider
 MobileNav --> Provider
 Pages --> Provider
 Modal --> Provider
+Settings --> Provider
 ```
 
 **Diagram sources**
@@ -272,6 +329,7 @@ Modal --> Provider
 - [Sidebar.tsx:27-44](file://src/components/layout/Sidebar.tsx#L27-L44)
 - [MobileBottomNav.tsx:18-28](file://src/components/layout/MobileBottomNav.tsx#L18-L28)
 - [CameraQRScannerModal.tsx:28-43](file://src/components/scanner/CameraQRScannerModal.tsx#L28-L43)
+- [SettingsPage.tsx:331-377](file://src/pages/SettingsPage.tsx#L331-L377)
 
 **Section sources**
 - [App.tsx:19-164](file://src/App.tsx#L19-L164)
@@ -282,8 +340,7 @@ Modal --> Provider
 - Optimistic updates: Many mutations update local state immediately and then attempt server sync, improving perceived performance.
 - Localized modal state: Modals are controlled locally in AppContent to avoid unnecessary re-renders across unrelated components.
 - Notification limits: Notifications are capped to recent entries to prevent unbounded growth.
-
-[No sources needed since this section provides general guidance]
+- **Backup operations optimization**: Export operations return Blob objects for efficient memory usage, while import operations use transactional database operations for data integrity.
 
 ## Troubleshooting Guide
 Common issues and where to inspect:
@@ -297,11 +354,16 @@ Common issues and where to inspect:
   - Ensure activeTab is consistently updated via handleSelectTab and that setSelectedDocId is cleared appropriately.
 - Scanner modal not showing:
   - Verify showScannerModal state and prop passing from AppContent to CameraQRScannerModal.
+- **Backup operation issues:**
+  - Export failures: Check exportAllData error handling and network connectivity
+  - Import validation: Verify backup file format matches 'archivehub-export' specification
+  - Transaction rollback: Import operations use database transactions for atomic operations
 
 **Section sources**
 - [ArchiveContext.tsx:300-350](file://src/context/ArchiveContext.tsx#L300-L350)
 - [ArchiveContext.tsx:257-297](file://src/context/ArchiveContext.tsx#L257-L297)
 - [App.tsx:145-160](file://src/App.tsx#L145-L160)
+- [ArchiveContext.tsx:361-398](file://src/context/ArchiveContext.tsx#L361-L398)
 
 ## Conclusion
-ArchiveHub’s root structure centers around a provider-driven global state model. App serves as the entry point, wrapping everything with ArchiveProvider to coordinate authentication, tab-based navigation, selected document views, and global modals. Components consume and update state through the context API, enabling consistent behavior across the application. The separation between authenticated and unauthenticated states ensures secure access, while the activeTab-driven routing offers a simple, effective navigation model without external routing libraries.
+ArchiveHub's root structure centers around a provider-driven global state model. App serves as the entry point, wrapping everything with ArchiveProvider to coordinate authentication, tab-based navigation, selected document views, global modals, and comprehensive backup/restore operations. Components consume and update state through the context API, enabling consistent behavior across the application. The separation between authenticated and unauthenticated states ensures secure access, while the activeTab-driven routing offers a simple, effective navigation model without external routing libraries. The addition of robust backup and restore functionality provides administrators with essential data management capabilities for production deployments.

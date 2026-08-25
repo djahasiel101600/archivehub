@@ -1,6 +1,6 @@
 schema_version: 1
 module_path: ""
-title: ArchiveHub PDAMS Monorepo
+title: ArchiveHub Monolith (Express + Vite/React)
 scope:
     - .gitignore
     - package.json

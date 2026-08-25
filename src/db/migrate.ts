@@ -81,9 +81,13 @@ export async function runMigrations(): Promise<void> {
         barcode VARCHAR(100) NOT NULL,
         department_id VARCHAR(50),
         department_name VARCHAR(255),
+        latitude DOUBLE PRECISION,
+        longitude DOUBLE PRECISION,
         created_at TIMESTAMPTZ DEFAULT NOW(),
         updated_at TIMESTAMPTZ DEFAULT NOW()
       );
+      ALTER TABLE locations ADD COLUMN IF NOT EXISTS latitude DOUBLE PRECISION;
+      ALTER TABLE locations ADD COLUMN IF NOT EXISTS longitude DOUBLE PRECISION;
     `);
 
     // 5. Documents Table

@@ -13,7 +13,16 @@
 - [AuditLogsPage.tsx](file://src/pages/AuditLogsPage.tsx)
 - [RetentionPage.tsx](file://src/pages/RetentionPage.tsx)
 - [SettingsPage.tsx](file://src/pages/SettingsPage.tsx)
+- [ConfirmModal.tsx](file://src/components/common/ConfirmModal.tsx)
 </cite>
+
+## Update Summary
+**Changes Made**
+- Enhanced SettingsPage with comprehensive backup management interface including export/import capabilities
+- Added validation for backup file format and structure
+- Implemented confirmation modals for destructive backup restore operations
+- Integrated progress indicators for export and import operations
+- Updated database metrics section with backup management controls
 
 ## Table of Contents
 1. Introduction
@@ -27,7 +36,7 @@
 9. Conclusion
 
 ## Introduction
-This document explains ArchiveHub’s page component architecture and how each page implements domain-specific functionality while maintaining a consistent application structure. It covers:
+This document explains ArchiveHub's page component architecture and how each page implements domain-specific functionality while maintaining a consistent application structure. It covers:
 - The props interface pages receive from the parent App component (navigation, modal triggers, document selection)
 - Common patterns for data fetching, state management, form handling, and user interactions
 - Integration with ArchiveContext for global state access
@@ -189,10 +198,10 @@ Flow highlights:
 - Delete uses deleteDocument with confirmation modal
 
 **Section sources**
-- [DocumentDetailPage.tsx:36-86](file://src/pages/DocumentDetailPage.tsx#L36-L86)
-- [DocumentDetailPage.tsx:115-137](file://src/pages/DocumentDetailPage.tsx#L115-L137)
-- [DocumentDetailPage.tsx:139-556](file://src/pages/DocumentDetailPage.tsx#L139-L556)
-- [DocumentDetailPage.tsx:558-809](file://src/pages/DocumentDetailPage.tsx#L558-L809)
+- [DocumentDetailPage.tsx:36-86](file://src/pages/DocumentDetailPage.tsx#L36-86)
+- [DocumentDetailPage.tsx:115-137](file://src/pages/DocumentDetailPage.tsx#L115-137)
+- [DocumentDetailPage.tsx:139-556](file://src/pages/DocumentDetailPage.tsx#L139-556)
+- [DocumentDetailPage.tsx:558-809](file://src/pages/DocumentDetailPage.tsx#L558-809)
 
 ### CheckoutsPage
 - Lists circulation records filtered by status (pending, active, overdue, returned)
@@ -234,14 +243,33 @@ Patterns:
 - Manages document types, reusable custom fields, users, and database health
 - Creates/updates/deletes document types and custom fields
 - Approves/rejects users and re-seeds database
+- **Enhanced**: Comprehensive backup management interface with export/import capabilities
 
-Patterns:
-- Extensive form handling with validation
-- Notification-driven feedback
-- Centralized CRUD via ArchiveContext
+**Updated** The SettingsPage now includes a complete backup and restore system with the following features:
+
+#### Backup Management Interface
+- **Export Full Backup**: Downloads complete database snapshot as JSON file with timestamped filename
+- **Import/Restore Backup**: Validates and restores from previously exported backup files
+- **Database Metrics**: Real-time display of catalog records, storage hierarchy, and circulation ledger counts
+
+#### Validation and Safety Features
+- **File Format Validation**: Ensures imported files match ArchiveHub export format (`archivehub-export`)
+- **Structure Validation**: Verifies backup contains required `tables` object structure
+- **Confirmation Modals**: Destructive restore operations require explicit user confirmation
+- **Progress Indicators**: Visual feedback during export/import operations with disabled button states
+
+#### Implementation Details
+- Uses `exportAllData()` and `importAllData()` context methods for backup operations
+- File input validation with proper error handling and user feedback
+- Confirmation modal integration using shared ConfirmModal component
+- Progress tracking with `isExporting` and `isImporting` state flags
+- Automatic database resync after successful imports
 
 **Section sources**
 - [SettingsPage.tsx:36-168](file://src/pages/SettingsPage.tsx#L36-L168)
+- [SettingsPage.tsx:325-377](file://src/pages/SettingsPage.tsx#L325-L377)
+- [SettingsPage.tsx:497-573](file://src/pages/SettingsPage.tsx#L497-L573)
+- [SettingsPage.tsx:1489-1498](file://src/pages/SettingsPage.tsx#L1489-L1498)
 
 ## Dependency Analysis
 - All pages depend on ArchiveContext for data and actions
@@ -272,27 +300,30 @@ Pages --> Context
 - Batch operations (bulk print/bundle) reduce repeated network calls
 - Use of calculatePath avoids redundant computations by leveraging cached location paths
 - Avoid unnecessary re-renders by keeping local state minimal and derived values memoized where appropriate
-
-[No sources needed since this section provides general guidance]
+- **Backup Operations**: Export/import operations handle large datasets efficiently with streaming responses and proper memory management
 
 ## Troubleshooting Guide
 - Backend sync failures: fetchAllFromBackend catches errors and logs warnings; check server endpoints and network connectivity
 - Database health: refreshDbHealth provides status and notifications; reseedDatabase can restore sample data
 - Auth session issues: localStorage persistence may fail; verify storage availability and parsing logic
 - Missing document detail: DocumentDetailPage shows a not-found state when documentId is invalid
+- **Backup Issues**: 
+  - Invalid backup files: Ensure files are exported from ArchiveHub and contain proper format structure
+  - Import failures: Verify backup file integrity and ensure all required tables are present
+  - Network timeouts: Large backups may require longer timeout periods for import/export operations
 
 **Section sources**
 - [ArchiveContext.tsx:197-255](file://src/context/ArchiveContext.tsx#L197-L255)
 - [ArchiveContext.tsx:257-293](file://src/context/ArchiveContext.tsx#L257-L293)
 - [DocumentDetailPage.tsx:86-103](file://src/pages/DocumentDetailPage.tsx#L86-L103)
+- [SettingsPage.tsx:349-364](file://src/pages/SettingsPage.tsx#L349-L364)
 
 ## Conclusion
-ArchiveHub’s page components share a consistent architecture:
+ArchiveHub's page components share a consistent architecture:
 - Centralized state and actions via ArchiveContext
 - Clear separation of concerns between routing (App) and domain features (pages)
 - Robust patterns for forms, modals, filtering, and user feedback
 - Responsive, mobile-first UI built with utility classes
+- **Enhanced**: Comprehensive backup management system with validation, confirmation workflows, and progress indicators
 
 This structure enables scalable addition of new pages while preserving consistency in data access, user interactions, and presentation.
-
-[No sources needed since this section summarizes without analyzing specific files]

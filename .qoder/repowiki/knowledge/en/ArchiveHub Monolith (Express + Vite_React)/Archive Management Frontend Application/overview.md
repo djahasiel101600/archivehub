@@ -1,0 +1,1 @@
+Single-page React application that wires authentication, a tab-based shell, shared ArchiveContext state, and per-domain pages into an archive management UI backed by a local SQLite repository.

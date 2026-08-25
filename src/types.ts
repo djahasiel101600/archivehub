@@ -47,6 +47,8 @@ export interface LocationItem {
   barcode: string;
   departmentId?: string | null;
   departmentName?: string | null;
+  latitude?: number | null; // GPS latitude of the physical storage position
+  longitude?: number | null; // GPS longitude of the physical storage position
   createdAt: string;
   updatedAt: string;
 }

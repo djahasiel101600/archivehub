@@ -14,7 +14,7 @@
 - Added complete department CRUD operations with dependency checking and cascade updates
 - Implemented advanced batch processing capabilities for bundle operations and document associations
 - Strengthened security measures with parameterized queries throughout all repository methods
-- Added comprehensive data backup and restore functionality with transactional integrity
+- Added comprehensive data backup and restore functionality with transactional integrity, chunked inserts, JSON column handling, and schema difference detection
 
 ## Table of Contents
 1. [Introduction](#introduction)
@@ -28,7 +28,7 @@
 9. [Conclusion](#conclusion)
 
 ## Introduction
-This document explains ArchiveHub's repository pattern implementation for data access. The repository layer abstracts database operations behind a clean, typed interface and provides CRUD methods, complex queries, and transaction handling across multiple entities (users, departments, document types, locations, documents, checkouts, movements, retention policies, disposal records, bundles, reusable custom fields, and audit logs). It also details connection management via a PostgreSQL pool, the use of Drizzle ORM for type-safe schema definitions, and strategies for query optimization, caching, and error handling.
+This document explains ArchiveHub's repository pattern implementation for data access. The repository layer abstracts database operations behind a clean, typed interface and provides CRUD methods, complex queries, and transaction handling across multiple entities (users, departments, document types, locations, documents, checkouts, movements, retention policies, disposal records, bundles, reusable custom fields, and audit logs). It also details connection management via a PostgreSQL pool, the use of Drizzle ORM for type-safe schema definitions, and strategies for query optimization, caching, and error handling. **Updated**: The system now includes comprehensive data backup and restore capabilities with transactional integrity, chunked processing for large datasets, and intelligent JSON column handling.
 
 ## Project Structure
 The data access layer is organized into three primary files:
@@ -39,7 +39,7 @@ The data access layer is organized into three primary files:
 ```mermaid
 graph TB
 subgraph "Data Layer"
-Repo["Repository<br/>(CRUD + Transactions)"]
+Repo["Repository<br/>(CRUD + Transactions + Backup/Restore)"]
 DBMod["Database Module<br/>(Pool + Health)"]
 Schema["Schema<br/>(Drizzle Tables)"]
 end
@@ -59,7 +59,7 @@ DBMod --> |"PostgreSQL Pool"| PG["PostgreSQL"]
 - [schema.ts:1-228](file://src/db/schema.ts#L1-L228)
 
 ## Core Components
-- Repository module: Exposes per-entity functions for reading, creating, updating, deleting, and orchestrating multi-step workflows (e.g., checkout lifecycle, document movement, bundle management). It includes robust fallback to in-memory arrays when the database is not reachable.
+- Repository module: Exposes per-entity functions for reading, creating, updating, deleting, and orchestrating multi-step workflows (e.g., checkout lifecycle, document movement, bundle management). It includes robust fallback to in-memory arrays when the database is not reachable. **Updated**: Now includes comprehensive backup and restore functionality with transactional support.
 - Database module: Manages a single PostgreSQL connection pool, initializes Drizzle ORM with the schema, and provides health checks. It also exposes a dynamic proxy so existing code can call pgPool.query safely even before initialization.
 - Schema module: Defines all tables using Drizzle ORM with appropriate column types, constraints, and defaults.
 - Types module: Provides TypeScript interfaces for all domain entities used by the repository.
@@ -69,6 +69,7 @@ Key responsibilities:
 - Type safety: Entities are strongly typed; schema enforces structure at the database level.
 - Resilience: Graceful degradation to memory mode on errors or missing configuration.
 - Auditing: Consistent creation of audit log entries for critical actions.
+- Data Management: Comprehensive backup and restore capabilities with transactional integrity.
 
 **Section sources**
 - [repository.ts:1-1839](file://src/db/repository.ts#L1-L1839)
@@ -77,7 +78,7 @@ Key responsibilities:
 - [types.ts:1-284](file://src/types.ts#L1-L284)
 
 ## Architecture Overview
-The repository layer sits between application logic and persistence. It uses a PostgreSQL pool for durable storage and falls back to in-memory arrays when the database is unavailable. Drizzle ORM is configured with the schema for type safety, while many repository methods still use parameterized SQL queries for performance and flexibility.
+The repository layer sits between application logic and persistence. It uses a PostgreSQL pool for durable storage and falls back to in-memory arrays when the database is unavailable. Drizzle ORM is configured with the schema for type safety, while many repository methods still use parameterized SQL queries for performance and flexibility. **Updated**: The architecture now supports comprehensive data export and import operations with full transactional integrity.
 
 ```mermaid
 sequenceDiagram
@@ -294,8 +295,8 @@ Limitations:
 
 **Section sources**
 - [repository.ts:571-633](file://src/db/repository.ts#L571-L633)
-- [repository.ts:1403-1456](file://src/db/repository.ts#L1403-L1456)
-- [repository.ts:1528-1561](file://src/db/repository.ts#L1528-L1561)
+- [repository.ts:1403-1456](file://src/db/repository.ts#L1403-1456)
+- [repository.ts:1528-1561](file://src/db/repository.ts#L1528-1561)
 
 ### Transaction Handling Patterns
 - Multi-step operations are wrapped in transactions to ensure atomicity:
@@ -329,10 +330,21 @@ Rollback --> End
 - [repository.ts:1492-1526](file://src/db/repository.ts#L1492-L1526)
 
 ### Data Backup and Restore Capabilities
-- Export functionality: Exports all data from whitelisted tables in a standardized format.
-- Import functionality: Restores data with transactional integrity and chunked processing.
-- Safety measures: Whitelisted table set prevents unauthorized table access.
-- Performance optimization: Chunked inserts handle large datasets efficiently.
+**New Feature**: Comprehensive data backup and restore functionality with robust transactional support and performance optimizations.
+
+- Export functionality: Exports all data from whitelisted tables in a standardized format with versioning and timestamps.
+- Import functionality: Restores data with transactional integrity and chunked processing for large datasets.
+- Safety measures: Whitelisted table set prevents unauthorized table access and ensures data integrity.
+- Performance optimization: Chunked inserts handle large datasets efficiently while staying within driver parameter limits.
+- Schema compatibility: Intelligent column detection handles schema differences between export and import targets.
+- JSON column handling: Automatic serialization/deserialization for JSON and JSONB columns during import operations.
+
+Implementation details:
+- **Whitelisted Tables**: Only predefined tables can be exported/imported for security.
+- **Transaction Support**: Full restore runs as a single transaction - either all tables are replaced or nothing changes.
+- **Chunked Processing**: Large datasets are processed in chunks of 500 rows to avoid parameter limit issues.
+- **Schema Detection**: Runtime column detection ensures compatibility with different schema versions.
+- **JSON Column Intelligence**: Automatic detection of JSON/JSONB columns and proper serialization handling.
 
 **Section sources**
 - [repository.ts:1733-1839](file://src/db/repository.ts#L1733-L1839)
@@ -382,11 +394,16 @@ Repo --> Auth
   - Useful for development and resilience but should not be relied upon for production caching due to lack of persistence and concurrency controls.
 - Chunked processing:
   - Large dataset imports use chunked inserts to stay within driver parameter limits.
+- **Backup/Restore Optimization**:
+  - Efficient chunked processing for large datasets (500 rows per chunk).
+  - Single transaction for full restore operations.
+  - Runtime schema detection for optimal column selection.
 
 Recommendations:
 - Add database indexes for high-frequency filters and joins.
 - Consider query plans for large datasets and adjust pagination accordingly.
 - Monitor pool metrics and tune max connections based on workload.
+- Use backup/restore functionality for disaster recovery and data migration scenarios.
 
 ## Troubleshooting Guide
 Common issues and resolutions:
@@ -403,18 +420,24 @@ Common issues and resolutions:
   - Ensure transactions complete successfully; check rollback logs and validate status transitions.
 - Email conflicts:
   - User profile updates reject emails that collide with existing accounts.
+- **Backup/Restore Issues**:
+  - Export requires connected database; memory fallback mode doesn't support exports.
+  - Import validates backup format and throws descriptive errors for invalid files.
+  - Schema differences are handled automatically through runtime column detection.
 
 Operational tips:
 - Use clearCustomDataFromDb to reset test environments safely.
 - Validate inputs early to avoid costly transaction rollbacks.
 - Monitor transaction logs for failed operations that fell back to memory mode.
+- Regularly test backup/restore functionality to ensure data integrity.
 
 **Section sources**
 - [index.ts:97-146](file://src/db/index.ts#L97-L146)
 - [repository.ts:376-382](file://src/db/repository.ts#L376-L382)
 - [repository.ts:441-468](file://src/db/repository.ts#L441-L468)
 - [repository.ts:1219-1264](file://src/db/repository.ts#L1219-L1264)
-- [repository.ts:1352-1397](file://src/db/repository.ts#L1352-L1397)
+- [repository.ts:1352-1397](file://src/db/repository.ts#L1352-1397)
+- [repository.ts:1758-1784](file://src/db/repository.ts#L1758-L1784)
 
 ## Conclusion
-ArchiveHub's repository pattern delivers a resilient, type-safe data access layer that abstracts database interactions behind a consistent API. It combines PostgreSQL connection pooling, Drizzle schema definitions, and robust fallback mechanisms to ensure reliability. The enhanced user profile management, complete department CRUD operations, advanced batch processing capabilities, and strengthened security measures provide a comprehensive foundation for archive management operations. Transactional workflows maintain data integrity across complex operations, while parameterized queries and selective updates optimize performance and security. For production deployments, consider adding indexes, monitoring pool health, and replacing in-memory fallbacks with proper caching layers.
+ArchiveHub's repository pattern delivers a resilient, type-safe data access layer that abstracts database interactions behind a consistent API. It combines PostgreSQL connection pooling, Drizzle schema definitions, and robust fallback mechanisms to ensure reliability. The enhanced user profile management, complete department CRUD operations, advanced batch processing capabilities, and strengthened security measures provide a comprehensive foundation for archive management operations. **Updated**: The addition of comprehensive backup and restore functionality with transactional integrity, chunked processing, and intelligent schema handling significantly enhances the system's data management capabilities. Transactional workflows maintain data integrity across complex operations, while parameterized queries and selective updates optimize performance and security. For production deployments, consider adding indexes, monitoring pool health, replacing in-memory fallbacks with proper caching layers, and implementing regular backup schedules using the new export functionality.

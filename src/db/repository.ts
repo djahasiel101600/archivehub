@@ -493,6 +493,8 @@ export async function getLocations(): Promise<LocationItem[]> {
       barcode: r.barcode,
       departmentId: r.department_id,
       departmentName: r.department_name,
+      latitude: r.latitude !== null && r.latitude !== undefined ? Number(r.latitude) : null,
+      longitude: r.longitude !== null && r.longitude !== undefined ? Number(r.longitude) : null,
       createdAt: r.created_at ? new Date(r.created_at).toISOString().split('T')[0] : '',
       updatedAt: r.updated_at ? new Date(r.updated_at).toISOString().split('T')[0] : ''
     }));
@@ -524,13 +526,14 @@ export async function createLocation(locData: Omit<LocationItem, 'id' | 'created
 
   try {
     await pgPool!.query(`
-      INSERT INTO locations (id, parent_id, type, code, name, description, image_url, capacity, current_occupancy, qr_code, barcode, department_id, department_name)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+      INSERT INTO locations (id, parent_id, type, code, name, description, image_url, capacity, current_occupancy, qr_code, barcode, department_id, department_name, latitude, longitude)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
     `, [
       newLoc.id, newLoc.parentId, newLoc.type, newLoc.code, newLoc.name,
       newLoc.description || null, newLoc.imageUrl || null, newLoc.capacity,
       newLoc.currentOccupancy, newLoc.qrCode, newLoc.barcode,
-      newLoc.departmentId || null, newLoc.departmentName || null
+      newLoc.departmentId || null, newLoc.departmentName || null,
+      newLoc.latitude ?? null, newLoc.longitude ?? null
     ]);
   } catch (err) {
     console.warn('[Repository] createLocation DB query failed, using memory state:', err);
@@ -558,6 +561,8 @@ export async function updateLocation(id: string, updates: Partial<LocationItem>)
     if (updates.imageUrl !== undefined) { fields.push(`image_url = $${idx++}`); values.push(updates.imageUrl); }
     if (updates.capacity !== undefined) { fields.push(`capacity = $${idx++}`); values.push(updates.capacity); }
     if (updates.parentId !== undefined) { fields.push(`parent_id = $${idx++}`); values.push(updates.parentId); }
+    if (updates.latitude !== undefined) { fields.push(`latitude = $${idx++}`); values.push(updates.latitude); }
+    if (updates.longitude !== undefined) { fields.push(`longitude = $${idx++}`); values.push(updates.longitude); }
 
     fields.push(`updated_at = NOW()`);
 

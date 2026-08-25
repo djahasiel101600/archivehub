@@ -32,7 +32,9 @@ import {
   Network,
   Camera,
   Image as ImageIcon,
-  Link as LinkIcon
+  Link as LinkIcon,
+  LocateFixed,
+  Loader2
 } from 'lucide-react';
 import { LocationItem, LocationType } from '../types';
 import { getChildrenLocations, getDocumentsInLocation } from '../utils/locationUtils';
@@ -48,7 +50,7 @@ export const LocationsPage: React.FC<LocationsPageProps> = ({
   openCreateModalDirectly,
   onClearTrigger 
 }) => {
-  const { locations, documents, addLocation, updateLocation, deleteLocation, calculatePath } = useArchive();
+  const { locations, documents, addLocation, updateLocation, deleteLocation, calculatePath, addNotification } = useArchive();
   
   const [selectedLocationId, setSelectedLocationId] = useState<string | null>(locations[0]?.id || null);
   const [mobileView, setMobileView] = useState<'tree' | 'details'>('tree');
@@ -77,6 +79,9 @@ export const LocationsPage: React.FC<LocationsPageProps> = ({
   const [newLocCapacity, setNewLocCapacity] = useState(20);
   const [newLocDesc, setNewLocDesc] = useState('');
   const [newLocImageUrl, setNewLocImageUrl] = useState('');
+  const [newLocLatitude, setNewLocLatitude] = useState('');
+  const [newLocLongitude, setNewLocLongitude] = useState('');
+  const [capturingGps, setCapturingGps] = useState<'create' | 'edit' | null>(null);
 
   // QR Modal & Delete Confirm State
   const [qrModalItem, setQrModalItem] = useState<LocationItem | null>(null);
@@ -92,6 +97,41 @@ export const LocationsPage: React.FC<LocationsPageProps> = ({
   const [editDescription, setEditDescription] = useState('');
   const [editParentId, setEditParentId] = useState<string | null>(null);
   const [editImageUrl, setEditImageUrl] = useState('');
+  const [editLatitude, setEditLatitude] = useState('');
+  const [editLongitude, setEditLongitude] = useState('');
+
+  const parseCoord = (v: string): number | null => {
+    const n = parseFloat(v);
+    return isNaN(n) ? null : n;
+  };
+
+  const captureGps = (target: 'create' | 'edit') => {
+    if (!navigator.geolocation) {
+      addNotification('warning', 'Geolocation is not supported by this browser.');
+      return;
+    }
+    setCapturingGps(target);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const lat = pos.coords.latitude.toFixed(6);
+        const lng = pos.coords.longitude.toFixed(6);
+        if (target === 'create') {
+          setNewLocLatitude(lat);
+          setNewLocLongitude(lng);
+        } else {
+          setEditLatitude(lat);
+          setEditLongitude(lng);
+        }
+        setCapturingGps(null);
+        addNotification('success', 'GPS position captured.');
+      },
+      () => {
+        addNotification('error', 'Unable to retrieve GPS position. Check location permissions.');
+        setCapturingGps(null);
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  };
 
   // Hover preview for storage unit images
   const [imagePreview, setImagePreview] = useState<{ src: string; title: string; x: number; y: number } | null>(null);
@@ -122,6 +162,8 @@ export const LocationsPage: React.FC<LocationsPageProps> = ({
     setEditDescription(loc.description || '');
     setEditParentId(loc.parentId || null);
     setEditImageUrl(loc.imageUrl || '');
+    setEditLatitude(loc.latitude != null ? String(loc.latitude) : '');
+    setEditLongitude(loc.longitude != null ? String(loc.longitude) : '');
     setShowEditModal(true);
   };
 
@@ -136,7 +178,9 @@ export const LocationsPage: React.FC<LocationsPageProps> = ({
       capacity: Number(editCapacity) || 20,
       description: editDescription.trim(),
       parentId: editParentId,
-      imageUrl: editImageUrl.trim() || undefined
+      imageUrl: editImageUrl.trim() || undefined,
+      latitude: parseCoord(editLatitude),
+      longitude: parseCoord(editLongitude)
     });
 
     setShowEditModal(false);
@@ -174,7 +218,9 @@ export const LocationsPage: React.FC<LocationsPageProps> = ({
       code: newLocCode.trim().toUpperCase() || `${newLocType.substring(0, 3)}-${Math.floor(100 + Math.random() * 900)}`,
       capacity: Number(newLocCapacity) || 20,
       description: newLocDesc.trim(),
-      imageUrl: newLocImageUrl.trim() || undefined
+      imageUrl: newLocImageUrl.trim() || undefined,
+      latitude: parseCoord(newLocLatitude),
+      longitude: parseCoord(newLocLongitude)
     });
 
     // Reset & close
@@ -182,6 +228,8 @@ export const LocationsPage: React.FC<LocationsPageProps> = ({
     setNewLocCode('');
     setNewLocDesc('');
     setNewLocImageUrl('');
+    setNewLocLatitude('');
+    setNewLocLongitude('');
     setShowCreateModal(false);
   };
 
@@ -448,6 +496,14 @@ export const LocationsPage: React.FC<LocationsPageProps> = ({
                   <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
                     Max Capacity: <strong className="text-slate-800 dark:text-slate-200">{selectedLoc.capacity || 'N/A'} items</strong>
                   </span>
+                  {selectedLoc.latitude != null && selectedLoc.longitude != null && (
+                    <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 inline-flex items-center gap-1">
+                      <MapPin className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                      <strong className="text-slate-800 dark:text-slate-200 font-mono">
+                        {selectedLoc.latitude.toFixed(5)}, {selectedLoc.longitude.toFixed(5)}
+                      </strong>
+                    </span>
+                  )}
                 </div>
 
                 <div className="flex items-center gap-2">
@@ -738,6 +794,40 @@ export const LocationsPage: React.FC<LocationsPageProps> = ({
 
               <div>
                 <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  GPS Coordinates (Optional)
+                </label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    step="any"
+                    value={newLocLatitude}
+                    onChange={(e) => setNewLocLatitude(e.target.value)}
+                    placeholder="Latitude"
+                    className="w-full px-3 py-2 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl outline-none font-mono"
+                  />
+                  <input
+                    type="number"
+                    step="any"
+                    value={newLocLongitude}
+                    onChange={(e) => setNewLocLongitude(e.target.value)}
+                    placeholder="Longitude"
+                    className="w-full px-3 py-2 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl outline-none font-mono"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => captureGps('create')}
+                    disabled={capturingGps !== null}
+                    title="Capture current GPS position"
+                    className="flex-shrink-0 inline-flex items-center gap-1 px-2.5 py-2 text-xs font-semibold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/60 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 disabled:opacity-50 rounded-xl border border-emerald-200 dark:border-emerald-800 transition-colors"
+                  >
+                    {capturingGps === 'create' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <LocateFixed className="w-3.5 h-3.5" />}
+                    GPS
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
                   Description / Storage Notes
                 </label>
                 <textarea
@@ -967,6 +1057,40 @@ export const LocationsPage: React.FC<LocationsPageProps> = ({
                     onChange={(e) => setEditCapacity(Number(e.target.value))}
                     className="w-full px-3 py-2 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl outline-none font-bold text-slate-900 dark:text-slate-100"
                   />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                    GPS Coordinates (Optional)
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      step="any"
+                      value={editLatitude}
+                      onChange={(e) => setEditLatitude(e.target.value)}
+                      placeholder="Latitude"
+                      className="w-full px-3 py-2 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl outline-none font-mono"
+                    />
+                    <input
+                      type="number"
+                      step="any"
+                      value={editLongitude}
+                      onChange={(e) => setEditLongitude(e.target.value)}
+                      placeholder="Longitude"
+                      className="w-full px-3 py-2 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl outline-none font-mono"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => captureGps('edit')}
+                      disabled={capturingGps !== null}
+                      title="Capture current GPS position"
+                      className="flex-shrink-0 inline-flex items-center gap-1 px-2.5 py-2 text-xs font-semibold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/60 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 disabled:opacity-50 rounded-xl border border-emerald-200 dark:border-emerald-800 transition-colors"
+                    >
+                      {capturingGps === 'edit' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <LocateFixed className="w-3.5 h-3.5" />}
+                      GPS
+                    </button>
+                  </div>
                 </div>
 
                 <div>

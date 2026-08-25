@@ -13,21 +13,49 @@ let poolInstance: pg.Pool | null = null;
 let dbInstance: ReturnType<typeof drizzle> | null = null;
 let isDbConnectedFlag = false;
 
-export function getDatabaseUrl(): string | undefined {
+// Reads a variable from the .env file first, then falls back to process.env.
+function readEnvVar(parsed: Record<string, string> | null, name: string): string | undefined {
+  const value = (parsed && parsed[name] !== undefined ? parsed[name] : process.env[name]) || '';
+  return value.replace(/^["']|["']$/g, '').trim() || undefined;
+}
+
+// Resolves the active database provider: "supabase" | "local" (defaults to supabase).
+export function getDbProvider(): 'supabase' | 'local' {
   try {
     const envPath = path.resolve(process.cwd(), '.env');
     if (fs.existsSync(envPath)) {
-      const parsed = dotenv.parse(fs.readFileSync(envPath));
-      if (parsed.DATABASE_URL && !parsed.DATABASE_URL.includes('[YOUR-PASSWORD]')) {
-        return parsed.DATABASE_URL.replace(/^["']|["']$/g, '').trim();
-      }
+      const raw = dotenv.parse(fs.readFileSync(envPath)).DB_PROVIDER;
+      if (raw) return raw.toLowerCase() === 'local' ? 'local' : 'supabase';
+    }
+  } catch (err) {
+    console.warn('[Database] Failed to parse .env file directly:', err);
+  }
+  return (process.env.DB_PROVIDER || '').toLowerCase() === 'local' ? 'local' : 'supabase';
+}
+
+export function getDatabaseUrl(): string | undefined {
+  let parsed: Record<string, string> | null = null;
+  try {
+    const envPath = path.resolve(process.cwd(), '.env');
+    if (fs.existsSync(envPath)) {
+      parsed = dotenv.parse(fs.readFileSync(envPath));
     }
   } catch (err) {
     console.warn('[Database] Failed to parse .env file directly:', err);
   }
 
-  if (process.env.DATABASE_URL && !process.env.DATABASE_URL.includes('[YOUR-PASSWORD]')) {
-    return process.env.DATABASE_URL.replace(/^["']|["']$/g, '').trim();
+  // DB_PROVIDER=local | supabase selects which connection string is used.
+  const provider = getDbProvider();
+  const providerVar = provider === 'local' ? 'LOCAL_DATABASE_URL' : 'SUPABASE_DATABASE_URL';
+
+  const url =
+    readEnvVar(parsed, providerVar) ||
+    readEnvVar(parsed, 'DATABASE_URL') ||
+    process.env[providerVar] ||
+    process.env.DATABASE_URL;
+
+  if (url && !url.includes('[YOUR-PASSWORD]')) {
+    return url;
   }
 
   return undefined;
@@ -42,6 +70,7 @@ export function getPool(): pg.Pool | null {
 
   if (!poolInstance) {
     try {
+      const provider = getDbProvider();
       const isRemote = !databaseUrl.includes('localhost') && !databaseUrl.includes('127.0.0.1');
 
       // Explicit override wins: PGSSL=disable is required for plain PostgreSQL
@@ -52,9 +81,14 @@ export function getPool(): pg.Pool | null {
         ? false
         : pgssl === 'require' || pgssl === 'prefer'
           ? { rejectUnauthorized: false }
-          : (isRemote || databaseUrl.includes('supabase') || databaseUrl.includes('sslmode=require')
-              ? { rejectUnauthorized: false }
-              : false);
+          : provider === 'supabase'
+            // Supabase/remote provider always requires SSL (also covers any
+            // external PostgreSQL pointed at via DATABASE_URL fallback).
+            ? { rejectUnauthorized: false }
+            // Local provider: SSL off unless the URL/host says otherwise.
+            : (databaseUrl.includes('sslmode=require') || (isRemote && databaseUrl.includes('supabase'))
+                ? { rejectUnauthorized: false }
+                : false);
 
       poolInstance = new Pool({
         connectionString: databaseUrl,
@@ -68,7 +102,7 @@ export function getPool(): pg.Pool | null {
       });
 
       dbInstance = drizzle(poolInstance, { schema });
-      console.log('[Database] PostgreSQL Pool initialized successfully.');
+      console.log(`[Database] PostgreSQL Pool initialized successfully (provider: ${provider}).`);
     } catch (err) {
       console.error('[Database] Failed to initialize PostgreSQL Pool:', err);
       poolInstance = null;
@@ -113,7 +147,7 @@ export async function checkDatabaseHealth(): Promise<{ connected: boolean; messa
     isDbConnectedFlag = false;
     return {
       connected: false,
-      message: 'DATABASE_URL is not configured in .env file or contains default placeholder password.',
+      message: 'No database is configured. Set DB_PROVIDER (supabase|local) and the matching connection string (SUPABASE_DATABASE_URL or LOCAL_DATABASE_URL) in .env.',
       timestamp
     };
   }

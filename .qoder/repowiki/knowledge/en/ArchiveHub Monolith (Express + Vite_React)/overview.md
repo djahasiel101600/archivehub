@@ -1,0 +1,1 @@
+Single-process ArchiveHub application that serves a Vite/React SPA and an Express REST API from one entrypoint, sharing a Drizzle + PostgreSQL data layer.

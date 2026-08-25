@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { Html5QrcodeScanner } from 'html5-qrcode';
 import { useArchive } from '../context/ArchiveContext';
 import { StatusBadge } from '../components/common/StatusBadge';
 import { LocationPathBreadcrumbs } from '../components/common/LocationPathBreadcrumbs';
@@ -29,9 +30,10 @@ import {
   SlidersHorizontal,
   Trash2,
   X,
-  Layers
+  Layers,
+  ScanLine
 } from 'lucide-react';
-import { DocumentCondition } from '../types';
+import { DocumentCondition, LocationItem } from '../types';
 
 interface DocumentDetailPageProps {
   documentId: string;
@@ -56,7 +58,8 @@ export const DocumentDetailPage: React.FC<DocumentDetailPageProps> = ({
     requestCheckout,
     processCheckInReturn,
     deleteDocument,
-    calculatePath 
+    calculatePath,
+    lookupByQR
   } = useArchive();
 
   const [activeTab, setActiveTab] = useState<'movements' | 'checkouts' | 'audit'>('movements');
@@ -68,6 +71,60 @@ export const DocumentDetailPage: React.FC<DocumentDetailPageProps> = ({
   const [showMoveModal, setShowMoveModal] = useState(false);
   const [targetLocationId, setTargetLocationId] = useState(locations[0]?.id || '');
   const [moveReason, setMoveReason] = useState('');
+
+  // Destination QR scan state (relocation modal)
+  const [showDestScanner, setShowDestScanner] = useState(false);
+  const [destScanError, setDestScanError] = useState('');
+  const destScannerRef = useRef<Html5QrcodeScanner | null>(null);
+
+  const processDestScannedCode = useCallback((code: string) => {
+    const result = lookupByQR(code);
+    if (!result) {
+      setDestScanError(`Unknown code: "${code.slice(0, 30)}"`);
+      return;
+    }
+    if (result.type !== 'LOCATION') {
+      setDestScanError(`Scanned code is a ${result.type.toLowerCase()}, not a storage location.`);
+      return;
+    }
+    const loc = result.data as LocationItem;
+    setTargetLocationId(loc.id);
+    setDestScanError('');
+    setShowDestScanner(false);
+  }, [lookupByQR]);
+
+  useEffect(() => {
+    if (!(showMoveModal && showDestScanner)) return;
+
+    let isCancelled = false;
+
+    const timer = setTimeout(() => {
+      if (isCancelled) return;
+      const el = document.getElementById('doc-move-dest-qr-reader');
+      if (!el) return;
+
+      const localScanner = new Html5QrcodeScanner(
+        'doc-move-dest-qr-reader',
+        { fps: 10, qrbox: { width: 220, height: 220 }, rememberLastUsedCamera: true },
+        false
+      );
+
+      localScanner.render(
+        (decodedText) => processDestScannedCode(decodedText),
+        () => { /* ignore frame errors */ }
+      );
+
+      destScannerRef.current = localScanner;
+    }, 250);
+
+    return () => {
+      isCancelled = true;
+      clearTimeout(timer);
+      const s = destScannerRef.current;
+      destScannerRef.current = null;
+      if (s) s.clear().catch(() => {});
+    };
+  }, [showMoveModal, showDestScanner, processDestScannedCode]);
 
   // Request Borrowing Modal
   const [showBorrowModal, setShowBorrowModal] = useState(false);
@@ -590,9 +647,38 @@ export const DocumentDetailPage: React.FC<DocumentDetailPageProps> = ({
             <form onSubmit={handleMoveSubmit} className="flex-1 flex flex-col min-h-0">
               <div className="p-6 space-y-3 overflow-y-auto flex-1">
                 <div>
-                  <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                    Select Destination Storage Node *
-                  </label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block font-semibold text-slate-700 dark:text-slate-300">
+                      Select Destination Storage Node *
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => { setShowDestScanner(v => !v); setDestScanError(''); }}
+                      className={`inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-bold rounded-lg border transition-colors ${
+                        showDestScanner
+                          ? 'text-white bg-indigo-600 border-indigo-600 hover:bg-indigo-700'
+                          : 'text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/60 border-indigo-200 dark:border-indigo-800 hover:bg-indigo-100 dark:hover:bg-indigo-900/60'
+                      }`}
+                    >
+                      <ScanLine className="w-3.5 h-3.5" />
+                      {showDestScanner ? 'Close Scanner' : 'Scan Location QR'}
+                    </button>
+                  </div>
+
+                  {showDestScanner && (
+                    <div className="mb-2 p-2 bg-slate-900 rounded-xl border border-slate-700">
+                      <div id="doc-move-dest-qr-reader" className="rounded-lg overflow-hidden" />
+                      <p className="text-[10px] text-slate-300 mt-1.5 text-center">
+                        Scan the QR tag of the destination storage location
+                      </p>
+                      {destScanError && (
+                        <p className="text-[10px] text-red-400 font-semibold mt-1 text-center flex items-center justify-center gap-1">
+                          <AlertTriangle className="w-3 h-3" /> {destScanError}
+                        </p>
+                      )}
+                    </div>
+                  )}
+
                   <select
                     value={targetLocationId}
                     onChange={(e) => setTargetLocationId(e.target.value)}
@@ -604,6 +690,15 @@ export const DocumentDetailPage: React.FC<DocumentDetailPageProps> = ({
                       </option>
                     ))}
                   </select>
+                  {(() => {
+                    const destLoc = locations.find(l => l.id === targetLocationId);
+                    return destLoc?.latitude != null && destLoc.longitude != null ? (
+                      <div className="flex items-center gap-1 mt-1.5 text-[10px] font-mono text-slate-500 dark:text-slate-400">
+                        <MapPin className="w-3 h-3 text-emerald-600" />
+                        GPS: {destLoc.latitude.toFixed(5)}, {destLoc.longitude.toFixed(5)}
+                      </div>
+                    ) : null;
+                  })()}
                 </div>
 
                 <div>

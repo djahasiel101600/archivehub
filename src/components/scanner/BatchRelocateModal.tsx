@@ -2,7 +2,6 @@ import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { Html5QrcodeScanner } from 'html5-qrcode';
 import { useArchive } from '../../context/ArchiveContext';
 import { LocationPathBreadcrumbs } from '../common/LocationPathBreadcrumbs';
-import { DocumentItem } from '../../types';
 import {
   Truck,
   X,
@@ -14,8 +13,10 @@ import {
   MapPin,
   ArrowRight,
   Trash2,
-  Loader2
+  Loader2,
+  ScanLine
 } from 'lucide-react';
+import { DocumentItem, LocationItem } from '../../types';
 
 interface BatchRelocateModalProps {
   isOpen: boolean;
@@ -53,7 +54,12 @@ export const BatchRelocateModal: React.FC<BatchRelocateModalProps> = ({
   const [isExecuting, setIsExecuting] = useState(false);
   const [resultMessage, setResultMessage] = useState('');
 
+  // Destination QR scan state (confirm step)
+  const [showDestScanner, setShowDestScanner] = useState(false);
+  const [destScanError, setDestScanError] = useState('');
+
   const scannerRef = useRef<Html5QrcodeScanner | null>(null);
+  const destScannerRef = useRef<Html5QrcodeScanner | null>(null);
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Keep a ref of scanned doc IDs to avoid stale closure in scanner callback
   const scannedIdsRef = useRef<Set<string>>(new Set());
@@ -126,6 +132,57 @@ export const BatchRelocateModal: React.FC<BatchRelocateModalProps> = ({
       setScannerActive(false);
     };
   }, [isOpen, step, activeScanTab, processScannedCode]);
+
+  // Destination location scan: resolves the scanned code and requires a LOCATION tag
+  const processDestScannedCode = useCallback((code: string) => {
+    const result = lookupByQR(code);
+    if (!result) {
+      setDestScanError(`Unknown code: "${code.slice(0, 30)}"`);
+      return;
+    }
+    if (result.type !== 'LOCATION') {
+      setDestScanError(`Scanned code is a ${result.type.toLowerCase()}, not a storage location.`);
+      return;
+    }
+    const loc = result.data as LocationItem;
+    setDestinationId(loc.id);
+    setDestScanError('');
+    setShowDestScanner(false);
+  }, [lookupByQR]);
+
+  // Destination scanner lifecycle (confirm step only)
+  useEffect(() => {
+    if (!(isOpen && step === 'confirm' && showDestScanner)) return;
+
+    let isCancelled = false;
+
+    const timer = setTimeout(() => {
+      if (isCancelled) return;
+      const el = document.getElementById('dest-qr-reader');
+      if (!el) return;
+
+      const localScanner = new Html5QrcodeScanner(
+        'dest-qr-reader',
+        { fps: 10, qrbox: { width: 220, height: 220 }, rememberLastUsedCamera: true },
+        false
+      );
+
+      localScanner.render(
+        (decodedText) => processDestScannedCode(decodedText),
+        () => { /* ignore frame errors */ }
+      );
+
+      destScannerRef.current = localScanner;
+    }, 250);
+
+    return () => {
+      isCancelled = true;
+      clearTimeout(timer);
+      const s = destScannerRef.current;
+      destScannerRef.current = null;
+      if (s) s.clear().catch(() => {});
+    };
+  }, [isOpen, step, showDestScanner, processDestScannedCode]);
 
   // Cleanup toast timer
   useEffect(() => {
@@ -418,10 +475,39 @@ export const BatchRelocateModal: React.FC<BatchRelocateModalProps> = ({
 
               {/* Destination Location */}
               <div>
-                <label className="block font-semibold text-slate-700 dark:text-slate-300 text-xs mb-1.5 flex items-center gap-1.5">
-                  <MapPin className="w-3.5 h-3.5 text-emerald-600" />
-                  Destination Storage Location *
-                </label>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block font-semibold text-slate-700 dark:text-slate-300 text-xs flex items-center gap-1.5">
+                    <MapPin className="w-3.5 h-3.5 text-emerald-600" />
+                    Destination Storage Location *
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => { setShowDestScanner(v => !v); setDestScanError(''); }}
+                    className={`inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-bold rounded-lg border transition-colors ${
+                      showDestScanner
+                        ? 'text-white bg-emerald-600 border-emerald-600 hover:bg-emerald-700'
+                        : 'text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/60 border-emerald-200 dark:border-emerald-800 hover:bg-emerald-100 dark:hover:bg-emerald-900/60'
+                    }`}
+                  >
+                    <ScanLine className="w-3.5 h-3.5" />
+                    {showDestScanner ? 'Close Scanner' : 'Scan Location QR'}
+                  </button>
+                </div>
+
+                {showDestScanner && (
+                  <div className="mb-2 p-2 bg-slate-900 rounded-xl border border-slate-700">
+                    <div id="dest-qr-reader" className="rounded-lg overflow-hidden" />
+                    <p className="text-[10px] text-slate-300 mt-1.5 text-center">
+                      Scan the QR tag of the destination storage location
+                    </p>
+                    {destScanError && (
+                      <p className="text-[10px] text-red-400 font-semibold mt-1 text-center flex items-center justify-center gap-1">
+                        <AlertTriangle className="w-3 h-3" /> {destScanError}
+                      </p>
+                    )}
+                  </div>
+                )}
+
                 <select
                   value={destinationId}
                   onChange={(e) => setDestinationId(e.target.value)}
@@ -434,8 +520,17 @@ export const BatchRelocateModal: React.FC<BatchRelocateModalProps> = ({
                   ))}
                 </select>
                 {destinationId && (
-                  <div className="mt-1.5">
+                  <div className="mt-1.5 space-y-1">
                     <LocationPathBreadcrumbs locationId={destinationId} badgeSize="sm" />
+                    {(() => {
+                      const destLoc = locations.find(l => l.id === destinationId);
+                      return destLoc?.latitude != null && destLoc.longitude != null ? (
+                        <div className="flex items-center gap-1 text-[10px] font-mono text-slate-500 dark:text-slate-400">
+                          <MapPin className="w-3 h-3 text-emerald-600" />
+                          GPS: {destLoc.latitude.toFixed(5)}, {destLoc.longitude.toFixed(5)}
+                        </div>
+                      ) : null;
+                    })()}
                   </div>
                 )}
               </div>
