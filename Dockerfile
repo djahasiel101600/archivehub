@@ -26,6 +26,8 @@ WORKDIR /app
 COPY package.json ./
 COPY --from=prod-deps /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
+# Writable storage for uploaded digital surrogate copies (bind-mounted volume in compose)
+RUN mkdir -p /app/uploads && chown -R node:node /app/uploads
 EXPOSE 3031
 USER node
 CMD ["node", "dist/server.cjs"]

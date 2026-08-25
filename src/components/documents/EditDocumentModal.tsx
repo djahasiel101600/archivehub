@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useArchive } from '../../context/ArchiveContext';
 import { 
   DocumentItem, 
@@ -18,7 +18,8 @@ import {
   ShieldCheck, 
   Calendar, 
   AlertCircle,
-  FolderOpen
+  FolderOpen,
+  Upload
 } from 'lucide-react';
 import { LocationPathBreadcrumbs } from '../common/LocationPathBreadcrumbs';
 
@@ -41,6 +42,7 @@ export const EditDocumentModal: React.FC<EditDocumentModalProps> = ({
     locations, 
     bundles, 
     updateDocument, 
+    uploadDigitalCopy,
     calculatePath,
     addNotification
   } = useArchive();
@@ -74,6 +76,8 @@ export const EditDocumentModal: React.FC<EditDocumentModalProps> = ({
   const [digitalFileName, setDigitalFileName] = useState('');
   const [digitalFileVersion, setDigitalFileVersion] = useState(1);
   const [digitalFileType, setDigitalFileType] = useState('application/pdf');
+  const [pendingDigitalFile, setPendingDigitalFile] = useState<File | null>(null);
+  const digitalFileInputRef = useRef<HTMLInputElement>(null);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -102,6 +106,7 @@ export const EditDocumentModal: React.FC<EditDocumentModalProps> = ({
       setDigitalFileName(document.digitalFileName || '');
       setDigitalFileVersion(document.digitalFileVersion || 1);
       setDigitalFileType(document.digitalFileType || 'application/pdf');
+      setPendingDigitalFile(null);
     }
   }, [document, isOpen, departments, documentTypes, locations]);
 
@@ -144,6 +149,25 @@ export const EditDocumentModal: React.FC<EditDocumentModalProps> = ({
   const selectedDept = departments.find(d => d.id === departmentId);
   const selectedBundle = bundles.find(b => b.id === bundleId);
 
+  const formatPendingFileSize = (bytes: number): string => {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
+
+  const handleDigitalFileSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    if (file.size > 50 * 1024 * 1024) {
+      addNotification('error', 'File exceeds the 50 MB limit for digitized surrogate copies.');
+      return;
+    }
+    setPendingDigitalFile(file);
+    if (!digitalFileName.trim()) setDigitalFileName(file.name);
+    if (file.type) setDigitalFileType(file.type);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim()) {
@@ -184,6 +208,16 @@ export const EditDocumentModal: React.FC<EditDocumentModalProps> = ({
       };
 
       await updateDocument(document.id, updates);
+
+      // Upload the selected scan/PDF after metadata is persisted
+      if (hasDigitalCopy && pendingDigitalFile) {
+        const uploadRes = await uploadDigitalCopy(document.id, pendingDigitalFile, digitalFileVersion);
+        if (!uploadRes.success) {
+          addNotification('error', `Metadata saved, but the digital copy upload failed: ${uploadRes.message || 'Unknown error'}`);
+        } else {
+          addNotification('success', `Digitized copy "${pendingDigitalFile.name}" attached to the record.`);
+        }
+      }
       
       if (onSaved) {
         onSaved({ ...document, ...updates });
@@ -573,6 +607,42 @@ export const EditDocumentModal: React.FC<EditDocumentModalProps> = ({
 
               {hasDigitalCopy && (
                 <div className="pt-3 border-t border-slate-200 dark:border-slate-700 space-y-3 animate-in fade-in">
+                  {/* Scan / PDF File Upload */}
+                  <div>
+                    <label className="block text-[11px] font-medium text-slate-600 dark:text-slate-400 mb-1">
+                      Scan / PDF File {document.hasDigitalCopy && '(replaces the current attachment)'}
+                    </label>
+                    <input
+                      ref={digitalFileInputRef}
+                      type="file"
+                      accept=".pdf,image/png,image/jpeg,image/webp,image/tiff,.tif"
+                      className="hidden"
+                      onChange={handleDigitalFileSelected}
+                    />
+                    <div className="flex items-center gap-2.5 flex-wrap">
+                      <button
+                        type="button"
+                        onClick={() => digitalFileInputRef.current?.click()}
+                        className="inline-flex items-center gap-1.5 px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-[11px] rounded-xl shadow-xs transition-colors"
+                      >
+                        <Upload className="w-3.5 h-3.5" />
+                        {pendingDigitalFile ? 'Change File' : document.hasDigitalCopy ? 'Replace File' : 'Choose File'}
+                      </button>
+                      <span className="text-[11px] text-slate-500 dark:text-slate-400 font-mono">
+                        {pendingDigitalFile
+                          ? `${pendingDigitalFile.name} (${formatPendingFileSize(pendingDigitalFile.size)})`
+                          : document.hasDigitalCopy && document.digitalFileName
+                            ? `Current: ${document.digitalFileName}`
+                            : 'No file selected yet.'}
+                      </span>
+                    </div>
+                    {pendingDigitalFile && (
+                      <p className="text-[10px] text-indigo-600 dark:text-indigo-400 mt-1">
+                        The file will be uploaded to server storage when you save.
+                      </p>
+                    )}
+                  </div>
+
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
                       <label className="block text-[11px] font-medium text-slate-600 dark:text-slate-400 mb-1">

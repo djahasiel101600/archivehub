@@ -172,6 +172,7 @@ export interface DocumentItem {
   digitalFileSize?: string;
   digitalFileType?: string;
   digitalFileVersion?: number;
+  digitalFilePath?: string; // server-side relative path of the stored surrogate copy
   
   customMetadata?: CustomMetadataField[];
   customFieldValues?: Record<string, string | number>;

@@ -90,6 +90,7 @@ interface ArchiveContextType {
   // Document Operations
   addDocument: (doc: Omit<DocumentItem, 'id' | 'createdAt' | 'updatedAt' | 'qrCode' | 'barcode' | 'status' | 'currentLocationId'>) => Promise<DocumentItem>;
   updateDocument: (id: string, updates: Partial<DocumentItem>) => Promise<void>;
+  uploadDigitalCopy: (id: string, file: File, version?: number) => Promise<{ success: boolean; message?: string }>;
   deleteDocument: (id: string) => Promise<boolean>;
   moveDocument: (documentId: string, toLocationId: string, reason: string) => Promise<void>;
   batchMoveDocuments: (documentIds: string[], toLocationId: string, reason: string) => Promise<void>;
@@ -949,6 +950,67 @@ export const ArchiveProvider: React.FC<{ children: React.ReactNode }> = ({ child
     addNotification('success', `Document #${docNum} updated successfully.`);
   };
 
+  const uploadDigitalCopy = async (id: string, file: File, version?: number): Promise<{ success: boolean; message?: string }> => {
+    const doc = documents.find(d => d.id === id);
+    if (!doc) return { success: false, message: 'Document not found.' };
+
+    try {
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = () => reject(new Error('Could not read the selected file.'));
+        reader.readAsDataURL(file);
+      });
+
+      const res = await fetch(`/api/documents/${id}/digital-copy`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fileName: file.name,
+          fileData: dataUrl,
+          fileType: file.type || 'application/octet-stream',
+          version: version || (doc.digitalFileVersion || 1),
+          user: currentUser
+        })
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        return { success: false, message: data.error || 'Digital copy upload failed.' };
+      }
+
+      const appliedVersion = Number(version) || doc.digitalFileVersion || 1;
+      setDocuments(prev => prev.map(d => d.id === id ? {
+        ...d,
+        hasDigitalCopy: true,
+        digitalFileName: data.fileName,
+        digitalFileSize: data.sizeLabel,
+        digitalFileType: file.type || 'application/octet-stream',
+        digitalFileVersion: appliedVersion,
+        digitalFilePath: data.relativePath,
+        updatedAt: new Date().toISOString()
+      } : d));
+
+      const auditRecord: AuditLogRecord = {
+        id: 'aud-' + Date.now(),
+        userId: currentUser.id,
+        userName: currentUser.fullName,
+        userRole: currentUser.role,
+        action: 'DIGITAL_COPY_UPLOADED',
+        entityType: 'DOCUMENT',
+        entityId: id,
+        entityName: doc.title || doc.documentNumber,
+        timestamp: new Date().toISOString(),
+        details: `Attached digitized surrogate copy "${data.fileName}" (${data.sizeLabel}) to document #${doc.documentNumber}`
+      };
+      setAuditLogs(prev => [auditRecord, ...prev]);
+
+      fetchAllFromBackend();
+      return { success: true };
+    } catch (err: any) {
+      return { success: false, message: err?.message || 'Digital copy upload failed.' };
+    }
+  };
+
   const deleteDocument = async (id: string): Promise<boolean> => {
     const doc = documents.find(d => d.id === id);
     if (!doc) return false;
@@ -1209,6 +1271,7 @@ export const ArchiveProvider: React.FC<{ children: React.ReactNode }> = ({ child
         deleteLocation,
         addDocument,
         updateDocument,
+        uploadDigitalCopy,
         deleteDocument,
         moveDocument,
         batchMoveDocuments,

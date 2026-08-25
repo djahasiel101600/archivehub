@@ -606,6 +606,11 @@ export async function deleteLocation(id: string): Promise<boolean> {
 }
 
 // --- DOCUMENTS REPOSITORY ---
+export async function getDocumentById(id: string): Promise<DocumentItem | null> {
+  const docs = await getDocuments();
+  return docs.find(d => d.id === id) || null;
+}
+
 export async function getDocuments(): Promise<DocumentItem[]> {
   if (!isDbAvailable()) return memoryDocuments;
   try {
@@ -825,6 +830,7 @@ export async function updateDocument(id: string, updates: Partial<DocumentItem>,
     if (updates.digitalFileSize !== undefined) { fields.push(`digital_file_size = $${idx++}`); values.push(updates.digitalFileSize); }
     if (updates.digitalFileType !== undefined) { fields.push(`digital_file_type = $${idx++}`); values.push(updates.digitalFileType); }
     if (updates.digitalFileVersion !== undefined) { fields.push(`digital_file_version = $${idx++}`); values.push(updates.digitalFileVersion); }
+    if (updates.digitalFilePath !== undefined) { fields.push(`digital_file_path = $${idx++}`); values.push(updates.digitalFilePath); }
     if (updates.customMetadata !== undefined) { fields.push(`custom_metadata = $${idx++}`); values.push(JSON.stringify(updates.customMetadata)); }
     if (updates.customFieldValues !== undefined) { fields.push(`custom_field_values = $${idx++}`); values.push(JSON.stringify(updates.customFieldValues)); }
     if (updates.bundleId !== undefined) { fields.push(`bundle_id = $${idx++}`); values.push(updates.bundleId); }

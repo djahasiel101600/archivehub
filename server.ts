@@ -10,6 +10,7 @@ import { runMigrations } from "./src/db/migrate.js";
 import { seedDatabase } from "./src/db/seed.js";
 import * as repo from "./src/db/repository.js";
 import { sanitizeUser, verifyPassword, hashPassword } from "./src/auth/session.js";
+import { saveDigitalCopy, resolveDigitalCopy, decodeBase64Payload } from "./src/files/digitalCopies.js";
 
 async function startServer() {
   const app = express();
@@ -25,6 +26,60 @@ async function startServer() {
       const message = err?.message || "Import failed.";
       const status = message.includes("Invalid backup file") ? 400 : 500;
       res.status(status).json({ success: false, message });
+    }
+  });
+
+  // Digital surrogate copy upload (base64 payload). Registered before the default
+  // JSON parser so scans larger than the standard 10 MB body limit are accepted.
+  app.post("/api/documents/:id/digital-copy", express.json({ limit: "60mb" }), async (req, res) => {
+    try {
+      const { fileName, fileData, fileType, version, user } = req.body;
+      if (!fileData) {
+        res.status(400).json({ success: false, error: "fileData payload is required." });
+        return;
+      }
+      const doc = await repo.getDocumentById(req.params.id);
+      if (!doc) {
+        res.status(404).json({ success: false, error: "Document not found." });
+        return;
+      }
+      const buffer = decodeBase64Payload(fileData);
+      if (buffer.length === 0) {
+        res.status(400).json({ success: false, error: "Uploaded file is empty." });
+        return;
+      }
+      const stored = saveDigitalCopy(req.params.id, fileName || "scan.bin", buffer);
+      await repo.updateDocument(req.params.id, {
+        hasDigitalCopy: true,
+        digitalFileName: stored.fileName,
+        digitalFileSize: stored.sizeLabel,
+        digitalFileType: fileType || "application/octet-stream",
+        digitalFileVersion: Number(version) || 1,
+        digitalFilePath: stored.relativePath
+      }, user);
+      res.json({ success: true, ...stored });
+    } catch (err: any) {
+      res.status(500).json({ success: false, error: err?.message || "Upload failed." });
+    }
+  });
+
+  // Digital surrogate copy download
+  app.get("/api/documents/:id/digital-copy", async (req, res) => {
+    try {
+      const doc = await repo.getDocumentById(req.params.id);
+      if (!doc || !doc.hasDigitalCopy || !doc.digitalFilePath) {
+        res.status(404).json({ success: false, error: "No digital copy attached to this document." });
+        return;
+      }
+      const absolute = resolveDigitalCopy(doc.digitalFilePath);
+      if (!absolute) {
+        res.status(404).json({ success: false, error: "Digital copy file not found on server storage." });
+        return;
+      }
+      res.setHeader("Content-Disposition", `attachment; filename="${doc.digitalFileName || path.basename(absolute)}"`);
+      res.sendFile(absolute);
+    } catch (err: any) {
+      res.status(500).json({ error: err?.message || "Download failed." });
     }
   });
 

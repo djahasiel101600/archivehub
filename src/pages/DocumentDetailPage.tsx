@@ -467,14 +467,14 @@ export const DocumentDetailPage: React.FC<DocumentDetailPageProps> = ({
               </div>
             </div>
 
-            <button
-              type="button"
-              onClick={() => alert(`Simulated Download of ${doc.digitalFileName}`)}
+            <a
+              href={`/api/documents/${doc.id}/digital-copy`}
+              download={doc.digitalFileName || 'digital-copy'}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 hover:bg-slate-100 border border-slate-200 dark:border-slate-700 rounded-lg font-medium shadow-xs"
             >
               <Download className="w-3.5 h-3.5" />
               Download Scan
-            </button>
+            </a>
           </div>
         )}
 

@@ -21,10 +21,16 @@ services:
       #postgres:
         #condition: service_started
 
+    volumes:
+      - archivehub-uploads:/app/uploads
+
     restart: unless-stopped
 
     networks:
       - office-network
+
+volumes:
+  archivehub-uploads:
 
 networks:
   office-network:

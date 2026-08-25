@@ -122,6 +122,7 @@ export async function runMigrations(): Promise<void> {
         digital_file_size VARCHAR(50),
         digital_file_type VARCHAR(50),
         digital_file_version INTEGER DEFAULT 1,
+        digital_file_path TEXT,
         custom_metadata JSONB,
         custom_field_values JSONB,
         condition_notes TEXT,
@@ -134,6 +135,7 @@ export async function runMigrations(): Promise<void> {
       ALTER TABLE documents ADD COLUMN IF NOT EXISTS bundle_id VARCHAR(50);
       ALTER TABLE documents ADD COLUMN IF NOT EXISTS bundle_number VARCHAR(100);
       ALTER TABLE documents ADD COLUMN IF NOT EXISTS bundle_title VARCHAR(500);
+      ALTER TABLE documents ADD COLUMN IF NOT EXISTS digital_file_path TEXT;
     `);
 
     // 6. Checkouts Table
