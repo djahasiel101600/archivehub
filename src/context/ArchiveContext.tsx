@@ -94,6 +94,8 @@ interface ArchiveContextType {
   updateDocument: (id: string, updates: Partial<DocumentItem>) => Promise<void>;
   uploadDigitalCopy: (id: string, file: File, version?: number) => Promise<{ success: boolean; message?: string }>;
   deleteDocument: (id: string) => Promise<boolean>;
+  bulkUpdateDocuments: (documentIds: string[], updates: Partial<DocumentItem>) => Promise<{ updated: number; errors: string[] }>;
+  bulkDeleteDocuments: (documentIds: string[]) => Promise<{ deleted: number; skipped: { id: string; reason: string }[] }>;
   moveDocument: (documentId: string, toLocationId: string, reason: string) => Promise<void>;
   batchMoveDocuments: (documentIds: string[], toLocationId: string, reason: string) => Promise<void>;
   
@@ -1053,6 +1055,63 @@ export const ArchiveProvider: React.FC<{ children: React.ReactNode }> = ({ child
     return true;
   };
 
+  // Bulk Update — apply one metadata change (security/condition/department)
+  // to every selected record, with optimistic local state + backend sync
+  const bulkUpdateDocuments = async (documentIds: string[], updates: Partial<DocumentItem>): Promise<{ updated: number; errors: string[] }> => {
+    setDocuments(prev => prev.map(d => documentIds.includes(d.id) ? { ...d, ...updates, updatedAt: new Date().toISOString() } : d));
+    try {
+      const res = await fetch('/api/documents/bulk-update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ documentIds, updates, user: currentUser })
+      });
+      const data = await res.json();
+      await fetchAllFromBackend();
+      const errors: string[] = data.errors || [];
+      if (errors.length > 0) {
+        addNotification('warning', `Bulk update applied to ${data.updated} of ${documentIds.length} record(s).`);
+      } else {
+        addNotification('success', `${documentIds.length} record(s) updated.`);
+      }
+      return { updated: data.updated ?? documentIds.length, errors };
+    } catch (e) {
+      // Offline fallback — local state already applied above
+      addNotification('success', `${documentIds.length} record(s) updated.`);
+      return { updated: documentIds.length, errors: [] };
+    }
+  };
+
+  // Bulk Delete — remove every selected record (checked-out ones are blocked)
+  const bulkDeleteDocuments = async (documentIds: string[]): Promise<{ deleted: number; skipped: { id: string; reason: string }[] }> => {
+    const checkedOut = documents.filter(d => documentIds.includes(d.id) && d.status === 'CHECKED_OUT');
+    const deletableIds = documentIds.filter(id => !checkedOut.some(d => d.id === id));
+    const skipped: { id: string; reason: string }[] = checkedOut.map(d => ({ id: d.id, reason: `#${d.documentNumber} is currently checked out` }));
+    if (checkedOut.length > 0) {
+      addNotification('error', `${checkedOut.length} record(s) are checked out and cannot be deleted.`);
+    }
+    if (deletableIds.length === 0) {
+      return { deleted: 0, skipped };
+    }
+
+    setDocuments(prev => prev.filter(d => !deletableIds.includes(d.id)));
+    try {
+      const res = await fetch('/api/documents/bulk-delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ documentIds: deletableIds, user: currentUser })
+      });
+      const data = await res.json();
+      await fetchAllFromBackend();
+      const serverSkipped = data.skipped || [];
+      addNotification('warning', `${data.deleted ?? deletableIds.length} record(s) deleted from the registry.`);
+      return { deleted: data.deleted ?? deletableIds.length, skipped: [...skipped, ...serverSkipped] };
+    } catch (e) {
+      // Offline fallback — local state already pruned above
+      addNotification('warning', `${deletableIds.length} record(s) deleted from the registry.`);
+      return { deleted: deletableIds.length, skipped };
+    }
+  };
+
   const moveDocument = async (documentId: string, toLocationId: string, reason: string): Promise<void> => {
     const doc = documents.find(d => d.id === documentId);
     if (!doc) return;
@@ -1296,6 +1355,8 @@ export const ArchiveProvider: React.FC<{ children: React.ReactNode }> = ({ child
         updateDocument,
         uploadDigitalCopy,
         deleteDocument,
+        bulkUpdateDocuments,
+        bulkDeleteDocuments,
         moveDocument,
         batchMoveDocuments,
         requestCheckout,

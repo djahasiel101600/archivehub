@@ -548,6 +548,64 @@ async function startServer() {
     }
   });
 
+  // Bulk Update — apply the same metadata change (security, condition,
+  // department, ...) to many documents at once
+  app.post("/api/documents/bulk-update", async (req, res) => {
+    try {
+      const { documentIds, updates, user } = req.body;
+      if (!Array.isArray(documentIds) || documentIds.length === 0 || !updates || Object.keys(updates).length === 0) {
+        res.status(400).json({ error: 'documentIds array and a non-empty updates object are required' });
+        return;
+      }
+      let updated = 0;
+      const errors: string[] = [];
+      for (const docId of documentIds) {
+        try {
+          await repo.updateDocument(docId, updates, user);
+          updated++;
+        } catch (e: any) {
+          errors.push(`${docId}: ${e.message}`);
+        }
+      }
+      res.json({ success: errors.length === 0, updated, errors });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Bulk Delete — remove many documents at once (checked-out records are skipped)
+  app.post("/api/documents/bulk-delete", async (req, res) => {
+    try {
+      const { documentIds, user } = req.body;
+      if (!Array.isArray(documentIds) || documentIds.length === 0) {
+        res.status(400).json({ error: 'documentIds array is required' });
+        return;
+      }
+      let deleted = 0;
+      const skipped: { id: string; reason: string }[] = [];
+      for (const docId of documentIds) {
+        const doc = await repo.getDocumentById(docId);
+        if (!doc) {
+          skipped.push({ id: docId, reason: 'record not found' });
+          continue;
+        }
+        if (doc.status === 'CHECKED_OUT') {
+          skipped.push({ id: docId, reason: `#${doc.documentNumber} is currently checked out` });
+          continue;
+        }
+        const ok = await repo.deleteDocument(docId, user);
+        if (ok) {
+          deleted++;
+        } else {
+          skipped.push({ id: docId, reason: 'delete failed' });
+        }
+      }
+      res.json({ success: skipped.length === 0, deleted, skipped });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
   // Checkouts
   app.get("/api/checkouts", async (req, res) => {
     try {

@@ -39,6 +39,7 @@ import {
 import { DocumentStatus, ConfidentialityLevel, DocumentCondition, DocumentItem } from '../types';
 import { ConfirmModal } from '../components/common/ConfirmModal';
 import { BulkTagPrintModal } from '../components/documents/BulkTagPrintModal';
+import { BulkUpdateModal } from '../components/documents/BulkUpdateModal';
 import { BundleModal } from '../components/documents/BundleModal';
 import { EditDocumentModal } from '../components/documents/EditDocumentModal';
 
@@ -61,6 +62,7 @@ export const DocumentsPage: React.FC<DocumentsPageProps> = ({
     bundles,
     addDocument, 
     deleteDocument,
+    bulkDeleteDocuments,
     globalSearchQuery, 
     setGlobalSearchQuery,
     calculatePath,
@@ -85,6 +87,9 @@ export const DocumentsPage: React.FC<DocumentsPageProps> = ({
   // Bulk Selection & Modals State
   const [selectedDocIds, setSelectedDocIds] = useState<string[]>([]);
   const [showBulkPrintModal, setShowBulkPrintModal] = useState(false);
+  const [bulkUpdateMode, setBulkUpdateMode] = useState<'security' | 'department' | null>(null);
+  const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
+  const [isBulkDeleting, setIsBulkDeleting] = useState(false);
   const [showBundleModal, setShowBundleModal] = useState(false);
 
   // Registration Modal State
@@ -610,7 +615,7 @@ export const DocumentsPage: React.FC<DocumentsPageProps> = ({
                 <span>{selectedDocIds.length} Physical Record(s) Selected for Bulk Operations</span>
               </div>
               <p className="text-[11px] text-indigo-200">
-                Perform batch tag sticker generation or consolidate into dossiers
+                Batch tag printing, dossier grouping, bulk metadata updates or bulk deletion
               </p>
             </div>
           </div>
@@ -634,6 +639,36 @@ export const DocumentsPage: React.FC<DocumentsPageProps> = ({
             >
               <Layers className="w-3.5 h-3.5" />
               <span>Bundle / Group Selected</span>
+            </button>
+
+            {/* Action 3: Bulk update Security & Condition */}
+            <button
+              type="button"
+              onClick={() => setBulkUpdateMode('security')}
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-sky-500 hover:bg-sky-600 text-white text-xs font-bold rounded-xl shadow-md transition-all"
+            >
+              <ShieldCheck className="w-3.5 h-3.5" />
+              <span>Security & Condition</span>
+            </button>
+
+            {/* Action 4: Bulk change Department */}
+            <button
+              type="button"
+              onClick={() => setBulkUpdateMode('department')}
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-violet-500 hover:bg-violet-600 text-white text-xs font-bold rounded-xl shadow-md transition-all"
+            >
+              <Building2 className="w-3.5 h-3.5" />
+              <span>Change Department</span>
+            </button>
+
+            {/* Action 5: Bulk Delete */}
+            <button
+              type="button"
+              onClick={() => setShowBulkDeleteConfirm(true)}
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl shadow-md transition-all"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              <span>Delete ({selectedDocIds.length})</span>
             </button>
 
             {/* Clear Selection */}
@@ -1362,6 +1397,35 @@ export const DocumentsPage: React.FC<DocumentsPageProps> = ({
           }}
         />
       )}
+
+      {/* Bulk Metadata Update Modal (Security & Condition / Department) */}
+      <BulkUpdateModal
+        isOpen={bulkUpdateMode !== null}
+        mode={bulkUpdateMode || 'security'}
+        documentIds={selectedDocIds}
+        onClose={() => setBulkUpdateMode(null)}
+      />
+
+      {/* Bulk Delete Confirmation Modal */}
+      <ConfirmModal
+        isOpen={showBulkDeleteConfirm}
+        onClose={() => setShowBulkDeleteConfirm(false)}
+        onConfirm={async () => {
+          if (isBulkDeleting) return;
+          setIsBulkDeleting(true);
+          try {
+            await bulkDeleteDocuments(selectedDocIds);
+            setSelectedDocIds([]);
+            setShowBulkDeleteConfirm(false);
+          } finally {
+            setIsBulkDeleting(false);
+          }
+        }}
+        title="Bulk Delete Registered Documents"
+        message={`Are you sure you want to permanently delete ${selectedDocIds.length} document record(s)? Records currently checked out will be skipped. This operation cannot be undone.`}
+        confirmText={isBulkDeleting ? 'Deleting...' : 'Delete All Permanently'}
+        variant="danger"
+      />
 
       {/* Delete Confirmation Modal */}
       <ConfirmModal

@@ -76,7 +76,8 @@ export const Header: React.FC<HeaderProps> = ({
             }}
           >
             <div className="p-1.5 sm:p-2 bg-gradient-to-br from-indigo-600 to-indigo-800 text-white rounded-xl shadow-md shadow-indigo-500/20 flex-shrink-0">
-              <Archive className="w-4 h-4 sm:w-5 sm:h-5" />
+              {/* <Archive className="w-4 h-4 sm:w-5 sm:h-5" /> */}
+              <img src="/assets/favicon.png" alt="ArchiveHub" className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
             <div className="min-w-0">
               <div className="flex items-center gap-1.5">
