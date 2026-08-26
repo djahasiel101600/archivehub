@@ -1,4 +1,5 @@
 import { getPool } from './index.js';
+import { sanitizeCodeSegment, extractSuffix, DOC_NUMBER_SUFFIX_WIDTH } from '../utils/documentNumber.js';
 
 export async function runMigrations(): Promise<void> {
   const pool = getPool();
@@ -275,6 +276,56 @@ export async function runMigrations(): Promise<void> {
     await client.query(`
 ALTER TABLE bundles ADD COLUMN IF NOT EXISTS image_url TEXT;
     `);
+
+    // 13. One-time backfill: renumber legacy auto-generated "NIA-YYYY-NNNNNN"
+    // records into the structured {DEPT_CODE}-{TYPE_CODE}-{NNNN} scheme.
+    // Idempotent — once renumbered, rows no longer match the legacy pattern.
+    const legacyDocs = await client.query(`
+      SELECT d.id, d.document_number, dep.code AS dept_code, dt.code AS type_code
+      FROM documents d
+      LEFT JOIN departments dep ON dep.id = d.department_id
+      LEFT JOIN document_types dt ON dt.id = d.document_type_id
+      WHERE d.document_number ~ '^NIA-[0-9]{4}-[0-9]{6}$'
+      ORDER BY d.created_at
+    `);
+    if (legacyDocs.rows.length > 0) {
+      const usedNumbers = new Set<string>(
+        (await client.query('SELECT document_number FROM documents')).rows.map((r: any) => r.document_number as string)
+      );
+      // Highest suffix already taken per prefix, so collisions are impossible
+      const counters = new Map<string, number>();
+      let renumbered = 0;
+      for (const row of legacyDocs.rows) {
+        const prefix = `${sanitizeCodeSegment(row.dept_code, 'GEN')}-${sanitizeCodeSegment(row.type_code, 'DOC')}`;
+        if (!counters.has(prefix)) {
+          let max = 0;
+          for (const num of usedNumbers) {
+            const suffix = extractSuffix(prefix, num);
+            if (suffix !== null && suffix > max) max = suffix;
+          }
+          counters.set(prefix, max);
+        }
+        let candidate = '';
+        do {
+          const next = (counters.get(prefix) || 0) + 1;
+          counters.set(prefix, next);
+          candidate = `${prefix}-${String(next).padStart(DOC_NUMBER_SUFFIX_WIDTH, '0')}`;
+        } while (usedNumbers.has(candidate));
+        usedNumbers.delete(row.document_number);
+        usedNumbers.add(candidate);
+
+        await client.query(
+          'UPDATE documents SET document_number = $1, qr_code = $2, updated_at = NOW() WHERE id = $3',
+          [candidate, 'DOC-' + candidate, row.id]
+        );
+        // Keep the denormalized copies in the circulation trail consistent
+        await client.query('UPDATE movements SET document_number = $1 WHERE document_id = $2', [candidate, row.id]);
+        await client.query('UPDATE checkouts SET document_number = $1 WHERE document_id = $2', [candidate, row.id]);
+        await client.query('UPDATE disposal_records SET document_number = $1 WHERE document_id = $2', [candidate, row.id]);
+        renumbered++;
+      }
+      console.log(`[Migration] Backfilled ${renumbered} legacy NIA-* document number(s) to the structured scheme.`);
+    }
 
     await client.query('COMMIT');
     console.log('[Migration] PostgreSQL schema migration completed successfully.');

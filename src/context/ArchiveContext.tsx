@@ -12,6 +12,7 @@ import {
   DocumentBundle
 } from '../types';
 import { calculateLocationPath } from '../utils/locationUtils';
+import { buildDocumentNumberPrefix, nextDocumentNumber } from '../utils/documentNumber';
 
 export interface DbHealthState {
   connected: boolean;
@@ -89,6 +90,7 @@ interface ArchiveContextType {
   
   // Document Operations
   addDocument: (doc: Omit<DocumentItem, 'id' | 'createdAt' | 'updatedAt' | 'qrCode' | 'barcode' | 'status' | 'currentLocationId'>) => Promise<DocumentItem>;
+  getNextDocumentNumber: (departmentId: string, typeId: string) => Promise<string | null>;
   updateDocument: (id: string, updates: Partial<DocumentItem>) => Promise<void>;
   uploadDigitalCopy: (id: string, file: File, version?: number) => Promise<{ success: boolean; message?: string }>;
   deleteDocument: (id: string) => Promise<boolean>;
@@ -905,15 +907,35 @@ export const ArchiveProvider: React.FC<{ children: React.ReactNode }> = ({ child
       return newDoc;
     } catch (e) {
       const id = 'doc-' + Date.now();
-      const qrCode = 'DOC-' + docData.documentNumber;
+      // Offline fallback: mirror the server's auto-generation for blank numbers
+      let docNumber = docData.documentNumber?.trim();
+      if (!docNumber) {
+        const dept = departments.find(d => d.id === docData.departmentId);
+        const type = documentTypes.find(dt => dt.id === docData.documentTypeId);
+        const prefix = buildDocumentNumberPrefix(dept?.code, type?.code);
+        docNumber = nextDocumentNumber(prefix, documents.map(d => d.documentNumber));
+      }
+      const qrCode = 'DOC-' + docNumber;
       const barcode = '884' + Math.floor(100000 + Math.random() * 900000);
       const newDoc: DocumentItem = {
-        ...docData, id, currentLocationId: docData.homeLocationId, status: 'AVAILABLE',
+        ...docData, documentNumber: docNumber, id, currentLocationId: docData.homeLocationId, status: 'AVAILABLE',
         qrCode, barcode, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString()
       };
       setDocuments(prev => [newDoc, ...prev]);
       addNotification('success', `Document #${newDoc.documentNumber} registered successfully.`);
       return newDoc;
+    }
+  };
+
+  // Preview the next structured number ({DEPT_CODE}-{TYPE_CODE}-{NNNN}) for a
+  // department + document type pair — used by the registration form hint.
+  const getNextDocumentNumber = async (departmentId: string, typeId: string): Promise<string | null> => {
+    try {
+      const res = await fetch(`/api/documents/next-number?departmentId=${encodeURIComponent(departmentId)}&typeId=${encodeURIComponent(typeId)}`);
+      const data = await res.json();
+      return res.ok ? data.number : null;
+    } catch (e) {
+      return null;
     }
   };
 
@@ -1270,6 +1292,7 @@ export const ArchiveProvider: React.FC<{ children: React.ReactNode }> = ({ child
         updateLocation,
         deleteLocation,
         addDocument,
+        getNextDocumentNumber,
         updateDocument,
         uploadDigitalCopy,
         deleteDocument,

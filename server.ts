@@ -452,6 +452,18 @@ async function startServer() {
     }
   });
 
+  // Preview the next auto-generated document number for a department + type pair
+  app.get("/api/documents/next-number", async (req, res) => {
+    try {
+      const departmentId = String(req.query.departmentId || "");
+      const typeId = String(req.query.typeId || "");
+      const number = await repo.generateDocumentNumber(departmentId, typeId);
+      res.json({ number });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
   app.post("/api/documents", async (req, res) => {
     try {
       const { docData, user, homePath } = req.body;

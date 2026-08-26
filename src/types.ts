@@ -137,7 +137,7 @@ export interface CustomMetadataField {
 
 export interface DocumentItem {
   id: string;
-  documentNumber: string; // e.g., NIA-2026-001245
+  documentNumber: string; // structured: {DEPT_CODE}-{TYPE_CODE}-{NNNN}, e.g. ENG-ARCH-0001
   referenceNumber: string;
   title: string;
   documentTypeId: string;

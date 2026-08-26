@@ -150,7 +150,7 @@ export const CameraQRScannerModal: React.FC<CameraQRScannerModalProps> = ({
                     type="text"
                     value={manualInput}
                     onChange={(e) => setManualInput(e.target.value)}
-                    placeholder="e.g., DOC-8F29A1, NIA-2026-001245, LOC-BOX-B017"
+                    placeholder="e.g., DOC-8F29A1, ENG-ARCH-0001, LOC-BOX-B017"
                     className="flex-1 px-3.5 py-2 text-sm bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none"
                     autoFocus
                   />
@@ -170,7 +170,7 @@ export const CameraQRScannerModal: React.FC<CameraQRScannerModalProps> = ({
                 </span>
                 <div className="flex flex-wrap gap-2">
                   {[
-                    { label: 'Doc: NIA-2026-001245', code: 'DOC-NIA-2026-001245' },
+                    { label: 'Doc: ENG-ARCH-0001', code: 'DOC-ENG-ARCH-0001' },
                     { label: 'Doc: Dam Blueprint (DOC-8F29A1)', code: 'DOC-8F29A1' },
                     { label: 'Box: Box B-017', code: 'LOC-BOX-B017' },
                     { label: 'Folder: Folder F-2026-003', code: 'LOC-FLD-003' }

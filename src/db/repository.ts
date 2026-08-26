@@ -14,6 +14,7 @@ import {
   DocumentBundle
 } from '../types.js';
 import { hashPassword } from '../auth/session.js';
+import { buildDocumentNumberPrefix, nextDocumentNumber } from '../utils/documentNumber.js';
 
 function toStringArray(value: unknown): string[] {
   if (Array.isArray(value)) return value.map((v) => String(v)).filter(Boolean);
@@ -661,13 +662,42 @@ export async function getDocuments(): Promise<DocumentItem[]> {
   }
 }
 
+/**
+ * Generate the next structured document number for a department + document
+ * type pair: `{DEPT_CODE}-{TYPE_CODE}-{NNNN}` (e.g. ENG-ARCH-0001). The
+ * sequential suffix is scoped per prefix and derived from the highest number
+ * already registered under that prefix.
+ */
+export async function generateDocumentNumber(departmentId: string, documentTypeId: string): Promise<string> {
+  const departments = await getDepartments();
+  const documentTypes = await getDocumentTypes();
+  const dept = departments.find(d => d.id === departmentId);
+  const type = documentTypes.find(dt => dt.id === documentTypeId);
+  const prefix = buildDocumentNumberPrefix(dept?.code, type?.code);
+
+  if (!isDbAvailable()) {
+    return nextDocumentNumber(prefix, memoryDocuments.map(d => d.documentNumber));
+  }
+
+  // Prefix is sanitized to [A-Z0-9-], so it is safe inside a LIKE pattern
+  const res = await pgPool!.query(
+    'SELECT document_number FROM documents WHERE document_number LIKE $1',
+    [`${prefix}-%`]
+  );
+  return nextDocumentNumber(prefix, res.rows.map(r => r.document_number as string));
+}
+
 export async function createDocument(docData: Omit<DocumentItem, 'id' | 'createdAt' | 'updatedAt' | 'qrCode' | 'barcode' | 'status' | 'currentLocationId'>, user: User, homePath: string): Promise<DocumentItem> {
   const id = 'doc-' + Date.now();
-  const qrCode = 'DOC-' + docData.documentNumber;
+  // Blank document number = auto-generate from department code + type code
+  const autoGenerate = !docData.documentNumber?.trim();
+  const documentNumber = docData.documentNumber?.trim() || await generateDocumentNumber(docData.departmentId, docData.documentTypeId);
+  const qrCode = 'DOC-' + documentNumber;
   const barcode = '884' + Math.floor(100000 + Math.random() * 900000);
 
   const newDoc: DocumentItem = {
     ...docData,
+    documentNumber,
     id,
     currentLocationId: docData.homeLocationId,
     status: 'AVAILABLE',
@@ -711,13 +741,15 @@ export async function createDocument(docData: Omit<DocumentItem, 'id' | 'created
     return newDoc;
   }
 
-  // PostgreSQL Transaction
-  try {
-    const client = await pgPool!.connect();
+  // PostgreSQL Transaction — auto-generated numbers retry on unique conflicts
+  const maxAttempts = autoGenerate ? 5 : 1;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
-      await client.query('BEGIN');
+      const client = await pgPool!.connect();
+      try {
+        await client.query('BEGIN');
 
-      await client.query(`
+        await client.query(`
         INSERT INTO documents (
           id, document_number, reference_number, title, document_type_id, document_type_name,
           subject, description, department_id, department_name, custodian_name,
@@ -741,8 +773,8 @@ export async function createDocument(docData: Omit<DocumentItem, 'id' | 'created
         newDoc.bundleId || null, newDoc.bundleNumber || null, newDoc.bundleTitle || null
       ]);
 
-      // Initial Filing Movement
-      await client.query(`
+        // Initial Filing Movement
+        await client.query(`
         INSERT INTO movements (id, document_id, document_number, document_title, from_location_id, from_location_path, to_location_id, to_location_path, movement_type, performed_by_user_id, performed_by_user_name, reason)
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
       `, [
@@ -751,8 +783,8 @@ export async function createDocument(docData: Omit<DocumentItem, 'id' | 'created
         user.id, user.fullName, 'Initial Registration & Physical Filing'
       ]);
 
-      // Audit Log
-      await client.query(`
+        // Audit Log
+        await client.query(`
         INSERT INTO audit_logs (id, user_id, user_name, user_role, action, entity_type, entity_id, entity_name, details)
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
       `, [
@@ -760,19 +792,31 @@ export async function createDocument(docData: Omit<DocumentItem, 'id' | 'created
         'DOCUMENT', id, newDoc.title, `Registered record #${newDoc.documentNumber} into home archive location: ${homePath}`
       ]);
 
-      await client.query('COMMIT');
+        await client.query('COMMIT');
+        return newDoc;
+      } catch (err) {
+        await client.query('ROLLBACK');
+        throw err;
+      } finally {
+        client.release();
+      }
+    } catch (err: any) {
+      const isUniqueViolation = err?.code === '23505';
+      if (isUniqueViolation && autoGenerate && attempt < maxAttempts) {
+        // A concurrent registration claimed this number — regenerate and retry
+        const retryNumber = await generateDocumentNumber(docData.departmentId, docData.documentTypeId);
+        newDoc.documentNumber = retryNumber;
+        newDoc.qrCode = 'DOC-' + retryNumber;
+        continue;
+      }
+      console.warn('[Repository] createDocument DB transaction failed, adding to memory:', err);
+      memoryDocuments.unshift(newDoc);
       return newDoc;
-    } catch (err) {
-      await client.query('ROLLBACK');
-      throw err;
-    } finally {
-      client.release();
     }
-  } catch (err) {
-    console.warn('[Repository] createDocument DB transaction failed, adding to memory:', err);
-    memoryDocuments.unshift(newDoc);
-    return newDoc;
   }
+
+  // Unreachable — the loop above always returns
+  return newDoc;
 }
 
 export async function updateDocument(id: string, updates: Partial<DocumentItem>, user: User): Promise<void> {

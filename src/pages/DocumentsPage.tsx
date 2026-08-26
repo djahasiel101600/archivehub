@@ -63,7 +63,8 @@ export const DocumentsPage: React.FC<DocumentsPageProps> = ({
     deleteDocument,
     globalSearchQuery, 
     setGlobalSearchQuery,
-    calculatePath
+    calculatePath,
+    getNextDocumentNumber
   } = useArchive();
 
   const [viewMode, setViewMode] = useState<'table' | 'grid'>('table');
@@ -113,6 +114,21 @@ export const DocumentsPage: React.FC<DocumentsPageProps> = ({
 
   const [regTypeId, setRegTypeId] = useState(availableDocTypesForDept[0]?.id || documentTypes[0]?.id || '');
   const [regHomeLocationId, setRegHomeLocationId] = useState(locations[0]?.id || '');
+
+  // Live preview of the auto-generated number ({DEPT_CODE}-{TYPE_CODE}-{NNNN})
+  // shown while the Document Number field is left blank
+  const [autoNumberPreview, setAutoNumberPreview] = useState('');
+  useEffect(() => {
+    if (!showRegisterModal || regDocNumber.trim()) {
+      setAutoNumberPreview('');
+      return;
+    }
+    let cancelled = false;
+    getNextDocumentNumber(regDeptId, regTypeId).then(num => {
+      if (!cancelled) setAutoNumberPreview(num || '');
+    });
+    return () => { cancelled = true; };
+  }, [showRegisterModal, regDeptId, regTypeId, regDocNumber, getNextDocumentNumber]);
   const [regSubject, setRegSubject] = useState('');
   const [regDescription, setRegDescription] = useState('');
   const [regConfidentiality, setRegConfidentiality] = useState<ConfidentialityLevel>('CONFIDENTIAL');
@@ -165,7 +181,9 @@ export const DocumentsPage: React.FC<DocumentsPageProps> = ({
     const selectedDocType = documentTypes.find(dt => dt.id === regTypeId);
     const selectedDeptObj = departments.find(d => d.id === regDeptId);
 
-    const docNum = regDocNumber.trim() || `NIA-${new Date().getFullYear()}-${Math.floor(100000 + Math.random() * 900000)}`;
+    // Blank field = structured auto-generation on the server from the
+    // department code + document type classification code
+    const docNum = regDocNumber.trim();
     const retentionYears = selectedDocType?.retentionYears || 10;
     
     const startDate = new Date().toISOString().split('T')[0];
@@ -1046,9 +1064,14 @@ export const DocumentsPage: React.FC<DocumentsPageProps> = ({
                     type="text"
                     value={regDocNumber}
                     onChange={(e) => setRegDocNumber(e.target.value)}
-                    placeholder="e.g. NIA-2026-001245"
+                    placeholder="e.g. ENG-ARCH-0001"
                     className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl outline-none font-mono"
                   />
+                  {!regDocNumber.trim() && autoNumberPreview && (
+                    <p className="text-[10px] text-slate-400 mt-1 font-mono">
+                      Auto-generate: <span className="font-bold text-indigo-500">{autoNumberPreview}</span>
+                    </p>
+                  )}
                 </div>
 
                 <div>
