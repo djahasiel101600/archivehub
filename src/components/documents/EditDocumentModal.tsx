@@ -22,6 +22,7 @@ import {
   Upload
 } from 'lucide-react';
 import { LocationPathBreadcrumbs } from '../common/LocationPathBreadcrumbs';
+import { DocumentTypeCombobox } from '../common/DocumentTypeCombobox';
 
 interface EditDocumentModalProps {
   document: DocumentItem | null;
@@ -334,21 +335,12 @@ export const EditDocumentModal: React.FC<EditDocumentModalProps> = ({
                     (Retention: {selectedDocType?.retentionYears || 5} Yrs)
                   </span>
                 </label>
-                <select
+                <DocumentTypeCombobox
+                  options={availableDocTypesForDept}
                   value={documentTypeId}
-                  onChange={(e) => handleTypeChange(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl outline-none font-semibold text-slate-800 dark:text-slate-200"
-                >
-                  {availableDocTypesForDept.length === 0 ? (
-                    <option value="">No types tied to this department</option>
-                  ) : (
-                    availableDocTypesForDept.map(dt => (
-                      <option key={dt.id} value={dt.id}>
-                        {dt.name} ({dt.retentionYears} Yrs Retention)
-                      </option>
-                    ))
-                  )}
-                </select>
+                  onChange={handleTypeChange}
+                  emptyMessage="No types tied to this department"
+                />
               </div>
             </div>
 

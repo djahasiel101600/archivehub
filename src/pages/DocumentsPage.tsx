@@ -38,6 +38,7 @@ import {
 } from 'lucide-react';
 import { DocumentStatus, ConfidentialityLevel, DocumentCondition, DocumentItem } from '../types';
 import { ConfirmModal } from '../components/common/ConfirmModal';
+import { DocumentTypeCombobox } from '../components/common/DocumentTypeCombobox';
 import { BulkTagPrintModal } from '../components/documents/BulkTagPrintModal';
 import { BulkUpdateModal } from '../components/documents/BulkUpdateModal';
 import { BundleModal } from '../components/documents/BundleModal';
@@ -1161,21 +1162,12 @@ export const DocumentsPage: React.FC<DocumentsPageProps> = ({
                       (Tied to Department)
                     </span>
                   </label>
-                  <select
+                  <DocumentTypeCombobox
+                    options={availableDocTypesForDept}
                     value={regTypeId}
-                    onChange={(e) => handleTypeChange(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl outline-none font-semibold"
-                  >
-                    {availableDocTypesForDept.length === 0 ? (
-                      <option value="">No types tied to this department (Create in Settings)</option>
-                    ) : (
-                      availableDocTypesForDept.map(dt => (
-                        <option key={dt.id} value={dt.id}>
-                          {dt.name} ({dt.retentionYears} Yrs Retention)
-                        </option>
-                      ))
-                    )}
-                  </select>
+                    onChange={handleTypeChange}
+                    emptyMessage="No types tied to this department (Create in Settings)"
+                  />
                 </div>
               </div>
 
