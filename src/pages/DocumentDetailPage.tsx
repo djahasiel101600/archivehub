@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Html5QrcodeScanner } from 'html5-qrcode';
+import React, { useState, useCallback } from 'react';
+import { QrScannerView } from '../components/scanner/QrScannerView';
 import { useArchive } from '../context/ArchiveContext';
 import { StatusBadge } from '../components/common/StatusBadge';
 import { LocationPathBreadcrumbs } from '../components/common/LocationPathBreadcrumbs';
@@ -34,7 +34,7 @@ import {
   ScanLine
 } from 'lucide-react';
 import { DocumentCondition, LocationItem } from '../types';
-import { SCANNER_CONFIG, SCANNER_TAG_HINT, suppressScannerConsoleNoise, createScanDedupe } from '../utils/scannerConfig';
+import { SCANNER_TAG_HINT } from '../utils/scannerConfig';
 
 interface DocumentDetailPageProps {
   documentId: string;
@@ -76,9 +76,6 @@ export const DocumentDetailPage: React.FC<DocumentDetailPageProps> = ({
   // Destination QR scan state (relocation modal)
   const [showDestScanner, setShowDestScanner] = useState(false);
   const [destScanError, setDestScanError] = useState('');
-  const destScannerRef = useRef<Html5QrcodeScanner | null>(null);
-  // Swallow repeat decodes of the same tag while the scanner stays active
-  const destDedupeRef = useRef<(code: string) => boolean>(createScanDedupe());
 
   const processDestScannedCode = useCallback((code: string) => {
     const result = lookupByQR(code);
@@ -95,44 +92,6 @@ export const DocumentDetailPage: React.FC<DocumentDetailPageProps> = ({
     setDestScanError('');
     setShowDestScanner(false);
   }, [lookupByQR]);
-
-  useEffect(() => {
-    if (!(showMoveModal && showDestScanner)) return;
-
-    let isCancelled = false;
-
-    const timer = setTimeout(() => {
-      if (isCancelled) return;
-      const el = document.getElementById('doc-move-dest-qr-reader');
-      if (!el) return;
-
-      suppressScannerConsoleNoise();
-      destDedupeRef.current = createScanDedupe();
-      const localScanner = new Html5QrcodeScanner(
-        'doc-move-dest-qr-reader',
-        SCANNER_CONFIG,
-        false
-      );
-
-      localScanner.render(
-        (decodedText) => {
-          if (!destDedupeRef.current(decodedText)) return;
-          processDestScannedCode(decodedText);
-        },
-        () => { /* ignore frame errors */ }
-      );
-
-      destScannerRef.current = localScanner;
-    }, 250);
-
-    return () => {
-      isCancelled = true;
-      clearTimeout(timer);
-      const s = destScannerRef.current;
-      destScannerRef.current = null;
-      if (s) s.clear().catch(() => {});
-    };
-  }, [showMoveModal, showDestScanner, processDestScannedCode]);
 
   // Request Borrowing Modal
   const [showBorrowModal, setShowBorrowModal] = useState(false);
@@ -675,7 +634,10 @@ export const DocumentDetailPage: React.FC<DocumentDetailPageProps> = ({
 
                   {showDestScanner && (
                     <div className="mb-2 p-2 bg-slate-900 rounded-xl border border-slate-700">
-                      <div id="doc-move-dest-qr-reader" className="rounded-lg overflow-hidden" />
+                      <QrScannerView
+                        onDecode={processDestScannedCode}
+                        className="w-full h-auto rounded-lg bg-slate-950"
+                      />
                       <p className="text-[10px] text-slate-300 mt-1.5 text-center">
                         Scan the QR tag of the destination storage location
                       </p>

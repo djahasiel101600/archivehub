@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
-import { Html5QrcodeScanner } from 'html5-qrcode';
+import { QrScannerView } from './QrScannerView';
 import { useArchive } from '../../context/ArchiveContext';
 import { LocationPathBreadcrumbs } from '../common/LocationPathBreadcrumbs';
 import {
@@ -17,7 +17,7 @@ import {
   ScanLine
 } from 'lucide-react';
 import { DocumentItem, LocationItem } from '../../types';
-import { SCANNER_CONFIG, SCANNER_TAG_HINT, suppressScannerConsoleNoise, createScanDedupe } from '../../utils/scannerConfig';
+import { SCANNER_TAG_HINT } from '../../utils/scannerConfig';
 
 interface BatchRelocateModalProps {
   isOpen: boolean;
@@ -44,7 +44,6 @@ export const BatchRelocateModal: React.FC<BatchRelocateModalProps> = ({
   const [activeScanTab, setActiveScanTab] = useState<'camera' | 'manual'>('camera');
   const [manualInput, setManualInput] = useState('');
   const [scanToast, setScanToast] = useState<{ type: 'success' | 'error' | 'dup'; message: string } | null>(null);
-  const [scannerActive, setScannerActive] = useState(false);
 
   // Confirm step state
   const [destinationId, setDestinationId] = useState(locations[0]?.id || '');
@@ -59,15 +58,9 @@ export const BatchRelocateModal: React.FC<BatchRelocateModalProps> = ({
   const [showDestScanner, setShowDestScanner] = useState(false);
   const [destScanError, setDestScanError] = useState('');
 
-  const scannerRef = useRef<Html5QrcodeScanner | null>(null);
-  const destScannerRef = useRef<Html5QrcodeScanner | null>(null);
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Keep a ref of scanned doc IDs to avoid stale closure in scanner callback
   const scannedIdsRef = useRef<Set<string>>(new Set());
-  // Continuous-scan dedupe filters: the same tag re-decodes every frame while
-  // the scanner stays active, so swallow repeat codes within a short window.
-  const scanDedupeRef = useRef<(code: string) => boolean>(createScanDedupe());
-  const destDedupeRef = useRef<(code: string) => boolean>(createScanDedupe());
 
   useEffect(() => {
     scannedIdsRef.current = new Set(scannedDocs.map(d => d.id));
@@ -98,49 +91,6 @@ export const BatchRelocateModal: React.FC<BatchRelocateModalProps> = ({
     showToast('success', `#${doc.documentNumber} — ${doc.title.slice(0, 40)}`);
   }, [lookupByQR, showToast]);
 
-  // Camera scanner lifecycle
-  useEffect(() => {
-    if (!(isOpen && step === 'scan' && activeScanTab === 'camera')) return;
-
-    let isCancelled = false;
-    let localScanner: Html5QrcodeScanner | null = null;
-
-    const timer = setTimeout(() => {
-      if (isCancelled) return;
-      const el = document.getElementById('batch-qr-reader');
-      if (!el) return;
-
-      suppressScannerConsoleNoise();
-      scanDedupeRef.current = createScanDedupe();
-      localScanner = new Html5QrcodeScanner(
-        'batch-qr-reader',
-        SCANNER_CONFIG,
-        false
-      );
-
-      localScanner.render(
-        (decodedText) => {
-          if (!scanDedupeRef.current(decodedText)) return;
-          processScannedCode(decodedText);
-          // Don't clear — let it keep scanning continuously
-        },
-        () => { /* ignore frame errors */ }
-      );
-
-      scannerRef.current = localScanner;
-      setScannerActive(true);
-    }, 250);
-
-    return () => {
-      isCancelled = true;
-      clearTimeout(timer);
-      const s = scannerRef.current;
-      scannerRef.current = null;
-      if (s) s.clear().catch(() => {});
-      setScannerActive(false);
-    };
-  }, [isOpen, step, activeScanTab, processScannedCode]);
-
   // Destination location scan: resolves the scanned code and requires a LOCATION tag
   const processDestScannedCode = useCallback((code: string) => {
     const result = lookupByQR(code);
@@ -157,45 +107,6 @@ export const BatchRelocateModal: React.FC<BatchRelocateModalProps> = ({
     setDestScanError('');
     setShowDestScanner(false);
   }, [lookupByQR]);
-
-  // Destination scanner lifecycle (confirm step only)
-  useEffect(() => {
-    if (!(isOpen && step === 'confirm' && showDestScanner)) return;
-
-    let isCancelled = false;
-
-    const timer = setTimeout(() => {
-      if (isCancelled) return;
-      const el = document.getElementById('dest-qr-reader');
-      if (!el) return;
-
-      suppressScannerConsoleNoise();
-      destDedupeRef.current = createScanDedupe();
-      const localScanner = new Html5QrcodeScanner(
-        'dest-qr-reader',
-        SCANNER_CONFIG,
-        false
-      );
-
-      localScanner.render(
-        (decodedText) => {
-          if (!destDedupeRef.current(decodedText)) return;
-          processDestScannedCode(decodedText);
-        },
-        () => { /* ignore frame errors */ }
-      );
-
-      destScannerRef.current = localScanner;
-    }, 250);
-
-    return () => {
-      isCancelled = true;
-      clearTimeout(timer);
-      const s = destScannerRef.current;
-      destScannerRef.current = null;
-      if (s) s.clear().catch(() => {});
-    };
-  }, [isOpen, step, showDestScanner, processDestScannedCode]);
 
   // Cleanup toast timer
   useEffect(() => {
@@ -217,11 +128,7 @@ export const BatchRelocateModal: React.FC<BatchRelocateModalProps> = ({
   };
 
   const handleProceedToConfirm = () => {
-    // Stop the camera scanner before transitioning
-    const s = scannerRef.current;
-    scannerRef.current = null;
-    if (s) s.clear().catch(() => {});
-    setScannerActive(false);
+    // Stepping away unmounts the camera scanner view, stopping the stream
     setStep('confirm');
   };
 
@@ -282,9 +189,6 @@ export const BatchRelocateModal: React.FC<BatchRelocateModalProps> = ({
   };
 
   const handleClose = () => {
-    const s = scannerRef.current;
-    scannerRef.current = null;
-    if (s) s.clear().catch(() => {});
     handleReset();
     onClose();
   };
@@ -374,7 +278,10 @@ export const BatchRelocateModal: React.FC<BatchRelocateModalProps> = ({
               {/* Camera View */}
               {activeScanTab === 'camera' && (
                 <div className="flex flex-col items-center">
-                  <div id="batch-qr-reader" className="w-full max-w-sm rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800 shadow-inner" />
+                  <QrScannerView
+                    onDecode={processScannedCode}
+                    className="w-full max-w-sm h-auto rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-950 shadow-inner"
+                  />
                   <p className="text-[11px] text-slate-500 mt-2 text-center">
                     Point camera at each document QR code — scanning continues automatically
                   </p>
@@ -512,7 +419,10 @@ export const BatchRelocateModal: React.FC<BatchRelocateModalProps> = ({
 
                 {showDestScanner && (
                   <div className="mb-2 p-2 bg-slate-900 rounded-xl border border-slate-700">
-                    <div id="dest-qr-reader" className="rounded-lg overflow-hidden" />
+                    <QrScannerView
+                      onDecode={processDestScannedCode}
+                      className="w-full h-auto rounded-lg bg-slate-950"
+                    />
                     <p className="text-[10px] text-slate-300 mt-1.5 text-center">
                       Scan the QR tag of the destination storage location
                     </p>

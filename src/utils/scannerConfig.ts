@@ -1,54 +1,35 @@
-import { Html5QrcodeSupportedFormats } from 'html5-qrcode';
+/**
+ * Shared camera scanner tuning for the small ~1 cm x 1.5 cm QR/barcode tags
+ * printed on physical archive labels. Scanning is powered by
+ * @agicash/qr-scanner (ZXing-C++ WASM), which decodes dense/small codes far
+ * more reliably than html5-qrcode. These constants are consumed by the
+ * QrScannerView wrapper component.
+ */
+
+/** Max decode attempts per second — higher = faster lock-on for small tags. */
+export const SCANNER_MAX_SCANS_PER_SECOND = 15;
 
 /**
- * Shared camera scanner tuning for the small 1.5 cm x 1.5 cm QR/barcode tags
- * printed on physical archive labels. A tighter crop lets the tag fill the
- * detection area without precise distance alignment, a higher frame rate
- * shortens the gap between decode attempts, and enabling both QR and common
- * barcode symbologies gives a fallback path when a tiny QR matrix fails.
+ * Centered square scan crop, as a fraction of the video's smaller dimension.
+ * A tighter crop lets a small tag fill the detection area without precise
+ * distance alignment.
  */
-export const SCANNER_CONFIG = {
-  fps: 15,
-  qrbox: { width: 180, height: 180 },
-  rememberLastUsedCamera: true,
-  formatsToSupport: [
-    Html5QrcodeSupportedFormats.QR_CODE,
-    Html5QrcodeSupportedFormats.CODE_128,
-    Html5QrcodeSupportedFormats.CODE_39,
-    Html5QrcodeSupportedFormats.EAN_13,
-    Html5QrcodeSupportedFormats.EAN_8,
-    Html5QrcodeSupportedFormats.DATA_MATRIX
-  ]
+export const SCANNER_REGION_FRACTION = 0.6;
+
+/** Camera constraints tuned for small-tag readability (high-res frames). */
+export const SCANNER_CAMERA_RESOLUTION = {
+  width: { ideal: 1920 } as number | { ideal: number },
+  height: { ideal: 1080 } as number | { ideal: number }
 };
 
 /** On-screen guidance for reliably reading the small physical tags. */
 export const SCANNER_TAG_HINT =
   'Hold ~15–20 cm from the tag under even lighting — avoid shadows and glare on the label.';
 
-let noiseSuppressed = false;
-
 /**
- * Silences non-critical frame-decode noise that html5-qrcode emits via
- * console.warn even in non-verbose mode, keeping the console and UI
- * responsive while the camera hunts for a small tag.
- */
-export function suppressScannerConsoleNoise(): void {
-  if (noiseSuppressed) return;
-  noiseSuppressed = true;
-  const originalWarn = console.warn.bind(console);
-  console.warn = (...args: unknown[]) => {
-    const first = args[0];
-    if (typeof first === 'string' && /QR Code|html5-qrcode|QR code parse error|Unable to decode/i.test(first)) {
-      return;
-    }
-    originalWarn(...args);
-  };
-}
-
-/**
- * Continuous-scan dedupe: with the scanner left active after each decode,
- * the same tag keeps re-decoding every frame. Ignore identical codes for a
- * short window so repeated sweeps of one tag do not spam toasts or
+ * Continuous-scan dedupe window: with the scanner left active after each
+ * decode, the same tag keeps re-decoding every frame. Ignore identical codes
+ * for this window so repeated sweeps of one tag do not spam toasts or
  * re-trigger resolution, while adjacent different tags still resolve fast.
  */
 export function createScanDedupe(windowMs = 1500): (code: string) => boolean {

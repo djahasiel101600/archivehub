@@ -1,5 +1,5 @@
-import React, { useEffect, useState, useRef } from 'react';
-import { Html5QrcodeScanner } from 'html5-qrcode';
+import React, { useState } from 'react';
+import { QrScannerView } from './QrScannerView';
 import { useArchive } from '../../context/ArchiveContext';
 import { StatusBadge } from '../common/StatusBadge';
 import { LocationPathBreadcrumbs } from '../common/LocationPathBreadcrumbs';
@@ -16,7 +16,7 @@ import {
   Layers
 } from 'lucide-react';
 import { DocumentItem, LocationItem, DocumentBundle } from '../../types';
-import { SCANNER_CONFIG, SCANNER_TAG_HINT, suppressScannerConsoleNoise } from '../../utils/scannerConfig';
+import { SCANNER_TAG_HINT } from '../../utils/scannerConfig';
 
 interface CameraQRScannerModalProps {
   isOpen: boolean;
@@ -41,58 +41,6 @@ export const CameraQRScannerModal: React.FC<CameraQRScannerModalProps> = ({
     data: DocumentItem | LocationItem | DocumentBundle;
   } | null>(null);
   const [scanError, setScanError] = useState<string | null>(null);
-  const [scannerActive, setScannerActive] = useState(false);
-
-  const scannerRef = useRef<Html5QrcodeScanner | null>(null);
-
-  useEffect(() => {
-    // Only run when the camera view is actually the thing being shown
-    if (!(isOpen && activeTab === 'camera' && !scanResult)) return;
-
-    let isCancelled = false;
-    let localScanner: Html5QrcodeScanner | null = null;
-
-    const timer = setTimeout(() => {
-      if (isCancelled) return;
-
-      const el = document.getElementById('qr-reader');
-      if (!el) return; // DOM not ready / already unmounted
-
-      suppressScannerConsoleNoise();
-      localScanner = new Html5QrcodeScanner(
-        'qr-reader',
-        SCANNER_CONFIG,
-        /* verbose= */ false
-      );
-
-      localScanner.render(
-        (decodedText) => {
-          handleProcessCode(decodedText);
-          localScanner?.clear().catch(() => {});
-          setScannerActive(false);
-        },
-        () => {
-          // Ignore background scanning frame errors
-        }
-      );
-
-      scannerRef.current = localScanner;
-      setScannerActive(true);
-    }, 200);
-
-    return () => {
-      isCancelled = true;
-      clearTimeout(timer);
-
-      const s = scannerRef.current;
-      scannerRef.current = null;
-      if (s) {
-        s.clear().catch(() => {
-          // Scanner may already be mid-teardown; safe to ignore
-        });
-      }
-    };
-  }, [isOpen, activeTab, scanResult]);
 
   if (!isOpen) return null;
 
@@ -179,7 +127,9 @@ export const CameraQRScannerModal: React.FC<CameraQRScannerModalProps> = ({
         <div className="p-6 overflow-y-auto space-y-5">
           {activeTab === 'camera' && !scanResult && (
             <div className="flex flex-col items-center justify-center">
-              <div id="qr-reader" className="w-full max-w-sm rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800 shadow-inner" />
+              <div className="w-full max-w-sm rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800 shadow-inner bg-black">
+                <QrScannerView onDecode={handleProcessCode} />
+              </div>
               <p className="text-xs text-slate-500 mt-3 text-center">
                 Position the QR code or Barcode label within the camera viewport
               </p>
