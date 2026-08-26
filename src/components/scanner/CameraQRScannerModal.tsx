@@ -16,6 +16,7 @@ import {
   Layers
 } from 'lucide-react';
 import { DocumentItem, LocationItem, DocumentBundle } from '../../types';
+import { SCANNER_CONFIG, SCANNER_TAG_HINT, suppressScannerConsoleNoise } from '../../utils/scannerConfig';
 
 interface CameraQRScannerModalProps {
   isOpen: boolean;
@@ -57,13 +58,10 @@ export const CameraQRScannerModal: React.FC<CameraQRScannerModalProps> = ({
       const el = document.getElementById('qr-reader');
       if (!el) return; // DOM not ready / already unmounted
 
+      suppressScannerConsoleNoise();
       localScanner = new Html5QrcodeScanner(
         'qr-reader',
-        {
-          fps: 10,
-          qrbox: { width: 250, height: 250 },
-          rememberLastUsedCamera: true,
-        },
+        SCANNER_CONFIG,
         /* verbose= */ false
       );
 
@@ -184,6 +182,9 @@ export const CameraQRScannerModal: React.FC<CameraQRScannerModalProps> = ({
               <div id="qr-reader" className="w-full max-w-sm rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800 shadow-inner" />
               <p className="text-xs text-slate-500 mt-3 text-center">
                 Position the QR code or Barcode label within the camera viewport
+              </p>
+              <p className="text-[11px] text-slate-400 mt-1 text-center">
+                {SCANNER_TAG_HINT}
               </p>
             </div>
           )}

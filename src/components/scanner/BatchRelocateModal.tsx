@@ -17,6 +17,7 @@ import {
   ScanLine
 } from 'lucide-react';
 import { DocumentItem, LocationItem } from '../../types';
+import { SCANNER_CONFIG, SCANNER_TAG_HINT, suppressScannerConsoleNoise, createScanDedupe } from '../../utils/scannerConfig';
 
 interface BatchRelocateModalProps {
   isOpen: boolean;
@@ -63,6 +64,10 @@ export const BatchRelocateModal: React.FC<BatchRelocateModalProps> = ({
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Keep a ref of scanned doc IDs to avoid stale closure in scanner callback
   const scannedIdsRef = useRef<Set<string>>(new Set());
+  // Continuous-scan dedupe filters: the same tag re-decodes every frame while
+  // the scanner stays active, so swallow repeat codes within a short window.
+  const scanDedupeRef = useRef<(code: string) => boolean>(createScanDedupe());
+  const destDedupeRef = useRef<(code: string) => boolean>(createScanDedupe());
 
   useEffect(() => {
     scannedIdsRef.current = new Set(scannedDocs.map(d => d.id));
@@ -105,14 +110,17 @@ export const BatchRelocateModal: React.FC<BatchRelocateModalProps> = ({
       const el = document.getElementById('batch-qr-reader');
       if (!el) return;
 
+      suppressScannerConsoleNoise();
+      scanDedupeRef.current = createScanDedupe();
       localScanner = new Html5QrcodeScanner(
         'batch-qr-reader',
-        { fps: 10, qrbox: { width: 250, height: 250 }, rememberLastUsedCamera: true },
+        SCANNER_CONFIG,
         false
       );
 
       localScanner.render(
         (decodedText) => {
+          if (!scanDedupeRef.current(decodedText)) return;
           processScannedCode(decodedText);
           // Don't clear — let it keep scanning continuously
         },
@@ -161,14 +169,19 @@ export const BatchRelocateModal: React.FC<BatchRelocateModalProps> = ({
       const el = document.getElementById('dest-qr-reader');
       if (!el) return;
 
+      suppressScannerConsoleNoise();
+      destDedupeRef.current = createScanDedupe();
       const localScanner = new Html5QrcodeScanner(
         'dest-qr-reader',
-        { fps: 10, qrbox: { width: 220, height: 220 }, rememberLastUsedCamera: true },
+        SCANNER_CONFIG,
         false
       );
 
       localScanner.render(
-        (decodedText) => processDestScannedCode(decodedText),
+        (decodedText) => {
+          if (!destDedupeRef.current(decodedText)) return;
+          processDestScannedCode(decodedText);
+        },
         () => { /* ignore frame errors */ }
       );
 
@@ -365,6 +378,9 @@ export const BatchRelocateModal: React.FC<BatchRelocateModalProps> = ({
                   <p className="text-[11px] text-slate-500 mt-2 text-center">
                     Point camera at each document QR code — scanning continues automatically
                   </p>
+                  <p className="text-[11px] text-slate-400 mt-1 text-center">
+                    {SCANNER_TAG_HINT}
+                  </p>
                 </div>
               )}
 
@@ -499,6 +515,9 @@ export const BatchRelocateModal: React.FC<BatchRelocateModalProps> = ({
                     <div id="dest-qr-reader" className="rounded-lg overflow-hidden" />
                     <p className="text-[10px] text-slate-300 mt-1.5 text-center">
                       Scan the QR tag of the destination storage location
+                    </p>
+                    <p className="text-[10px] text-slate-400 mt-1 text-center">
+                      {SCANNER_TAG_HINT}
                     </p>
                     {destScanError && (
                       <p className="text-[10px] text-red-400 font-semibold mt-1 text-center flex items-center justify-center gap-1">

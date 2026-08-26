@@ -34,6 +34,7 @@ import {
   ScanLine
 } from 'lucide-react';
 import { DocumentCondition, LocationItem } from '../types';
+import { SCANNER_CONFIG, SCANNER_TAG_HINT, suppressScannerConsoleNoise, createScanDedupe } from '../utils/scannerConfig';
 
 interface DocumentDetailPageProps {
   documentId: string;
@@ -76,6 +77,8 @@ export const DocumentDetailPage: React.FC<DocumentDetailPageProps> = ({
   const [showDestScanner, setShowDestScanner] = useState(false);
   const [destScanError, setDestScanError] = useState('');
   const destScannerRef = useRef<Html5QrcodeScanner | null>(null);
+  // Swallow repeat decodes of the same tag while the scanner stays active
+  const destDedupeRef = useRef<(code: string) => boolean>(createScanDedupe());
 
   const processDestScannedCode = useCallback((code: string) => {
     const result = lookupByQR(code);
@@ -103,14 +106,19 @@ export const DocumentDetailPage: React.FC<DocumentDetailPageProps> = ({
       const el = document.getElementById('doc-move-dest-qr-reader');
       if (!el) return;
 
+      suppressScannerConsoleNoise();
+      destDedupeRef.current = createScanDedupe();
       const localScanner = new Html5QrcodeScanner(
         'doc-move-dest-qr-reader',
-        { fps: 10, qrbox: { width: 220, height: 220 }, rememberLastUsedCamera: true },
+        SCANNER_CONFIG,
         false
       );
 
       localScanner.render(
-        (decodedText) => processDestScannedCode(decodedText),
+        (decodedText) => {
+          if (!destDedupeRef.current(decodedText)) return;
+          processDestScannedCode(decodedText);
+        },
         () => { /* ignore frame errors */ }
       );
 
@@ -670,6 +678,9 @@ export const DocumentDetailPage: React.FC<DocumentDetailPageProps> = ({
                       <div id="doc-move-dest-qr-reader" className="rounded-lg overflow-hidden" />
                       <p className="text-[10px] text-slate-300 mt-1.5 text-center">
                         Scan the QR tag of the destination storage location
+                      </p>
+                      <p className="text-[10px] text-slate-400 mt-1 text-center">
+                        {SCANNER_TAG_HINT}
                       </p>
                       {destScanError && (
                         <p className="text-[10px] text-red-400 font-semibold mt-1 text-center flex items-center justify-center gap-1">
