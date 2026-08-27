@@ -15,7 +15,7 @@ import { useArchive } from '../../context/ArchiveContext';
 import { DocumentItem, DocumentBundle } from '../../types';
 import { QrScannerView } from './QrScannerView';
 import { SCANNER_TAG_HINT } from '../../utils/scannerConfig';
-import { scanFeedback } from '../../utils/scanFeedback';
+import { scanFeedback, ensureScanAudioUnlocked } from '../../utils/scanFeedback';
 
 interface ScanFillBundleModalProps {
   isOpen: boolean;
@@ -55,6 +55,10 @@ export const ScanFillBundleModal: React.FC<ScanFillBundleModalProps> = ({ isOpen
       setScanToast(null);
       setManualInput('');
       setActiveScanTab('camera');
+      // Modal opens as a direct result of a user click — the last reliable
+      // gesture window to unlock Web Audio before camera decodes (which are
+      // not gestures) start firing feedback sounds.
+      ensureScanAudioUnlocked();
     }
     if (!isOpen) bundleIdRef.current = null;
   }, [isOpen, bundle]);
