@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { DocumentItem, LocationItem } from '../../types';
 import { SCANNER_TAG_HINT } from '../../utils/scannerConfig';
+import { scanFeedback, ensureScanAudioUnlocked } from '../../utils/scanFeedback';
 
 interface BatchRelocateModalProps {
   isOpen: boolean;
@@ -66,6 +67,12 @@ export const BatchRelocateModal: React.FC<BatchRelocateModalProps> = ({
     scannedIdsRef.current = new Set(scannedDocs.map(d => d.id));
   }, [scannedDocs]);
 
+  // Modal opens from a user click — unlock Web Audio inside that gesture
+  // window so later camera decodes (not gestures) can play feedback sounds.
+  useEffect(() => {
+    if (isOpen) ensureScanAudioUnlocked();
+  }, [isOpen]);
+
   const showToast = useCallback((type: 'success' | 'error' | 'dup', message: string) => {
     setScanToast({ type, message });
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
@@ -75,18 +82,22 @@ export const BatchRelocateModal: React.FC<BatchRelocateModalProps> = ({
   const processScannedCode = useCallback((code: string) => {
     const result = lookupByQR(code);
     if (!result) {
+      scanFeedback('error');
       showToast('error', `Unknown code: "${code.slice(0, 30)}"`);
       return;
     }
     if (result.type !== 'DOCUMENT') {
+      scanFeedback('error');
       showToast('error', `"${code.slice(0, 25)}" is a location, not a document`);
       return;
     }
     const doc = result.data as DocumentItem;
     if (scannedIdsRef.current.has(doc.id)) {
+      scanFeedback('duplicate');
       showToast('dup', `#${doc.documentNumber} already scanned`);
       return;
     }
+    scanFeedback('success');
     setScannedDocs(prev => [...prev, doc]);
     showToast('success', `#${doc.documentNumber} — ${doc.title.slice(0, 40)}`);
   }, [lookupByQR, showToast]);
@@ -95,14 +106,17 @@ export const BatchRelocateModal: React.FC<BatchRelocateModalProps> = ({
   const processDestScannedCode = useCallback((code: string) => {
     const result = lookupByQR(code);
     if (!result) {
+      scanFeedback('error');
       setDestScanError(`Unknown code: "${code.slice(0, 30)}"`);
       return;
     }
     if (result.type !== 'LOCATION') {
+      scanFeedback('error');
       setDestScanError(`Scanned code is a ${result.type.toLowerCase()}, not a storage location.`);
       return;
     }
     const loc = result.data as LocationItem;
+    scanFeedback('success');
     setDestinationId(loc.id);
     setDestScanError('');
     setShowDestScanner(false);

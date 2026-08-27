@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { QrScannerView } from './QrScannerView';
 import { useArchive } from '../../context/ArchiveContext';
 import { StatusBadge } from '../common/StatusBadge';
@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { DocumentItem, LocationItem, DocumentBundle } from '../../types';
 import { SCANNER_TAG_HINT } from '../../utils/scannerConfig';
+import { scanFeedback, ensureScanAudioUnlocked } from '../../utils/scanFeedback';
 
 interface CameraQRScannerModalProps {
   isOpen: boolean;
@@ -42,14 +43,22 @@ export const CameraQRScannerModal: React.FC<CameraQRScannerModalProps> = ({
   } | null>(null);
   const [scanError, setScanError] = useState<string | null>(null);
 
+  // Modal opens from a user click — unlock Web Audio inside that gesture
+  // window so later camera decodes (not gestures) can play feedback sounds.
+  useEffect(() => {
+    if (isOpen) ensureScanAudioUnlocked();
+  }, [isOpen]);
+
   if (!isOpen) return null;
 
   const handleProcessCode = (code: string) => {
     setScanError(null);
     const result = lookupByQR(code);
     if (result) {
+      scanFeedback('success');
       setScanResult(result);
     } else {
+      scanFeedback('error');
       setScanResult(null);
       setScanError(`No document, bundle, or storage location found matching code: "${code}"`);
     }

@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { QrScannerView } from '../components/scanner/QrScannerView';
 import { useArchive } from '../context/ArchiveContext';
 import { StatusBadge } from '../components/common/StatusBadge';
@@ -35,6 +35,7 @@ import {
 } from 'lucide-react';
 import { DocumentCondition, LocationItem } from '../types';
 import { SCANNER_TAG_HINT } from '../utils/scannerConfig';
+import { scanFeedback, ensureScanAudioUnlocked } from '../utils/scanFeedback';
 
 interface DocumentDetailPageProps {
   documentId: string;
@@ -77,17 +78,26 @@ export const DocumentDetailPage: React.FC<DocumentDetailPageProps> = ({
   const [showDestScanner, setShowDestScanner] = useState(false);
   const [destScanError, setDestScanError] = useState('');
 
+  // Destination scanner opens from a user click — unlock Web Audio inside
+  // that gesture window so camera decodes can play feedback sounds.
+  useEffect(() => {
+    if (showDestScanner) ensureScanAudioUnlocked();
+  }, [showDestScanner]);
+
   const processDestScannedCode = useCallback((code: string) => {
     const result = lookupByQR(code);
     if (!result) {
+      scanFeedback('error');
       setDestScanError(`Unknown code: "${code.slice(0, 30)}"`);
       return;
     }
     if (result.type !== 'LOCATION') {
+      scanFeedback('error');
       setDestScanError(`Scanned code is a ${result.type.toLowerCase()}, not a storage location.`);
       return;
     }
     const loc = result.data as LocationItem;
+    scanFeedback('success');
     setTargetLocationId(loc.id);
     setDestScanError('');
     setShowDestScanner(false);
