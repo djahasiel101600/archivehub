@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { DocumentItem } from '../../types';
+import { DocumentItem, DocumentBundle } from '../../types';
 import { useArchive } from '../../context/ArchiveContext';
 import { suggestBundleFromDocuments } from '../../ai/suggestBundle';
 import { PhotoUploader } from '../common/PhotoUploader';
@@ -15,12 +15,18 @@ interface BundleModalProps {
   selectedDocuments: DocumentItem[];
   onClose: () => void;
   onSuccess?: () => void;
+  /** Create an empty dossier (no pre-selected documents) to be filled later via QR scanning */
+  emptyMode?: boolean;
+  /** Called with the freshly created bundle — used to chain into scan-to-fill */
+  onCreated?: (bundle: DocumentBundle) => void;
 }
 
 export const BundleModal: React.FC<BundleModalProps> = ({
   selectedDocuments,
   onClose,
-  onSuccess
+  onSuccess,
+  emptyMode = false,
+  onCreated
 }) => {
   const { 
     bundles, 
@@ -53,7 +59,9 @@ export const BundleModal: React.FC<BundleModalProps> = ({
   const [departmentId, setDepartmentId] = useState(defaultDeptId);
   const [locationId, setLocationId] = useState(defaultLocationId);
   const [description, setDescription] = useState(
-    `Consolidated archive bundle containing ${selectedDocuments.length} document(s).`
+    selectedDocuments.length > 0
+      ? `Consolidated archive bundle containing ${selectedDocuments.length} document(s).`
+      : 'Empty archive dossier — fill it by scanning document QR codes.'
   );
   const [tagsInput, setTagsInput] = useState('Dossier, Case File');
   const [imageUrl, setImageUrl] = useState('');
@@ -105,6 +113,8 @@ export const BundleModal: React.FC<BundleModalProps> = ({
         documentIds: docIds,
         status: 'ACTIVE',
         tags
+      }).then((created) => {
+        if (onCreated) onCreated(created);
       });
 
       if (onSuccess) onSuccess();
@@ -145,10 +155,12 @@ export const BundleModal: React.FC<BundleModalProps> = ({
             </div>
             <div>
               <h3 className="font-extrabold text-slate-900 dark:text-slate-100 text-sm">
-                Bundle & Group Selected Documents
+                {emptyMode ? 'Create Empty Bundle / Dossier' : 'Bundle & Group Selected Documents'}
               </h3>
               <p className="text-[11px] text-slate-500">
-                Organize {selectedDocuments.length} physical record(s) into a unified dossier/folder
+                {emptyMode
+                  ? 'Create an empty dossier, then fill it by scanning document QR codes'
+                  : `Organize ${selectedDocuments.length} physical record(s) into a unified dossier/folder`}
               </p>
             </div>
           </div>
@@ -161,7 +173,8 @@ export const BundleModal: React.FC<BundleModalProps> = ({
           </button>
         </div>
 
-        {/* Mode Selector Tabs */}
+        {/* Mode Selector Tabs (hidden in empty-bundle mode — create only) */}
+        {!emptyMode && (
         <div className="flex border-b border-slate-200 dark:border-slate-800 bg-slate-100/70 dark:bg-slate-800/40 p-2 gap-2 text-xs font-semibold flex-shrink-0">
           <button
             type="button"
@@ -190,8 +203,10 @@ export const BundleModal: React.FC<BundleModalProps> = ({
             Add to Existing Bundle ({bundles.length})
           </button>
         </div>
+        )}
 
-        {/* Selected Documents Ribbon */}
+        {/* Selected Documents Ribbon (hidden in empty-bundle mode) */}
+        {!emptyMode && (
         <div className="bg-amber-50/70 dark:bg-amber-950/30 px-6 py-2.5 border-b border-amber-200/60 dark:border-amber-900/40 text-xs flex items-center justify-between">
           <div className="flex items-center gap-2">
             <span className="font-mono font-bold text-amber-900 dark:text-amber-200">
@@ -211,9 +226,10 @@ export const BundleModal: React.FC<BundleModalProps> = ({
             </div>
           </div>
         </div>
+        )}
 
         {/* Form Body */}
-        {mode === 'create' ? (
+        {(emptyMode || mode === 'create') ? (
           <form onSubmit={handleCreateBundle} className="flex-1 flex flex-col min-h-0">
             <div className="p-6 space-y-3.5 overflow-y-auto flex-1 text-xs">
               
@@ -336,7 +352,7 @@ export const BundleModal: React.FC<BundleModalProps> = ({
                 className="px-5 py-2 text-white bg-amber-600 hover:bg-amber-700 disabled:opacity-50 rounded-xl font-semibold shadow-md shadow-amber-600/20 flex items-center gap-1.5"
               >
                 <Layers className="w-3.5 h-3.5" />
-                <span>{isSubmitting ? 'Creating Bundle...' : `Create Bundle & Group ${selectedDocuments.length} Item(s)`}</span>
+                <span>{isSubmitting ? 'Creating Bundle...' : emptyMode ? 'Create Empty Bundle' : `Create Bundle & Group ${selectedDocuments.length} Item(s)`}</span>
               </button>
             </div>
           </form>

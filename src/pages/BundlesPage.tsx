@@ -5,6 +5,7 @@ import { LocationPathBreadcrumbs } from '../components/common/LocationPathBreadc
 import { QRBarcodeModal } from '../components/common/QRBarcodeModal';
 import { BundleModal } from '../components/documents/BundleModal';
 import { BatchRelocateModal } from '../components/scanner/BatchRelocateModal';
+import { ScanFillBundleModal } from '../components/scanner/ScanFillBundleModal';
 import { ConfirmModal } from '../components/common/ConfirmModal';
 import { PhotoUploader } from '../components/common/PhotoUploader';
 import {
@@ -25,7 +26,9 @@ import {
   Filter,
   Eye,
   X,
-  ImageIcon
+  ImageIcon,
+  Plus,
+  ScanLine
 } from 'lucide-react';
 
 export const BundlesPage: React.FC = () => {
@@ -50,6 +53,10 @@ export const BundlesPage: React.FC = () => {
   const [qrModalBundle, setQrModalBundle] = useState<DocumentBundle | null>(null);
   const [relocatingBundle, setRelocatingBundle] = useState<DocumentBundle | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<DocumentBundle | null>(null);
+
+  // Empty-bundle creation + scan-to-fill flow
+  const [showNewBundleModal, setShowNewBundleModal] = useState(false);
+  const [scanFillingBundle, setScanFillingBundle] = useState<DocumentBundle | null>(null);
 
   // Selected documents within expanded bundles (for bulk relocate)
   const [selectedDocIds, setSelectedDocIds] = useState<Set<string>>(new Set());
@@ -196,6 +203,15 @@ export const BundlesPage: React.FC = () => {
             </div>
           </div>
         </div>
+
+        <button
+          type="button"
+          onClick={() => setShowNewBundleModal(true)}
+          className="inline-flex items-center gap-2 px-4 py-2.5 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-xl shadow-md shadow-amber-600/20 transition-colors self-start sm:self-auto"
+        >
+          <Plus className="w-4 h-4" />
+          New Empty Bundle
+        </button>
       </div>
 
       {/* KPI Stats Row */}
@@ -463,6 +479,13 @@ export const BundlesPage: React.FC = () => {
                         <td className="px-3 py-3">
                           <div className="flex items-center justify-end gap-1">
                             <button
+                              onClick={() => setScanFillingBundle(bundle)}
+                              title="Scan Documents In (QR)"
+                              className="p-1.5 rounded-lg text-amber-600 hover:bg-amber-50 dark:text-amber-400 dark:hover:bg-amber-900/30 transition-colors"
+                            >
+                              <ScanLine className="w-4 h-4" />
+                            </button>
+                            <button
                               onClick={() => setRelocatingBundle(bundle)}
                               title="Relocate Bundle"
                               className="p-1.5 rounded-lg text-emerald-600 hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-900/30 transition-colors"
@@ -643,6 +666,26 @@ export const BundlesPage: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Create Empty Bundle Modal — chains straight into scan-to-fill */}
+      {showNewBundleModal && (
+        <BundleModal
+          selectedDocuments={[]}
+          emptyMode
+          onClose={() => setShowNewBundleModal(false)}
+          onCreated={(created) => {
+            setShowNewBundleModal(false);
+            setScanFillingBundle(created);
+          }}
+        />
+      )}
+
+      {/* Scan-to-Fill Bundle Modal */}
+      <ScanFillBundleModal
+        isOpen={!!scanFillingBundle}
+        bundle={scanFillingBundle}
+        onClose={() => setScanFillingBundle(null)}
+      />
 
       {/* QR/Barcode Modal for Bundle */}
       {qrModalBundle && (
