@@ -15,6 +15,7 @@ import { useArchive } from '../../context/ArchiveContext';
 import { DocumentItem, DocumentBundle } from '../../types';
 import { QrScannerView } from './QrScannerView';
 import { SCANNER_TAG_HINT } from '../../utils/scannerConfig';
+import { scanFeedback } from '../../utils/scanFeedback';
 
 interface ScanFillBundleModalProps {
   isOpen: boolean;
@@ -68,22 +69,27 @@ export const ScanFillBundleModal: React.FC<ScanFillBundleModalProps> = ({ isOpen
     if (!bundle) return;
     const result = lookupByQR(code);
     if (!result) {
+      scanFeedback('error');
       showToast('error', `Unknown code: "${code.slice(0, 30)}"`);
       return;
     }
     if (result.type !== 'DOCUMENT') {
+      scanFeedback('error');
       showToast('error', `"${code.slice(0, 25)}" is a location/bundle tag, not a document`);
       return;
     }
     const doc = result.data as DocumentItem;
     if (scannedIdsRef.current.has(doc.id) || bundle.documentIds.includes(doc.id)) {
+      scanFeedback('duplicate');
       showToast('dup', `#${doc.documentNumber} already ${bundle.documentIds.includes(doc.id) ? 'in this bundle' : 'scanned'}`);
       return;
     }
     if (doc.bundleId && doc.bundleId !== bundle.id) {
+      scanFeedback('error');
       showToast('error', `#${doc.documentNumber} belongs to another bundle${doc.bundleNumber ? ` (#${doc.bundleNumber})` : ''} — skipped`);
       return;
     }
+    scanFeedback('success');
     setScannedDocs(prev => [...prev, doc]);
     showToast('success', `#${doc.documentNumber} — ${doc.title.slice(0, 40)}`);
   }, [bundle, lookupByQR, showToast]);
@@ -118,7 +124,7 @@ export const ScanFillBundleModal: React.FC<ScanFillBundleModalProps> = ({ isOpen
       <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl max-w-lg w-full max-h-[92vh] flex flex-col overflow-hidden shadow-2xl">
 
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60 flex-shrink-0">
+        <div className="relative z-10 flex items-center justify-between px-5 py-3.5 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60 flex-shrink-0">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-xl bg-amber-600 text-white flex items-center justify-center shadow-sm">
               <Layers className="w-4 h-4" />
@@ -139,7 +145,7 @@ export const ScanFillBundleModal: React.FC<ScanFillBundleModalProps> = ({ isOpen
         </div>
 
         {/* Body */}
-        <div className="flex-1 overflow-y-auto p-5 space-y-4">
+        <div className="relative z-10 flex-1 overflow-y-auto p-5 space-y-4">
           {/* Scan Mode Tabs */}
           <div className="flex border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden text-xs font-semibold">
             <button
@@ -173,10 +179,12 @@ export const ScanFillBundleModal: React.FC<ScanFillBundleModalProps> = ({ isOpen
                 onDecode={processScannedCode}
                 className="w-full max-w-sm h-auto rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-950 shadow-inner"
               />
-              <p className="text-[11px] text-slate-500 mt-2 text-center">
+              {/* Guidance pills: visually distinct but translucent and outside the
+                  video stream, so they never obscure or block any controls. */}
+              <p className="text-[11px] font-medium text-slate-600 dark:text-slate-300 mt-2 text-center bg-slate-100/80 dark:bg-slate-800/60 rounded-lg px-2.5 py-1">
                 Point camera at each document QR code — scanning continues automatically
               </p>
-              <p className="text-[11px] text-slate-400 mt-1 text-center">
+              <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1.5 text-center bg-slate-100/60 dark:bg-slate-800/40 rounded-lg px-2.5 py-1 max-w-sm">
                 {SCANNER_TAG_HINT}
               </p>
             </div>
@@ -255,8 +263,8 @@ export const ScanFillBundleModal: React.FC<ScanFillBundleModalProps> = ({ isOpen
           )}
         </div>
 
-        {/* Footer */}
-        <div className="px-5 py-3.5 border-t border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 flex items-center justify-end gap-2 flex-shrink-0">
+        {/* Footer — stacked above any scanner overlay so its buttons stay clickable */}
+        <div className="relative z-20 px-5 py-3.5 border-t border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 flex items-center justify-end gap-2 flex-shrink-0">
           <button
             type="button"
             onClick={onClose}

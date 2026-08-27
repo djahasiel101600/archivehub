@@ -1,5 +1,14 @@
 @import "tailwindcss";
 
+/* @agicash/qr-scanner injects scan-region / code-outline overlays into the
+   scanner container. They must never intercept pointer events — otherwise
+   camera guide boxes can swallow clicks meant for modal buttons around them. */
+.qr-scanner-region,
+.qr-scanner-region *,
+.qr-scanner-code-outline {
+  pointer-events: none !important;
+}
+
 @media print {
   body {
     background: #ffffff !important;

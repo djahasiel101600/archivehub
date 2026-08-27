@@ -116,12 +116,21 @@ export const QrScannerView: React.FC<QrScannerViewProps> = ({
     };
   }, []);
 
+  // The video lives in a dedicated positioned container because @agicash/qr-scanner
+  // appends its scan-region / code-outline overlays to video.parentElement with
+  // absolute positioning + z-index. Without an own relative, overflow-hidden,
+  // isolate wrapper those overlays escape the camera area (the region highlight's
+  // 9999px darkening box-shadow covers the whole modal) and sit above the modal
+  // action buttons. pointer-events-none keeps video + overlays from ever
+  // intercepting clicks meant for surrounding UI.
   return (
-    <video
-      ref={videoRef}
-      muted
-      playsInline
-      className={className || 'w-full h-auto block'}
-    />
+    <div className={`relative overflow-hidden isolate ${className || 'w-full h-auto block'}`}>
+      <video
+        ref={videoRef}
+        muted
+        playsInline
+        className="w-full h-auto block pointer-events-none"
+      />
+    </div>
   );
 };
