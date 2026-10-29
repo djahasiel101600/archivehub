@@ -573,6 +573,34 @@ async function startServer() {
     }
   });
 
+  // QR Code Claim — mark a document's QR code as claimed (scanned)
+  app.post("/api/documents/:id/qr-claim", async (req, res) => {
+    try {
+      const { user } = req.body;
+      const result = await repo.claimDocumentQr(req.params.id, user);
+      if (!result.success) {
+        return res.status(400).json({ success: false, message: result.message });
+      }
+      res.json({ success: true, message: result.message, claimedAt: result.claimedAt });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // QR Code Unclaim — reset a document's QR code claim status
+  app.post("/api/documents/:id/qr-unclaim", async (req, res) => {
+    try {
+      const { user } = req.body;
+      const result = await repo.unclaimDocumentQr(req.params.id, user);
+      if (!result.success) {
+        return res.status(400).json({ success: false, message: result.message });
+      }
+      res.json({ success: true, message: result.message });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
   // Bulk Delete — remove many documents at once (checked-out records are skipped)
   app.post("/api/documents/bulk-delete", async (req, res) => {
     try {

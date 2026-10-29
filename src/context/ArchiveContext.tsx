@@ -98,6 +98,8 @@ interface ArchiveContextType {
   bulkDeleteDocuments: (documentIds: string[]) => Promise<{ deleted: number; skipped: { id: string; reason: string }[] }>;
   moveDocument: (documentId: string, toLocationId: string, reason: string) => Promise<void>;
   batchMoveDocuments: (documentIds: string[], toLocationId: string, reason: string) => Promise<void>;
+  claimDocumentQr: (documentId: string) => Promise<{ success: boolean; message?: string; claimedAt?: string }>;
+  unclaimDocumentQr: (documentId: string) => Promise<{ success: boolean; message?: string }>;
   
   // Checkout & Return Operations
   requestCheckout: (documentId: string, purpose: string, dueDate: string) => Promise<CheckoutRecord>;
@@ -921,7 +923,8 @@ export const ArchiveProvider: React.FC<{ children: React.ReactNode }> = ({ child
       const barcode = '884' + Math.floor(100000 + Math.random() * 900000);
       const newDoc: DocumentItem = {
         ...docData, documentNumber: docNumber, id, currentLocationId: docData.homeLocationId, status: 'AVAILABLE',
-        qrCode, barcode, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString()
+        qrCode, barcode, photos: [], qrClaimed: false, qrClaimedAt: null, qrClaimedBy: null,
+        createdAt: new Date().toISOString(), updatedAt: new Date().toISOString()
       };
       setDocuments(prev => [newDoc, ...prev]);
       addNotification('success', `Document #${newDoc.documentNumber} registered successfully.`);
@@ -1160,6 +1163,95 @@ export const ArchiveProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }
   };
 
+  // QR Code Claim Operations
+  const claimDocumentQr = async (documentId: string): Promise<{ success: boolean; message?: string; claimedAt?: string }> => {
+    const doc = documents.find(d => d.id === documentId);
+    if (!doc) return { success: false, message: 'Document not found.' };
+
+    // Optimistic update
+    const now = new Date().toISOString();
+    setDocuments(prev => prev.map(d =>
+      d.id === documentId
+        ? { ...d, qrClaimed: true, qrClaimedAt: now, qrClaimedBy: currentUser.id, updatedAt: now }
+        : d
+    ));
+    setAuditLogs(prev => [{
+      id: 'aud-' + Date.now(),
+      userId: currentUser.id,
+      userName: currentUser.fullName,
+      userRole: currentUser.role,
+      action: 'QR_CODE_CLAIMED',
+      entityType: 'DOCUMENT',
+      entityId: documentId,
+      entityName: doc.documentNumber,
+      timestamp: now,
+      details: `QR code scanned/claimed for document #${doc.documentNumber}`
+    }, ...prev]);
+
+    try {
+      const res = await fetch(`/api/documents/${documentId}/qr-claim`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user: currentUser })
+      });
+      const result = await res.json();
+      if (!res.ok) {
+        addNotification('error', result.message || 'Failed to claim QR code.');
+        return { success: false, message: result.message };
+      }
+      await fetchAllFromBackend();
+      addNotification('success', `QR code claimed for document #${doc.documentNumber}.`);
+      return { success: true, message: result.message, claimedAt: now };
+    } catch (e) {
+      addNotification('warning', `QR code claimed locally (offline mode) for document #${doc.documentNumber}.`);
+      return { success: true, message: `QR code claimed locally for document #${doc.documentNumber}.`, claimedAt: now };
+    }
+  };
+
+  const unclaimDocumentQr = async (documentId: string): Promise<{ success: boolean; message?: string }> => {
+    const doc = documents.find(d => d.id === documentId);
+    if (!doc) return { success: false, message: 'Document not found.' };
+    if (!doc.qrClaimed) return { success: false, message: 'QR code is not currently claimed.' };
+
+    setDocuments(prev => prev.map(d =>
+      d.id === documentId
+        ? { ...d, qrClaimed: false, qrClaimedAt: null, qrClaimedBy: null, updatedAt: new Date().toISOString() }
+        : d
+    ));
+    setAuditLogs(prev => [{
+      id: 'aud-' + Date.now(),
+      userId: currentUser.id,
+      userName: currentUser.fullName,
+      userRole: currentUser.role,
+      action: 'QR_CODE_UNCLAIMED',
+      entityType: 'DOCUMENT',
+      entityId: documentId,
+      entityName: doc.documentNumber,
+      timestamp: new Date().toISOString(),
+      details: `QR code claim reset for document #${doc.documentNumber}`
+    }, ...prev]);
+
+    try {
+      const res = await fetch(`/api/documents/${documentId}/qr-unclaim`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user: currentUser })
+      });
+      const result = await res.json();
+      if (!res.ok) {
+        addNotification('error', result.message || 'Failed to unclaim QR code.');
+        return { success: false, message: result.message };
+      }
+      await fetchAllFromBackend();
+      addNotification('success', `QR code claim reset for document #${doc.documentNumber}.`);
+      return { success: true, message: result.message };
+    } catch (e) {
+      addNotification('warning', `QR code claim reset locally (offline mode) for document #${doc.documentNumber}.`);
+      return { success: true, message: `QR code claim reset locally for document #${doc.documentNumber}.` };
+    }
+  };
+
+
   // Checkout Operations
   const requestCheckout = async (documentId: string, purpose: string, dueDate: string): Promise<CheckoutRecord> => {
     const doc = documents.find(d => d.id === documentId);
@@ -1359,6 +1451,8 @@ export const ArchiveProvider: React.FC<{ children: React.ReactNode }> = ({ child
         bulkDeleteDocuments,
         moveDocument,
         batchMoveDocuments,
+        claimDocumentQr,
+        unclaimDocumentQr,
         requestCheckout,
         approveCheckout,
         rejectCheckout,

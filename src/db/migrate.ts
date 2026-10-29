@@ -137,6 +137,10 @@ export async function runMigrations(): Promise<void> {
       ALTER TABLE documents ADD COLUMN IF NOT EXISTS bundle_number VARCHAR(100);
       ALTER TABLE documents ADD COLUMN IF NOT EXISTS bundle_title VARCHAR(500);
       ALTER TABLE documents ADD COLUMN IF NOT EXISTS digital_file_path TEXT;
+      ALTER TABLE documents ADD COLUMN IF NOT EXISTS photos JSONB DEFAULT '[]'::jsonb;
+      ALTER TABLE documents ADD COLUMN IF NOT EXISTS qr_claimed BOOLEAN DEFAULT FALSE;
+      ALTER TABLE documents ADD COLUMN IF NOT EXISTS qr_claimed_at TIMESTAMPTZ;
+      ALTER TABLE documents ADD COLUMN IF NOT EXISTS qr_claimed_by VARCHAR(50);
     `);
 
     // 6. Checkouts Table

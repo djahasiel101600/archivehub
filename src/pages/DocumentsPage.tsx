@@ -34,7 +34,9 @@ import {
   ChevronLeft,
   ChevronRight,
   ChevronsLeft,
-  ChevronsRight
+  ChevronsRight,
+  CheckCircle2,
+  Clock
 } from 'lucide-react';
 import { DocumentStatus, ConfidentialityLevel, DocumentCondition, DocumentItem } from '../types';
 import { ConfirmModal } from '../components/common/ConfirmModal';
@@ -77,6 +79,7 @@ export const DocumentsPage: React.FC<DocumentsPageProps> = ({
   const [selectedStatus, setSelectedStatus] = useState<string>('ALL');
   const [selectedConf, setSelectedConf] = useState<string>('ALL');
   const [selectedBundleFilter, setSelectedBundleFilter] = useState<string>('ALL');
+  const [selectedQrClaim, setSelectedQrClaim] = useState<'ALL' | 'CLAIMED' | 'UNCLAIMED'>('ALL');
   const [filterDateFrom, setFilterDateFrom] = useState('');
   const [filterDateTo, setFilterDateTo] = useState('');
 
@@ -281,6 +284,12 @@ export const DocumentsPage: React.FC<DocumentsPageProps> = ({
     if (selectedStatus !== 'ALL' && doc.status !== selectedStatus) return false;
     if (selectedConf !== 'ALL' && doc.confidentiality !== selectedConf) return false;
 
+    if (selectedQrClaim !== 'ALL') {
+      const isClaimed = Boolean(doc.qrClaimed);
+      if (selectedQrClaim === 'CLAIMED' && !isClaimed) return false;
+      if (selectedQrClaim === 'UNCLAIMED' && isClaimed) return false;
+    }
+
     if (selectedBundleFilter !== 'ALL') {
       if (selectedBundleFilter === 'BUNDLED') {
         const isBundled = Boolean(doc.bundleId || doc.bundleNumber || bundles.some(b => b.documentIds.includes(doc.id)));
@@ -316,7 +325,7 @@ export const DocumentsPage: React.FC<DocumentsPageProps> = ({
   // Reset to the first page whenever any filter / search input changes
   useEffect(() => {
     setCurrentPage(1);
-  }, [globalSearchQuery, selectedDept, selectedType, selectedStatus, selectedConf, selectedBundleFilter, filterDateFrom, filterDateTo, viewMode]);
+  }, [globalSearchQuery, selectedDept, selectedType, selectedStatus, selectedConf, selectedBundleFilter, selectedQrClaim, filterDateFrom, filterDateTo, viewMode]);
 
   const goToPage = (page: number) => {
     const clamped = Math.max(1, Math.min(page, totalPages));
@@ -467,6 +476,19 @@ export const DocumentsPage: React.FC<DocumentsPageProps> = ({
               <option value="INTERNAL">Internal</option>
               <option value="CONFIDENTIAL">Confidential</option>
               <option value="RESTRICTED">Restricted</option>
+            </select>
+          </div>
+
+          {/* QR Claim Filter */}
+          <div>
+            <select
+              value={selectedQrClaim}
+              onChange={(e) => setSelectedQrClaim(e.target.value as 'ALL' | 'CLAIMED' | 'UNCLAIMED')}
+              className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none font-medium"
+            >
+              <option value="ALL">All Documents</option>
+              <option value="CLAIMED">📸 QR Claimed (Scanned)</option>
+              <option value="UNCLAIMED">📷 QR Unclaimed (Not yet scanned)</option>
             </select>
           </div>
 
@@ -713,6 +735,7 @@ export const DocumentsPage: React.FC<DocumentsPageProps> = ({
                   <th className="px-4 py-3.5 min-w-[260px] whitespace-nowrap border-r border-slate-200/80 dark:border-slate-800/80">Home Storage Location</th>
                   <th className="px-4 py-3.5 min-w-[260px] whitespace-nowrap border-r border-slate-200/80 dark:border-slate-800/80">Current Physical Position</th>
                   <th className="px-4 py-3.5 min-w-[100px] text-right whitespace-nowrap">Actions</th>
+                <th className="px-4 py-3.5 min-w-[130px] whitespace-nowrap">QR Claim</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200/80 dark:divide-slate-800 font-medium">
@@ -880,6 +903,21 @@ export const DocumentsPage: React.FC<DocumentsPageProps> = ({
                           </button>
                         </div>
                       </td>
+
+                      {/* Column 9: QR Code Claim Status */}
+                      <td className="px-4 py-3 min-w-[130px] whitespace-nowrap">
+                        {doc.qrClaimed ? (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-1 rounded border border-emerald-200 dark:border-emerald-800/50">
+                            <CheckCircle2 className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+                            Claimed
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/60 px-2 py-1 rounded border border-amber-200 dark:border-amber-800/50">
+                            <Clock className="w-3 h-3 text-amber-600 dark:text-amber-400" />
+                            Unclaimed
+                          </span>
+                        )}
+                      </td>
                     </tr>
                   );
                 })}
@@ -976,9 +1014,23 @@ export const DocumentsPage: React.FC<DocumentsPageProps> = ({
                 )}
 
                 <div className="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-1.5 text-xs">
-                  <div>
-                    <span className="text-[10px] uppercase font-bold text-slate-400 block">Home Archive Storage:</span>
-                    <LocationPathBreadcrumbs locationId={doc.homeLocationId} badgeSize="sm" />
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className="text-[10px] uppercase font-bold text-slate-400 block">Home Archive Storage:</span>
+                      <LocationPathBreadcrumbs locationId={doc.homeLocationId} badgeSize="sm" />
+                    </div>
+                    {/* QR Claim Status */}
+                    {doc.qrClaimed ? (
+                      <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-1.5 py-0.5 rounded border border-emerald-200 dark:border-emerald-800/50">
+                        <CheckCircle2 className="w-3 h-3" />
+                        Claimed
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/60 px-1.5 py-0.5 rounded border border-amber-200 dark:border-amber-800/50">
+                        <Clock className="w-3 h-3" />
+                        Unclaimed
+                      </span>
+                    )}
                   </div>
                 </div>
               </div>

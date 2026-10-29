@@ -135,6 +135,18 @@ export interface CustomMetadataField {
   value: string;
 }
 
+export interface DocumentPhoto {
+  id: string; // e.g. 'photo-<timestamp>'
+  url: string; // base64 data URL (compressed client-side)
+  caption?: string;
+  fileName?: string;
+  fileSize?: string; // human readable e.g. "240 KB"
+  fileType?: string; // mime type e.g. "image/jpeg"
+  uploadedAt: string; // ISO string
+  uploadedBy: string; // user id
+  uploadedByName?: string;
+}
+
 export interface DocumentItem {
   id: string;
   documentNumber: string; // structured: {DEPT_CODE}-{TYPE_CODE}-{NNNN}, e.g. ENG-ARCH-0001
@@ -160,6 +172,14 @@ export interface DocumentItem {
   qrCode: string;
   barcode: string;
   
+
+  // Optional photos of the physical document (compressed base64 data URLs)
+  photos: DocumentPhoto[];
+
+  // QR Code Claim: true once the document's QR code has been scanned
+  qrClaimed: boolean;
+  qrClaimedAt?: string | null;
+  qrClaimedBy?: string | null;
   documentDate: string; // YYYY-MM-DD
   receivedDate: string;
   filedDate: string;

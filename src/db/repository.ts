@@ -635,6 +635,10 @@ export async function getDocuments(): Promise<DocumentItem[]> {
       condition: r.condition,
       qrCode: r.qr_code,
       barcode: r.barcode,
+      photos: Array.isArray(r.photos) ? r.photos : [],
+      qrClaimed: r.qr_claimed === true || r.qr_claimed === 'true',
+      qrClaimedAt: r.qr_claimed_at ? new Date(r.qr_claimed_at).toISOString() : null,
+      qrClaimedBy: r.qr_claimed_by || null,
       documentDate: r.document_date,
       receivedDate: r.received_date,
       filedDate: r.filed_date,
@@ -703,6 +707,10 @@ export async function createDocument(docData: Omit<DocumentItem, 'id' | 'created
     status: 'AVAILABLE',
     qrCode,
     barcode,
+    photos: [],
+    qrClaimed: false,
+    qrClaimedAt: null,
+    qrClaimedBy: null,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString()
   };
@@ -754,20 +762,22 @@ export async function createDocument(docData: Omit<DocumentItem, 'id' | 'created
           id, document_number, reference_number, title, document_type_id, document_type_name,
           subject, description, department_id, department_name, custodian_name,
           home_location_id, current_location_id, status, confidentiality, condition,
-          qr_code, barcode, document_date, received_date, filed_date, retention_start_date,
+          qr_code, barcode, photos, qr_claimed, qr_claimed_at, qr_claimed_by,
+          document_date, received_date, filed_date, retention_start_date,
           retention_end_date, disposal_date, has_digital_copy, digital_file_name, digital_file_size,
           digital_file_type, digital_file_version, custom_metadata, custom_field_values, condition_notes,
           bundle_id, bundle_number, bundle_title
         )
         VALUES (
-          $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19,
-          $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35
+          $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22,
+          $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38, $39, $40
         )
       `, [
         newDoc.id, newDoc.documentNumber, newDoc.referenceNumber, newDoc.title, newDoc.documentTypeId, newDoc.documentTypeName,
         newDoc.subject || null, newDoc.description || null, newDoc.departmentId, newDoc.departmentName, newDoc.custodianName,
         newDoc.homeLocationId, newDoc.currentLocationId, newDoc.status, newDoc.confidentiality, newDoc.condition,
-        newDoc.qrCode, newDoc.barcode, newDoc.documentDate, newDoc.receivedDate || null, newDoc.filedDate || null, newDoc.retentionStartDate || null,
+        newDoc.qrCode, newDoc.barcode, JSON.stringify(newDoc.photos || []), newDoc.qrClaimed, newDoc.qrClaimedAt || null, newDoc.qrClaimedBy || null,
+        newDoc.documentDate, newDoc.receivedDate || null, newDoc.filedDate || null, newDoc.retentionStartDate || null,
         newDoc.retentionEndDate || null, newDoc.disposalDate || null, newDoc.hasDigitalCopy, newDoc.digitalFileName || null, newDoc.digitalFileSize || null,
         newDoc.digitalFileType || null, newDoc.digitalFileVersion || 1, JSON.stringify(newDoc.customMetadata || []), JSON.stringify(newDoc.customFieldValues || {}), newDoc.conditionNotes || null,
         newDoc.bundleId || null, newDoc.bundleNumber || null, newDoc.bundleTitle || null
@@ -880,6 +890,10 @@ export async function updateDocument(id: string, updates: Partial<DocumentItem>,
     if (updates.bundleId !== undefined) { fields.push(`bundle_id = $${idx++}`); values.push(updates.bundleId); }
     if (updates.bundleNumber !== undefined) { fields.push(`bundle_number = $${idx++}`); values.push(updates.bundleNumber); }
     if (updates.bundleTitle !== undefined) { fields.push(`bundle_title = $${idx++}`); values.push(updates.bundleTitle); }
+    if (updates.photos !== undefined) { fields.push(`photos = $${idx++}`); values.push(JSON.stringify(updates.photos)); }
+    if (updates.qrClaimed !== undefined) { fields.push(`qr_claimed = $${idx++}`); values.push(updates.qrClaimed); }
+    if (updates.qrClaimedAt !== undefined) { fields.push(`qr_claimed_at = $${idx++}`); values.push(updates.qrClaimedAt); }
+    if (updates.qrClaimedBy !== undefined) { fields.push(`qr_claimed_by = $${idx++}`); values.push(updates.qrClaimedBy); }
 
     fields.push(`updated_at = NOW()`);
 
@@ -899,6 +913,135 @@ export async function updateDocument(id: string, updates: Partial<DocumentItem>,
   } catch (err) {
     console.warn('[Repository] updateDocument DB query failed, updating memory:', err);
     memoryDocuments = memoryDocuments.map(d => d.id === id ? { ...d, ...updates, updatedAt: new Date().toISOString() } : d);
+  }
+}
+
+export async function claimDocumentQr(documentId: string, user: User): Promise<{ success: boolean; message?: string; claimedAt?: string }> {
+  const existingDoc = memoryDocuments.find(d => d.id === documentId);
+  if (!existingDoc) return { success: false, message: 'Document not found.' };
+
+  const now = new Date().toISOString();
+
+  if (!isDbAvailable()) {
+    if (existingDoc.qrClaimed) {
+      return { success: false, message: `QR code for document #${existingDoc.documentNumber} is already claimed.` };
+    }
+    memoryDocuments = memoryDocuments.map(d =>
+      d.id === documentId
+        ? { ...d, qrClaimed: true, qrClaimedAt: now, qrClaimedBy: user.id, updatedAt: now }
+        : d
+    );
+    // Audit log
+    memoryAuditLogs.unshift({
+      id: 'aud-' + Date.now(),
+      userId: user.id,
+      userName: user.fullName,
+      userRole: user.role,
+      action: 'QR_CODE_CLAIMED',
+      entityType: 'DOCUMENT',
+      entityId: documentId,
+      entityName: existingDoc.documentNumber,
+      timestamp: now,
+      details: `QR code scanned/claimed for document #${existingDoc.documentNumber}`
+    });
+    return { success: true, message: `QR code claimed for document #${existingDoc.documentNumber}.`, claimedAt: now };
+  }
+
+  try {
+    const res = await pgPool!.query('SELECT * FROM documents WHERE id = $1', [documentId]);
+    if (res.rows.length === 0) return { success: false, message: 'Document not found.' };
+    const doc = res.rows[0];
+    if (doc.qr_claimed === true) {
+      return { success: false, message: `QR code for document #${doc.document_number} is already claimed.` };
+    }
+
+    await pgPool!.query('BEGIN');
+    try {
+      await pgPool!.query(
+        `UPDATE documents SET qr_claimed = TRUE, qr_claimed_at = NOW(), qr_claimed_by = $1, updated_at = NOW() WHERE id = $2`,
+        [user.id, documentId]
+      );
+      await pgPool!.query(
+        `INSERT INTO audit_logs (id, user_id, user_name, user_role, action, entity_type, entity_id, entity_name, details)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+        ['aud-' + Date.now(), user.id, user.fullName, user.role, 'QR_CODE_CLAIMED', 'DOCUMENT', documentId, doc.document_number, `QR code scanned/claimed for document #${doc.document_number}`]
+      );
+      await pgPool!.query('COMMIT');
+    } catch (err) {
+      await pgPool!.query('ROLLBACK');
+      throw err;
+    }
+
+    return { success: true, message: `QR code claimed for document #${doc.document_number}.`, claimedAt: now };
+  } catch (err: any) {
+    console.warn('[Repository] claimDocumentQr DB query failed, updating memory:', err);
+    if (existingDoc.qrClaimed) {
+      return { success: false, message: `QR code for document #${existingDoc.documentNumber} is already claimed.` };
+    }
+    memoryDocuments = memoryDocuments.map(d =>
+      d.id === documentId
+        ? { ...d, qrClaimed: true, qrClaimedAt: now, qrClaimedBy: user.id, updatedAt: now }
+        : d
+    );
+    return { success: true, message: `QR code claimed for document #${existingDoc.documentNumber}.`, claimedAt: now };
+  }
+}
+
+export async function unclaimDocumentQr(documentId: string, user: User): Promise<{ success: boolean; message?: string }> {
+  const existingDoc = memoryDocuments.find(d => d.id === documentId);
+  if (!existingDoc) return { success: false, message: 'Document not found.' };
+
+  if (!existingDoc.qrClaimed) {
+    return { success: false, message: `QR code for document #${existingDoc.documentNumber} is not currently claimed.` };
+  }
+
+  if (!isDbAvailable()) {
+    memoryDocuments = memoryDocuments.map(d =>
+      d.id === documentId
+        ? { ...d, qrClaimed: false, qrClaimedAt: null, qrClaimedBy: null, updatedAt: new Date().toISOString() }
+        : d
+    );
+    memoryAuditLogs.unshift({
+      id: 'aud-' + Date.now(),
+      userId: user.id,
+      userName: user.fullName,
+      userRole: user.role,
+      action: 'QR_CODE_UNCLAIMED',
+      entityType: 'DOCUMENT',
+      entityId: documentId,
+      entityName: existingDoc.documentNumber,
+      timestamp: new Date().toISOString(),
+      details: `QR code claim reset for document #${existingDoc.documentNumber}`
+    });
+    return { success: true, message: `QR code claim reset for document #${existingDoc.documentNumber}.` };
+  }
+
+  try {
+    await pgPool!.query('BEGIN');
+    try {
+      await pgPool!.query(
+        `UPDATE documents SET qr_claimed = FALSE, qr_claimed_at = NULL, qr_claimed_by = NULL, updated_at = NOW() WHERE id = $1`,
+        [documentId]
+      );
+      await pgPool!.query(
+        `INSERT INTO audit_logs (id, user_id, user_name, user_role, action, entity_type, entity_id, entity_name, details)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+        ['aud-' + Date.now(), user.id, user.fullName, user.role, 'QR_CODE_UNCLAIMED', 'DOCUMENT', documentId, existingDoc.documentNumber, `QR code claim reset for document #${existingDoc.documentNumber}`]
+      );
+      await pgPool!.query('COMMIT');
+    } catch (err) {
+      await pgPool!.query('ROLLBACK');
+      throw err;
+    }
+    return { success: true, message: `QR code claim reset for document #${existingDoc.documentNumber}.` };
+  } catch (err: any) {
+    console.warn('[Repository] unclaimDocumentQr DB query failed, updating memory:', err);
+    memoryDocuments = memoryDocuments.map(d =>
+      d.id === documentId
+        ? { ...d, qrClaimed: false, qrClaimedAt: null, qrClaimedBy: null, updatedAt: new Date().toISOString() }
+        : d
+    );
+    return { success: true, message: `QR code claim reset for document #${existingDoc.documentNumber}.` };
   }
 }
 

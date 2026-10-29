@@ -372,6 +372,49 @@ export const DocumentDetailPage: React.FC<DocumentDetailPageProps> = ({
           </div>
         </div>
 
+        {/* QR Code Claim Status Card */}
+        <div className="p-4 bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <QrCode className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+              <span className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-200">
+                QR Code Claim
+              </span>
+            </div>
+            <span className={`text-[10px] font-bold font-mono px-2 py-0.5 rounded ${doc.qrClaimed
+                ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300'
+                : 'bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300'
+              }`}>
+              {doc.qrClaimed ? 'CLAIMED' : 'UNCLAIMED'}
+            </span>
+          </div>
+
+          <p className={`text-xs leading-relaxed ${doc.qrClaimed
+              ? 'text-emerald-700 dark:text-emerald-400'
+              : 'text-amber-700 dark:text-amber-400'
+            }`}>
+            {doc.qrClaimed
+              ? `Scanned on ${new Date(doc.qrClaimedAt || '').toLocaleString()} by ${doc.qrClaimedBy || 'system'}`
+              : 'Not yet scanned - QR code may not have been printed yet.'
+            }
+          </p>
+
+          {doc.qrClaimed && doc.qrClaimedAt && (
+            <div className="flex gap-2 text-[10px] text-slate-400">
+              <span className="inline-flex items-center gap-1">
+                <ScanLine className="w-3 h-3" />
+                {new Date(doc.qrClaimedAt).toLocaleString()}
+              </span>
+              {doc.qrClaimedBy && (
+                <span className="inline-flex items-center gap-1">
+                  <User className="w-3 h-3" />
+                  {doc.qrClaimedBy}
+                </span>
+              )}
+            </div>
+          )}
+        </div>
+
         {/* Consolidated Dossier / Bundle Membership */}
         {(doc.bundleNumber || bundles.some(b => b.documentIds.includes(doc.id) || b.id === doc.bundleId)) && (() => {
           const parentBundle = bundles.find(b => b.documentIds.includes(doc.id) || b.id === doc.bundleId || b.bundleNumber === doc.bundleNumber);

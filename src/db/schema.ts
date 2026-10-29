@@ -107,6 +107,14 @@ export const documents = pgTable('documents', {
   customFieldValues: jsonb('custom_field_values'),
   conditionNotes: text('condition_notes'),
 
+  // Optional photos of the physical document (base64 data URLs, compressed client-side)
+  photos: jsonb('photos').default([]),
+
+  // QR Code Claim tracking: true once the document's QR code has been scanned
+  qrClaimed: boolean('qr_claimed').default(false).notNull(),
+  qrClaimedAt: timestamp('qr_claimed_at'),
+  qrClaimedBy: varchar('qr_claimed_by', { length: 50 }),
+
   bundleId: varchar('bundle_id', { length: 50 }),
   bundleNumber: varchar('bundle_number', { length: 100 }),
   bundleTitle: varchar('bundle_title', { length: 500 }),
