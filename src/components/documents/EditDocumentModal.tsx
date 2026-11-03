@@ -4,6 +4,7 @@ import { useArchive } from '../../context/ArchiveContext';
 import { ConfidentialityLevel, DocumentCondition, DocumentItem } from '../../types';
 import { DocumentTypeCombobox } from '../common/DocumentTypeCombobox';
 import { LocationPathBreadcrumbs } from '../common/LocationPathBreadcrumbs';
+import { DocumentPhotosEditor } from './DocumentPhotosEditor';
 
 interface EditDocumentModalProps {
   document: DocumentItem | null;
@@ -21,6 +22,7 @@ export const EditDocumentModal: React.FC<EditDocumentModalProps> = ({
   onSaved,
 }) => {
   const {
+    currentUser,
     departments,
     documentTypes,
     locations,
@@ -38,6 +40,7 @@ export const EditDocumentModal: React.FC<EditDocumentModalProps> = ({
   const [homeLocationId, setHomeLocationId] = useState('');
   const [confidentiality, setConfidentiality] = useState<ConfidentialityLevel>('INTERNAL');
   const [condition, setCondition] = useState<DocumentCondition>('GOOD');
+  const [draftStatus, setDraftStatus] = useState<'DRAFT' | 'AVAILABLE'>('DRAFT');
   const [conditionNotes, setConditionNotes] = useState('');
   const [custodianName, setCustodianName] = useState('');
   const [documentDate, setDocumentDate] = useState('');
@@ -45,6 +48,7 @@ export const EditDocumentModal: React.FC<EditDocumentModalProps> = ({
   const [filedDate, setFiledDate] = useState('');
   const [retentionEndDate, setRetentionEndDate] = useState('');
   const [customFieldValues, setCustomFieldValues] = useState<Record<string, string | number>>({});
+  const [photos, setPhotos] = useState<DocumentItem['photos']>([]);
   const [pendingDigitalFile, setPendingDigitalFile] = useState<File | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
@@ -61,6 +65,7 @@ export const EditDocumentModal: React.FC<EditDocumentModalProps> = ({
     setHomeLocationId(document.homeLocationId || locations[0]?.id || '');
     setConfidentiality(document.confidentiality || 'INTERNAL');
     setCondition(document.condition || 'GOOD');
+    setDraftStatus(document.status === 'DRAFT' ? 'DRAFT' : 'AVAILABLE');
     setConditionNotes(document.conditionNotes || '');
     setCustodianName(document.custodianName || '');
     setDocumentDate(document.documentDate?.slice(0, 10) || '');
@@ -68,6 +73,7 @@ export const EditDocumentModal: React.FC<EditDocumentModalProps> = ({
     setFiledDate(document.filedDate?.slice(0, 10) || '');
     setRetentionEndDate(document.retentionEndDate?.slice(0, 10) || '');
     setCustomFieldValues(document.customFieldValues || {});
+    setPhotos(document.photos || []);
     setPendingDigitalFile(null);
     setSubmitError('');
   }, [document, isOpen, departments, documentTypes, locations]);
@@ -100,6 +106,7 @@ export const EditDocumentModal: React.FC<EditDocumentModalProps> = ({
         homeLocationId,
         confidentiality,
         condition,
+        status: document.status === 'DRAFT' ? draftStatus : document.status,
         conditionNotes: conditionNotes.trim(),
         custodianName: custodianName.trim(),
         documentDate,
@@ -107,6 +114,7 @@ export const EditDocumentModal: React.FC<EditDocumentModalProps> = ({
         filedDate,
         retentionEndDate,
         customFieldValues,
+        photos,
       };
 
       await updateDocument(document.id, {
@@ -121,6 +129,7 @@ export const EditDocumentModal: React.FC<EditDocumentModalProps> = ({
         homeLocationId: updatedDoc.homeLocationId,
         confidentiality: updatedDoc.confidentiality,
         condition: updatedDoc.condition,
+        ...(document.status === 'DRAFT' ? { status: updatedDoc.status } : {}),
         conditionNotes: updatedDoc.conditionNotes,
         custodianName: updatedDoc.custodianName,
         documentDate: updatedDoc.documentDate,
@@ -128,6 +137,7 @@ export const EditDocumentModal: React.FC<EditDocumentModalProps> = ({
         filedDate: updatedDoc.filedDate,
         retentionEndDate: updatedDoc.retentionEndDate,
         customFieldValues: updatedDoc.customFieldValues,
+        photos: updatedDoc.photos,
       });
 
       if (pendingDigitalFile) {
@@ -179,9 +189,20 @@ export const EditDocumentModal: React.FC<EditDocumentModalProps> = ({
 
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="sm:col-span-2">
-                <label className={labelClass} htmlFor="edit-document-title">Title *</label>
-                <input id="edit-document-title" required maxLength={500} value={title} onChange={event => setTitle(event.target.value)} className={inputClass} />
+                <label className={labelClass} htmlFor="edit-document-title">
+                  Title {document.status === 'DRAFT' && draftStatus === 'DRAFT' ? <span className="font-normal text-slate-400">(optional while draft)</span> : '*'}
+                </label>
+                <input id="edit-document-title" required={document.status !== 'DRAFT' || draftStatus !== 'DRAFT'} maxLength={500} value={title} onChange={event => setTitle(event.target.value)} className={inputClass} />
               </div>
+              {document.status === 'DRAFT' && (
+                <div className="sm:col-span-2 rounded-xl border border-amber-200 bg-amber-50 p-3 dark:border-amber-900 dark:bg-amber-950/30">
+                  <label className={labelClass} htmlFor="edit-draft-status">Draft workflow</label>
+                  <select id="edit-draft-status" value={draftStatus} onChange={event => setDraftStatus(event.target.value as 'DRAFT' | 'AVAILABLE')} className={inputClass}>
+                    <option value="DRAFT">Keep as draft — details can be completed later</option>
+                    <option value="AVAILABLE">Complete record and make it available</option>
+                  </select>
+                </div>
+              )}
               <div>
                 <label className={labelClass} htmlFor="edit-document-reference">Reference number</label>
                 <input id="edit-document-reference" maxLength={100} value={referenceNumber} onChange={event => setReferenceNumber(event.target.value)} className={inputClass} />
@@ -271,6 +292,10 @@ export const EditDocumentModal: React.FC<EditDocumentModalProps> = ({
               ))}
 
               <div className="sm:col-span-2 rounded-xl border border-slate-200 p-3 dark:border-slate-700">
+                <DocumentPhotosEditor photos={photos} onChange={setPhotos} user={currentUser} />
+              </div>
+
+              <div className="sm:col-span-2 rounded-xl border border-slate-200 p-3 dark:border-slate-700">
                 <label className={labelClass}>Digital copy</label>
                 {document.hasDigitalCopy && (
                   <p className="mb-2 text-xs text-slate-500">Current file: {document.digitalFileName || 'Attached'}{document.digitalFileVersion ? ` (version ${document.digitalFileVersion})` : ''}</p>
@@ -289,7 +314,7 @@ export const EditDocumentModal: React.FC<EditDocumentModalProps> = ({
             </button>
             <button type="submit" disabled={isSubmitting || !documentTypeId || !homeLocationId} className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-5 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50">
               {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-              {isSubmitting ? 'Saving...' : 'Save changes'}
+              {isSubmitting ? 'Saving...' : document.status === 'DRAFT' && draftStatus === 'DRAFT' ? 'Save draft' : 'Save changes'}
             </button>
           </div>
         </form>

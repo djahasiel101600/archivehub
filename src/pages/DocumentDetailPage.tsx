@@ -68,6 +68,7 @@ export const DocumentDetailPage: React.FC<DocumentDetailPageProps> = ({
   const [showQRModal, setShowQRModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [selectedPhotoIndex, setSelectedPhotoIndex] = useState(0);
   
   // Relocation Modal State
   const [showMoveModal, setShowMoveModal] = useState(false);
@@ -83,6 +84,10 @@ export const DocumentDetailPage: React.FC<DocumentDetailPageProps> = ({
   useEffect(() => {
     if (showDestScanner) ensureScanAudioUnlocked();
   }, [showDestScanner]);
+
+  useEffect(() => {
+    setSelectedPhotoIndex(0);
+  }, [documentId]);
 
   const processDestScannedCode = useCallback((code: string) => {
     const result = lookupByQR(code);
@@ -205,13 +210,14 @@ export const DocumentDetailPage: React.FC<DocumentDetailPageProps> = ({
               <span className="px-2.5 py-1 text-xs font-mono font-extrabold uppercase tracking-wider bg-indigo-100 text-indigo-800 dark:bg-indigo-950 dark:text-indigo-300 rounded-lg">
                 #{doc.documentNumber}
               </span>
-              <span className="text-xs font-mono text-slate-500">REF: {doc.referenceNumber}</span>
+              {doc.referenceNumber && <span className="text-xs font-mono text-slate-500">REF: {doc.referenceNumber}</span>}
               <StatusBadge type="status" value={doc.status} size="md" />
               <StatusBadge type="confidentiality" value={doc.confidentiality} size="md" />
+              {doc.status === 'DRAFT' && <span className="rounded-lg bg-amber-100 px-2.5 py-1 text-xs font-bold uppercase text-amber-800 dark:bg-amber-950/60 dark:text-amber-300">Details pending</span>}
             </div>
 
             <h1 className="text-xl md:text-2xl font-extrabold text-slate-900 dark:text-slate-100">
-              {doc.title}
+              {doc.title || 'Untitled draft'}
             </h1>
 
             {doc.subject && (
@@ -281,6 +287,22 @@ export const DocumentDetailPage: React.FC<DocumentDetailPageProps> = ({
             </button>
           </div>
         </div>
+
+        {doc.photos?.length > 0 && (
+          <section className="grid gap-4 border-b border-slate-100 pb-6 dark:border-slate-800 lg:grid-cols-[minmax(0,1.4fr)_minmax(180px,0.6fr)]">
+            <div className="flex min-h-64 items-center justify-center overflow-hidden rounded-2xl bg-slate-100 dark:bg-slate-800">
+              <img src={doc.photos[selectedPhotoIndex]?.url || doc.photos[0].url} alt={doc.photos[selectedPhotoIndex]?.fileName || 'Document cover'} className="max-h-[520px] w-full object-contain" />
+            </div>
+            <div className="grid grid-cols-3 content-start gap-2 lg:grid-cols-2">
+              {doc.photos.map((photo, index) => (
+                <button key={photo.id} type="button" onClick={() => setSelectedPhotoIndex(index)} aria-label={`View document photo ${index + 1}${index === 0 ? ', cover image' : ''}`} aria-pressed={selectedPhotoIndex === index} className={`relative aspect-square overflow-hidden rounded-xl border-2 ${selectedPhotoIndex === index ? 'border-indigo-500' : 'border-transparent'}`}>
+                  <img src={photo.url} alt={photo.fileName || `Document photo ${index + 1}`} className="h-full w-full object-cover" />
+                  {index === 0 && <span className="absolute left-1 top-1 rounded bg-indigo-600 px-1.5 py-0.5 text-[9px] font-bold text-white">COVER</span>}
+                </button>
+              ))}
+            </div>
+          </section>
+        )}
 
         {/* CRITICAL PRD MANDATE RULE #77: Distinct Home Location vs Current Location Highlight Card */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

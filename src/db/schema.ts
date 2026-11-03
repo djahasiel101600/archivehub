@@ -69,7 +69,7 @@ export const documents = pgTable('documents', {
   id: varchar('id', { length: 50 }).primaryKey(),
   documentNumber: varchar('document_number', { length: 100 }).notNull().unique(),
   referenceNumber: varchar('reference_number', { length: 100 }),
-  title: varchar('title', { length: 500 }).notNull(),
+  title: varchar('title', { length: 500 }),
   documentTypeId: varchar('document_type_id', { length: 50 }).notNull(),
   documentTypeName: varchar('document_type_name', { length: 255 }).notNull(),
   subject: text('subject'),

@@ -5,6 +5,7 @@ import {
   DocumentTypeInfo, 
   LocationItem, 
   DocumentItem, 
+  NewDocumentItem,
   CheckoutRecord, 
   MovementRecord, 
   AuditLogRecord,
@@ -39,7 +40,7 @@ function mapUserRow(r: any): User {
     departmentId: r.department_id,
     departmentName: r.department_name,
     avatarUrl: r.avatar_url,
-    title: r.title,
+    title: r.title || '',
     approvalStatus: r.approval_status || 'APPROVED',
     createdAt: r.created_at ? new Date(r.created_at).toISOString() : undefined
   };
@@ -691,7 +692,7 @@ export async function generateDocumentNumber(departmentId: string, documentTypeI
   return nextDocumentNumber(prefix, res.rows.map(r => r.document_number as string));
 }
 
-export async function createDocument(docData: Omit<DocumentItem, 'id' | 'createdAt' | 'updatedAt' | 'qrCode' | 'barcode' | 'status' | 'currentLocationId'>, user: User, homePath: string): Promise<DocumentItem> {
+export async function createDocument(docData: NewDocumentItem, user: User, homePath: string): Promise<DocumentItem> {
   const id = 'doc-' + Date.now();
   // Blank document number = auto-generate from department code + type code
   const autoGenerate = !docData.documentNumber?.trim();
@@ -704,10 +705,10 @@ export async function createDocument(docData: Omit<DocumentItem, 'id' | 'created
     documentNumber,
     id,
     currentLocationId: docData.homeLocationId,
-    status: 'AVAILABLE',
+    status: docData.status || 'AVAILABLE',
     qrCode,
     barcode,
-    photos: [],
+    photos: docData.photos || [],
     qrClaimed: false,
     qrClaimedAt: null,
     qrClaimedBy: null,

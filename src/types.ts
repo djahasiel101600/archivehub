@@ -206,6 +206,22 @@ export interface DocumentItem {
   updatedAt: string;
 }
 
+export type NewDocumentItem = Omit<
+  DocumentItem,
+  | 'id'
+  | 'createdAt'
+  | 'updatedAt'
+  | 'qrCode'
+  | 'barcode'
+  | 'status'
+  | 'currentLocationId'
+  | 'qrClaimed'
+  | 'qrClaimedAt'
+  | 'qrClaimedBy'
+> & {
+  status?: DocumentStatus;
+};
+
 export type MovementType = 'INITIAL_FILING' | 'CHECKOUT' | 'CHECKIN' | 'RELOCATION' | 'TRANSFER' | 'AUDIT_CORRECTION';
 
 export interface MovementRecord {

@@ -9,7 +9,8 @@ import {
   Department,
   DocumentTypeInfo,
   ReusableCustomField,
-  DocumentBundle
+  DocumentBundle,
+  NewDocumentItem
 } from '../types';
 import { calculateLocationPath } from '../utils/locationUtils';
 
@@ -88,7 +89,7 @@ interface ArchiveContextType {
   deleteLocation: (id: string) => Promise<boolean>;
   
   // Document Operations
-  addDocument: (doc: Omit<DocumentItem, 'id' | 'createdAt' | 'updatedAt' | 'qrCode' | 'barcode' | 'status' | 'currentLocationId'>) => Promise<DocumentItem>;
+  addDocument: (doc: NewDocumentItem) => Promise<DocumentItem>;
   getNextDocumentNumber: (departmentId: string, typeId: string) => Promise<string | null>;
   updateDocument: (id: string, updates: Partial<DocumentItem>) => Promise<void>;
   uploadDigitalCopy: (id: string, file: File, version?: number) => Promise<{ success: boolean; message?: string }>;
@@ -884,7 +885,7 @@ export const ArchiveProvider: React.FC<{ children: React.ReactNode }> = ({ child
   };
 
   // Document Handlers
-  const addDocument = async (docData: Omit<DocumentItem, 'id' | 'createdAt' | 'updatedAt' | 'qrCode' | 'barcode' | 'status' | 'currentLocationId'>): Promise<DocumentItem> => {
+  const addDocument = async (docData: NewDocumentItem): Promise<DocumentItem> => {
     const homePath = calculatePath(docData.homeLocationId);
     try {
       const res = await fetch('/api/documents', {

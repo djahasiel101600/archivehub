@@ -141,6 +141,7 @@ export async function runMigrations(): Promise<void> {
       ALTER TABLE documents ADD COLUMN IF NOT EXISTS qr_claimed BOOLEAN DEFAULT FALSE;
       ALTER TABLE documents ADD COLUMN IF NOT EXISTS qr_claimed_at TIMESTAMPTZ;
       ALTER TABLE documents ADD COLUMN IF NOT EXISTS qr_claimed_by VARCHAR(50);
+      ALTER TABLE documents ALTER COLUMN title DROP NOT NULL;
     `);
 
     // 6. Checkouts Table

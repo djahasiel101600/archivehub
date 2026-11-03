@@ -36,7 +36,8 @@ import {
   ChevronsLeft,
   ChevronsRight,
   CheckCircle2,
-  Clock
+  Clock,
+  Camera
 } from 'lucide-react';
 import { DocumentStatus, ConfidentialityLevel, DocumentCondition, DocumentItem } from '../types';
 import { ConfirmModal } from '../components/common/ConfirmModal';
@@ -46,6 +47,7 @@ import { BulkTagPrintModal } from '../components/documents/BulkTagPrintModal';
 import { BulkUpdateModal } from '../components/documents/BulkUpdateModal';
 import { BundleModal } from '../components/documents/BundleModal';
 import { EditDocumentModal } from '../components/documents/EditDocumentModal';
+import { DocumentCapturePage } from './DocumentCapturePage';
 
 interface DocumentsPageProps {
   onSelectDocument: (docId: string) => void;
@@ -99,6 +101,7 @@ export const DocumentsPage: React.FC<DocumentsPageProps> = ({
 
   // Registration Modal State
   const [showRegisterModal, setShowRegisterModal] = useState<boolean>(Boolean(openRegisterModalDirectly));
+  const [showCaptureWorkspace, setShowCaptureWorkspace] = useState(false);
   const [isRegistering, setIsRegistering] = useState(false);
   const [docToDelete, setDocToDelete] = useState<{ id: string; number: string; title: string } | null>(null);
   const [docToEdit, setDocToEdit] = useState<DocumentItem | null>(null);
@@ -369,6 +372,18 @@ export const DocumentsPage: React.FC<DocumentsPageProps> = ({
 
   const selectedDocuments = documents.filter(d => selectedDocIds.includes(d.id));
 
+  if (showCaptureWorkspace) {
+    return (
+      <DocumentCapturePage
+        onCancel={() => setShowCaptureWorkspace(false)}
+        onSaved={document => {
+          setShowCaptureWorkspace(false);
+          onSelectDocument(document.id);
+        }}
+      />
+    );
+  }
+
   return (
     <div className="space-y-6 animate-in fade-in duration-200">
       
@@ -377,6 +392,15 @@ export const DocumentsPage: React.FC<DocumentsPageProps> = ({
         title="Documents"
         description="Search and manage archived records, locations, and digital copies."
         actions={
+          <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => setShowCaptureWorkspace(true)}
+            className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+          >
+            <Camera className="h-4 w-4" aria-hidden="true" />
+            Capture cover
+          </button>
           <button
             type="button"
             onClick={() => setShowRegisterModal(true)}
@@ -385,6 +409,7 @@ export const DocumentsPage: React.FC<DocumentsPageProps> = ({
             <Plus className="w-4 h-4" aria-hidden="true" />
             Register document
           </button>
+          </div>
         }
       />
 
@@ -772,10 +797,18 @@ export const DocumentsPage: React.FC<DocumentsPageProps> = ({
                       {/* Column 1: Title & Subject */}
                       <td 
                         className={`border-r border-slate-200/80 dark:border-slate-800/80 min-w-[240px] max-w-[320px] px-4 py-3 ${frozenCol ? `sticky left-[40px] z-20 shadow-[4px_0_8px_-4px_rgba(0,0,0,0.12)] ${isSelected ? 'bg-indigo-50/90 dark:bg-indigo-950/60' : 'bg-white dark:bg-slate-900 group-hover:bg-slate-50/90 dark:group-hover:bg-slate-800/60'}` : ''}`}
-                        title={doc.title}
+                        title={doc.title || 'Untitled draft'}
                       >
-                        <div className="font-bold text-slate-900 dark:text-slate-100 text-xs sm:text-sm line-clamp-2 leading-snug group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
-                          {doc.title}
+                        <div className="flex items-start gap-2.5">
+                          {doc.photos?.[0] && (
+                            <img src={doc.photos[0].url} alt="" className="h-12 w-10 shrink-0 rounded-md border border-slate-200 object-cover dark:border-slate-700" />
+                          )}
+                          <div className="min-w-0">
+                            <div className="font-bold text-slate-900 dark:text-slate-100 text-xs sm:text-sm line-clamp-2 leading-snug group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
+                              {doc.title || 'Untitled draft'}
+                            </div>
+                            {doc.status === 'DRAFT' && <span className="mt-1 inline-flex rounded bg-amber-100 px-1.5 py-0.5 text-[9px] font-bold uppercase text-amber-800 dark:bg-amber-950/60 dark:text-amber-300">Draft</span>}
+                          </div>
                         </div>
                         
                         {/* Bundle Badge */}
@@ -944,6 +977,9 @@ export const DocumentsPage: React.FC<DocumentsPageProps> = ({
                     : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-indigo-300 dark:hover:border-indigo-700/80'
                 }`}
               >
+                {doc.photos?.[0] && (
+                  <img src={doc.photos[0].url} alt="" className="h-36 w-full rounded-xl bg-slate-100 object-cover dark:bg-slate-800" />
+                )}
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex items-center gap-2">
                     <div onClick={(e) => e.stopPropagation()}>
@@ -999,8 +1035,9 @@ export const DocumentsPage: React.FC<DocumentsPageProps> = ({
                 )}
 
                 <h3 className="font-bold text-slate-900 dark:text-slate-100 text-sm line-clamp-2">
-                  {doc.title}
+                  {doc.title || 'Untitled draft'}
                 </h3>
+                {doc.status === 'DRAFT' && <span className="inline-flex w-fit rounded bg-amber-100 px-1.5 py-0.5 text-[9px] font-bold uppercase text-amber-800 dark:bg-amber-950/60 dark:text-amber-300">Draft</span>}
 
                 {doc.customFieldValues && Object.keys(doc.customFieldValues).length > 0 && (
                   <div className="flex items-center gap-1.5 flex-wrap">

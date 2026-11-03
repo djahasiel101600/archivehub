@@ -486,6 +486,15 @@ async function startServer() {
       if (!req.authUser) {
         return res.status(401).json({ error: "Authentication required." });
       }
+      if (!docData?.departmentId || !docData?.documentTypeId || !docData?.homeLocationId) {
+        return res.status(400).json({ error: "Department, document type, and home location are required." });
+      }
+      if (docData.status !== "DRAFT" && !String(docData.title || "").trim()) {
+        return res.status(400).json({ error: "A title is required unless the document is saved as a draft." });
+      }
+      if (docData.photos !== undefined && (!Array.isArray(docData.photos) || docData.photos.length > 5)) {
+        return res.status(400).json({ error: "A document can have at most five photos." });
+      }
       const database = await checkDatabaseHealth();
       if (!database.connected) {
         return res.status(503).json({ error: `Database unavailable: ${database.message}` });
@@ -503,12 +512,20 @@ async function startServer() {
       if (!req.authUser) {
         return res.status(401).json({ error: "Authentication required." });
       }
+      if (updates?.photos !== undefined && (!Array.isArray(updates.photos) || updates.photos.length > 5)) {
+        return res.status(400).json({ error: "A document can have at most five photos." });
+      }
       const database = await checkDatabaseHealth();
       if (!database.connected) {
         return res.status(503).json({ error: `Database unavailable: ${database.message}` });
       }
       const existing = await repo.getDocumentById(req.params.id);
       if (!existing) return res.status(404).json({ error: "Document not found." });
+      const nextStatus = updates?.status ?? existing.status;
+      const nextTitle = updates?.title ?? existing.title;
+      if (nextStatus !== "DRAFT" && !String(nextTitle || "").trim()) {
+        return res.status(400).json({ error: "A title is required unless the document remains a draft." });
+      }
       await repo.updateDocument(req.params.id, updates || req.body, req.authUser);
       res.json({ success: true });
     } catch (err: any) {
