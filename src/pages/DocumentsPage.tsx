@@ -40,6 +40,7 @@ import {
 } from 'lucide-react';
 import { DocumentStatus, ConfidentialityLevel, DocumentCondition, DocumentItem } from '../types';
 import { ConfirmModal } from '../components/common/ConfirmModal';
+import { PageHeader } from '../components/common/PageHeader';
 import { DocumentTypeCombobox } from '../components/common/DocumentTypeCombobox';
 import { BulkTagPrintModal } from '../components/documents/BulkTagPrintModal';
 import { BulkUpdateModal } from '../components/documents/BulkUpdateModal';
@@ -98,6 +99,7 @@ export const DocumentsPage: React.FC<DocumentsPageProps> = ({
 
   // Registration Modal State
   const [showRegisterModal, setShowRegisterModal] = useState<boolean>(Boolean(openRegisterModalDirectly));
+  const [isRegistering, setIsRegistering] = useState(false);
   const [docToDelete, setDocToDelete] = useState<{ id: string; number: string; title: string } | null>(null);
   const [docToEdit, setDocToEdit] = useState<DocumentItem | null>(null);
 
@@ -183,9 +185,10 @@ export const DocumentsPage: React.FC<DocumentsPageProps> = ({
     setRegCustomValues(initialValues);
   };
 
-  const handleRegisterSubmit = (e: React.FormEvent) => {
+  const handleRegisterSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!regTitle.trim() || !regHomeLocationId || !regTypeId) return;
+    if (isRegistering || !regTitle.trim() || !regHomeLocationId || !regTypeId) return;
+    setIsRegistering(true);
 
     const selectedDocType = documentTypes.find(dt => dt.id === regTypeId);
     const selectedDeptObj = departments.find(d => d.id === regDeptId);
@@ -200,43 +203,48 @@ export const DocumentsPage: React.FC<DocumentsPageProps> = ({
     endDateObj.setFullYear(endDateObj.getFullYear() + retentionYears);
     const endDate = endDateObj.toISOString().split('T')[0];
 
-    addDocument({
-      documentNumber: docNum,
-      referenceNumber: regRefNumber.trim() || `REF-${Math.floor(1000 + Math.random() * 9000)}`,
-      title: regTitle.trim(),
-      documentTypeId: regTypeId,
-      documentTypeName: selectedDocType?.name || 'General Record',
-      subject: regSubject.trim(),
-      description: regDescription.trim(),
-      departmentId: regDeptId,
-      departmentName: selectedDeptObj?.name || 'General Department',
-      custodianName: 'Records Office',
-      homeLocationId: regHomeLocationId,
-      confidentiality: regConfidentiality,
-      condition: regCondition,
-      documentDate: regDocDate,
-      receivedDate: startDate,
-      filedDate: startDate,
-      retentionStartDate: startDate,
-      retentionEndDate: endDate,
-      hasDigitalCopy: regHasDigitalCopy,
-      digitalFileName: regHasDigitalCopy ? (regDigitalFileName.trim() || `${docNum.replace(/[^a-zA-Z0-9]/g, '_')}_digitized.pdf`) : undefined,
-      digitalFileSize: regHasDigitalCopy ? '2.4 MB' : undefined,
-      digitalFileType: regHasDigitalCopy ? 'PDF' : undefined,
-      digitalFileVersion: regHasDigitalCopy ? 1 : undefined,
-      customFieldValues: regCustomValues
-    });
+    try {
+      await addDocument({
+        documentNumber: docNum,
+        referenceNumber: regRefNumber.trim() || `REF-${Math.floor(1000 + Math.random() * 9000)}`,
+        title: regTitle.trim(),
+        documentTypeId: regTypeId,
+        documentTypeName: selectedDocType?.name || 'General Record',
+        subject: regSubject.trim(),
+        description: regDescription.trim(),
+        departmentId: regDeptId,
+        departmentName: selectedDeptObj?.name || 'General Department',
+        custodianName: 'Records Office',
+        homeLocationId: regHomeLocationId,
+        confidentiality: regConfidentiality,
+        condition: regCondition,
+        documentDate: regDocDate,
+        receivedDate: startDate,
+        filedDate: startDate,
+        retentionStartDate: startDate,
+        retentionEndDate: endDate,
+        hasDigitalCopy: regHasDigitalCopy,
+        digitalFileName: regHasDigitalCopy ? (regDigitalFileName.trim() || `${docNum.replace(/[^a-zA-Z0-9]/g, '_')}_digitized.pdf`) : undefined,
+        digitalFileSize: regHasDigitalCopy ? '2.4 MB' : undefined,
+        digitalFileType: regHasDigitalCopy ? 'PDF' : undefined,
+        digitalFileVersion: regHasDigitalCopy ? 1 : undefined,
+        customFieldValues: regCustomValues
+      });
 
-    // Reset
-    setRegDocNumber('');
-    setRegRefNumber('');
-    setRegTitle('');
-    setRegSubject('');
-    setRegDescription('');
-    setRegHasDigitalCopy(false);
-    setRegDigitalFileName('');
-    setRegCustomValues({});
-    setShowRegisterModal(false);
+      setRegDocNumber('');
+      setRegRefNumber('');
+      setRegTitle('');
+      setRegSubject('');
+      setRegDescription('');
+      setRegHasDigitalCopy(false);
+      setRegDigitalFileName('');
+      setRegCustomValues({});
+      setShowRegisterModal(false);
+    } catch {
+      // Keep the form open so the user can correct the issue or retry the save.
+    } finally {
+      setIsRegistering(false);
+    }
   };
 
   // Selection Handlers
@@ -364,27 +372,21 @@ export const DocumentsPage: React.FC<DocumentsPageProps> = ({
   return (
     <div className="space-y-6 animate-in fade-in duration-200">
       
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-xl font-extrabold text-slate-900 dark:text-slate-100 flex items-center gap-2">
-            <FileText className="w-6 h-6 text-indigo-600 dark:text-indigo-400" />
-            Master Archive Document Catalogue
-          </h1>
-          <p className="text-xs text-slate-500 dark:text-slate-400">
-            Physical record registry with complete dual-location tracking & digital attachments
-          </p>
-        </div>
-
-        <button
-          type="button"
-          onClick={() => setShowRegisterModal(true)}
-          className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white text-xs font-semibold rounded-xl hover:bg-indigo-700 shadow-md shadow-indigo-600/20 transition-all"
-        >
-          <Plus className="w-4 h-4" />
-          Register New Physical Document
-        </button>
-      </div>
+      <PageHeader
+        icon={FileText}
+        title="Documents"
+        description="Search and manage archived records, locations, and digital copies."
+        actions={
+          <button
+            type="button"
+            onClick={() => setShowRegisterModal(true)}
+            className="inline-flex min-h-11 items-center gap-2 px-4 py-2 bg-indigo-600 text-white text-sm font-semibold rounded-xl hover:bg-indigo-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 transition-colors"
+          >
+            <Plus className="w-4 h-4" aria-hidden="true" />
+            Register document
+          </button>
+        }
+      />
 
       {/* Filter Control Toolbar */}
       <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-3">
@@ -1134,7 +1136,8 @@ export const DocumentsPage: React.FC<DocumentsPageProps> = ({
               <button
                 type="button"
                 onClick={() => setShowRegisterModal(false)}
-                className="text-slate-400 hover:text-slate-600 p-1"
+                disabled={isRegistering}
+                className="text-slate-400 hover:text-slate-600 p-1 disabled:opacity-50"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -1406,15 +1409,17 @@ export const DocumentsPage: React.FC<DocumentsPageProps> = ({
                 <button
                   type="button"
                   onClick={() => setShowRegisterModal(false)}
+                  disabled={isRegistering}
                   className="px-4 py-2 text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-xl font-medium"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl font-semibold shadow-md shadow-indigo-600/20"
+                  disabled={isRegistering}
+                  className="px-5 py-2 text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl font-semibold shadow-md shadow-indigo-600/20 disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  Register Record
+                  {isRegistering ? 'Saving...' : 'Register Record'}
                 </button>
               </div>
 

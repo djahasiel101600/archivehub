@@ -32,6 +32,7 @@ import {
 } from 'lucide-react';
 import { RoleCode, Department, DocumentTypeInfo, CustomFieldDefinition, CustomFieldType } from '../types';
 import { ConfirmModal } from '../components/common/ConfirmModal';
+import { PageHeader } from '../components/common/PageHeader';
 
 export const SettingsPage: React.FC = () => {
   const { 
@@ -444,16 +445,11 @@ export const SettingsPage: React.FC = () => {
   return (
     <div className="space-y-6 animate-in fade-in duration-200 pb-12">
       
-      {/* Header */}
-      <div>
-        <h1 className="text-xl font-extrabold text-slate-900 dark:text-slate-100 flex items-center gap-2">
-          <Settings className="w-6 h-6 text-indigo-600 dark:text-indigo-400" />
-          ArchiveHub System Settings & Operational Parameters
-        </h1>
-        <p className="text-xs text-slate-500 dark:text-slate-400">
-          Configure physical storage structures, document classification schemas, user accounts, and organizational standards.
-        </p>
-      </div>
+      <PageHeader
+        icon={Settings}
+        title="Settings"
+        description="Configure archive structure, record types, users, and system operations."
+      />
 
       {/* POSTGRESQL DATABASE ENGINE INTEGRATION & STATUS */}
       <div className="bg-white dark:bg-slate-900 rounded-2xl border border-emerald-200/80 dark:border-emerald-900/60 p-6 shadow-sm space-y-4 relative overflow-hidden">

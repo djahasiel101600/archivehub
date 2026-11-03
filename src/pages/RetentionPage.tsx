@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useArchive } from '../context/ArchiveContext';
 import { StatusBadge } from '../components/common/StatusBadge';
+import { PageHeader } from '../components/common/PageHeader';
 import { 
   ShieldCheck, 
   Clock, 
@@ -16,28 +17,26 @@ export const RetentionPage: React.FC = () => {
   const { documents, documentTypes } = useArchive();
   const [scheduledReviewMsg, setScheduledReviewMsg] = useState<string | null>(null);
 
-  // Find records approaching retention expiry
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const reviewDeadline = new Date(today);
+  reviewDeadline.setFullYear(today.getFullYear() + 5);
+
   const expiringSoonDocs = documents.filter(doc => {
     if (!doc.retentionEndDate) return false;
-    const expiry = new Date(doc.retentionEndDate).getTime();
-    const now = new Date('2026-08-11').getTime();
-    const diffDays = (expiry - now) / (1000 * 3600 * 24);
-    return diffDays > 0 && diffDays <= 365 * 5; // Within 5 years for demo
+    const expiryDate = new Date(`${doc.retentionEndDate}T00:00:00`);
+    const expiry = expiryDate.getTime();
+    return !Number.isNaN(expiry) && expiry > today.getTime() && expiry <= reviewDeadline.getTime();
   });
 
   return (
     <div className="space-y-6 animate-in fade-in duration-200">
       
-      {/* Header */}
-      <div>
-        <h1 className="text-xl font-extrabold text-slate-900 dark:text-slate-100 flex items-center gap-2">
-          <ShieldCheck className="w-6 h-6 text-indigo-600 dark:text-indigo-400" />
-          Archive Retention Policy & Controlled Disposal Engine
-        </h1>
-        <p className="text-xs text-slate-500 dark:text-slate-400">
-          Automated document lifecycle calculation, regulatory retention expiry tracking, and permanent destruction certificates
-        </p>
-      </div>
+      <PageHeader
+        icon={ShieldCheck}
+        title="Retention management"
+        description="Review retention schedules and upcoming document expiry dates."
+      />
 
       {scheduledReviewMsg && (
         <div className="p-3 bg-indigo-50 dark:bg-indigo-950 border border-indigo-200 dark:border-indigo-800 rounded-xl text-xs font-semibold text-indigo-800 dark:text-indigo-200 flex items-center justify-between">
@@ -86,7 +85,11 @@ export const RetentionPage: React.FC = () => {
         </div>
 
         <div className="space-y-3">
-          {documents.map(doc => (
+          {expiringSoonDocs.length === 0 ? (
+            <p className="py-8 text-center text-sm text-slate-500 dark:text-slate-400">
+              No records are scheduled for retention review in the next five years.
+            </p>
+          ) : expiringSoonDocs.map(doc => (
             <div key={doc.id} className="p-3.5 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
               <div className="min-w-0">
                 <div className="flex items-center gap-2 min-w-0">

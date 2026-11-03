@@ -12,7 +12,6 @@ import {
   DocumentBundle
 } from '../types';
 import { calculateLocationPath } from '../utils/locationUtils';
-import { buildDocumentNumberPrefix, nextDocumentNumber } from '../utils/documentNumber';
 
 export interface DbHealthState {
   connected: boolean;
@@ -211,6 +210,7 @@ export const ArchiveProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   // Sync with backend API
   const fetchAllFromBackend = useCallback(async () => {
+    if (!isAuthenticated) return;
     try {
       const [deptRes, dtRes, locRes, docRes, chkRes, mvtRes, audRes, healthRes, usersRes, rcfRes, bndlRes] = await Promise.all([
         fetch('/api/departments'),
@@ -225,6 +225,18 @@ export const ArchiveProvider: React.FC<{ children: React.ReactNode }> = ({ child
         fetch('/api/reusable-custom-fields'),
         fetch('/api/bundles')
       ]);
+
+      const protectedResponses = [deptRes, dtRes, locRes, docRes, chkRes, mvtRes, audRes, usersRes, rcfRes, bndlRes];
+      if (protectedResponses.some(response => response.status === 401)) {
+        setIsAuthenticatedState(false);
+        try {
+          localStorage.removeItem(AUTH_STORAGE_KEY);
+        } catch (error) {
+          console.warn('Failed to clear expired session from localStorage:', error);
+        }
+        addNotification('error', 'Your session has expired. Please sign in again.');
+        return;
+      }
 
       if (deptRes.ok) setDepartments(await deptRes.json());
       if (dtRes.ok) setDocumentTypes(await dtRes.json());
@@ -267,7 +279,7 @@ export const ArchiveProvider: React.FC<{ children: React.ReactNode }> = ({ child
     } catch (err) {
       console.warn('Backend API sync notice:', err);
     }
-  }, []);
+  }, [isAuthenticated]);
 
   const refreshDbHealth = async (): Promise<DbHealthState> => {
     try {
@@ -333,34 +345,7 @@ export const ArchiveProvider: React.FC<{ children: React.ReactNode }> = ({ child
         };
       }
     } catch (e: any) {
-      // Fallback in case of network / offline
-      const cleanEmail = email.trim().toLowerCase();
-      const foundUser = availableUsers.find(u => u.email.toLowerCase() === cleanEmail);
-      if (!foundUser) return { success: false, message: 'No account found with this email address.' };
-      
-      if (foundUser.approvalStatus === 'PENDING_APPROVAL') {
-        return { 
-          success: false, 
-          isPendingApproval: true,
-          message: 'Your account is pending Administrator approval. Please wait for an Admin to activate your account.' 
-        };
-      }
-
-      if (foundUser.approvalStatus === 'REJECTED') {
-        return { 
-          success: false, 
-          message: 'Your account access request was rejected by an Administrator.' 
-        };
-      }
-
-      if (foundUser.password && password && foundUser.password !== password) {
-        return { success: false, message: 'Incorrect password provided.' };
-      }
-
-      setCurrentUser(foundUser);
-      setIsAuthenticatedState(true);
-      addNotification('success', `Signed in as ${foundUser.fullName} (${foundUser.role}).`);
-      return { success: true, user: foundUser };
+      return { success: false, message: e?.message || 'Unable to reach the sign-in service.' };
     }
   };
 
@@ -581,6 +566,9 @@ export const ArchiveProvider: React.FC<{ children: React.ReactNode }> = ({ child
   };
 
   const logoutUser = () => {
+    void fetch('/api/auth/logout', { method: 'POST' }).catch(error => {
+      console.warn('Could not clear the server session cookie during sign out:', error);
+    });
     setIsAuthenticatedState(false);
     try {
       localStorage.removeItem(AUTH_STORAGE_KEY);
@@ -904,31 +892,22 @@ export const ArchiveProvider: React.FC<{ children: React.ReactNode }> = ({ child
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ docData, user: currentUser, homePath })
       });
-      const newDoc = await res.json();
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        throw new Error(data?.error || data?.message || `Document registration failed (HTTP ${res.status}).`);
+      }
+      const newDoc = data as DocumentItem;
+      if (!newDoc?.id || !newDoc.documentNumber) {
+        throw new Error('The server did not return a valid saved document.');
+      }
       setDocuments(prev => [newDoc, ...prev]);
       await fetchAllFromBackend();
       addNotification('success', `Document #${newDoc.documentNumber} registered successfully.`);
       return newDoc;
-    } catch (e) {
-      const id = 'doc-' + Date.now();
-      // Offline fallback: mirror the server's auto-generation for blank numbers
-      let docNumber = docData.documentNumber?.trim();
-      if (!docNumber) {
-        const dept = departments.find(d => d.id === docData.departmentId);
-        const type = documentTypes.find(dt => dt.id === docData.documentTypeId);
-        const prefix = buildDocumentNumberPrefix(dept?.code, type?.code);
-        docNumber = nextDocumentNumber(prefix, documents.map(d => d.documentNumber));
-      }
-      const qrCode = 'DOC-' + docNumber;
-      const barcode = '884' + Math.floor(100000 + Math.random() * 900000);
-      const newDoc: DocumentItem = {
-        ...docData, documentNumber: docNumber, id, currentLocationId: docData.homeLocationId, status: 'AVAILABLE',
-        qrCode, barcode, photos: [], qrClaimed: false, qrClaimedAt: null, qrClaimedBy: null,
-        createdAt: new Date().toISOString(), updatedAt: new Date().toISOString()
-      };
-      setDocuments(prev => [newDoc, ...prev]);
-      addNotification('success', `Document #${newDoc.documentNumber} registered successfully.`);
-      return newDoc;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Document registration failed.';
+      addNotification('error', message);
+      throw error;
     }
   };
 
@@ -947,33 +926,38 @@ export const ArchiveProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const updateDocument = async (id: string, updates: Partial<DocumentItem>): Promise<void> => {
     const doc = documents.find(d => d.id === id);
     const docNum = doc?.documentNumber || updates.documentNumber || id;
-    
-    setDocuments(prev => prev.map(d => d.id === id ? { ...d, ...updates, updatedAt: new Date().toISOString() } : d));
-    
-    // Add local audit entry for immediate feedback
-    const auditRecord: AuditLogRecord = {
-      id: 'aud-' + Date.now(),
-      userId: currentUser.id,
-      userName: currentUser.fullName,
-      userRole: currentUser.role,
-      action: 'DOCUMENT_UPDATED',
-      entityType: 'DOCUMENT',
-      entityId: id,
-      entityName: updates.title || doc?.title || 'Document Record',
-      timestamp: new Date().toISOString(),
-      details: `Updated metadata and attributes for document #${docNum}`
-    };
-    setAuditLogs(prev => [auditRecord, ...prev]);
-
     try {
-      await fetch(`/api/documents/${id}`, {
+      const res = await fetch(`/api/documents/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ updates, user: currentUser })
       });
-      fetchAllFromBackend();
-    } catch (e) {}
-    
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data?.success) {
+        throw new Error(data?.error || data?.message || `Document update failed (HTTP ${res.status}).`);
+      }
+
+      setDocuments(prev => prev.map(d => d.id === id ? { ...d, ...updates, updatedAt: new Date().toISOString() } : d));
+      const auditRecord: AuditLogRecord = {
+        id: 'aud-' + Date.now(),
+        userId: currentUser.id,
+        userName: currentUser.fullName,
+        userRole: currentUser.role,
+        action: 'DOCUMENT_UPDATED',
+        entityType: 'DOCUMENT',
+        entityId: id,
+        entityName: updates.title || doc?.title || 'Document Record',
+        timestamp: new Date().toISOString(),
+        details: `Updated metadata and attributes for document #${docNum}`
+      };
+      setAuditLogs(prev => [auditRecord, ...prev]);
+      await fetchAllFromBackend();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Document update failed.';
+      addNotification('error', message);
+      throw error;
+    }
+
     addNotification('success', `Document #${docNum} updated successfully.`);
   };
 

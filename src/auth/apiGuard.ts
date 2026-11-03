@@ -1,5 +1,6 @@
 import type { NextFunction, Request, Response } from 'express';
 import type { RoleCode } from '../types.js';
+import type { User } from '../types.js';
 import * as repo from '../db/repository.js';
 import { sanitizeUser, verifyAuthToken } from './session.js';
 
@@ -13,7 +14,18 @@ function isPublicApi(req: Request): boolean {
   if (req.method === 'GET' && path === '/api/health') return true;
   if (req.method === 'POST' && path === '/api/auth/login') return true;
   if (req.method === 'POST' && path === '/api/auth/signup') return true;
+  if (req.method === 'POST' && path === '/api/auth/logout') return true;
   return false;
+}
+
+function getSessionToken(req: Request): string | undefined {
+  const authorization = req.headers.authorization;
+  if (authorization?.startsWith('Bearer ')) return authorization.slice(7);
+  return req.headers.cookie
+    ?.split(';')
+    .map(cookie => cookie.trim())
+    .find(cookie => cookie.startsWith('archivehub_session='))
+    ?.slice('archivehub_session='.length);
 }
 
 function hasRole(userRole: RoleCode, allowed: RoleCode[]): boolean {
@@ -28,8 +40,7 @@ export async function apiGuard(req: Request, res: Response, next: NextFunction) 
   if (!req.path.startsWith('/api')) return next();
   if (isPublicApi(req)) return next();
 
-  const header = req.headers.authorization;
-  const token = header?.startsWith('Bearer ') ? header.slice(7) : undefined;
+  const token = getSessionToken(req);
   if (!token) {
     return res.status(401).json({ error: 'Authentication required.' });
   }
@@ -39,7 +50,12 @@ export async function apiGuard(req: Request, res: Response, next: NextFunction) 
     return res.status(401).json({ error: 'Session expired or invalid. Please sign in again.' });
   }
 
-  const user = await repo.getUserById(payload.sub);
+  let user: User | null;
+  try {
+    user = await repo.getUserById(payload.sub);
+  } catch (error) {
+    return next(error);
+  }
   if (!user) {
     return res.status(401).json({ error: 'Account no longer exists.' });
   }
@@ -61,7 +77,11 @@ export async function apiGuard(req: Request, res: Response, next: NextFunction) 
     return hasRole(role, ADMIN_ONLY) ? next() : forbidden(res, 'Only administrators can switch personas.');
   }
 
-  if (req.path.startsWith('/api/users') || req.path === '/api/seed' || req.path === '/api/clear-data') {
+  const selfProfileUpdate = req.method === 'PUT'
+    && req.path.match(/^\/api\/users\/([^/]+)$/)?.[1] === user.id;
+  if (selfProfileUpdate) return next();
+
+  if (req.path.startsWith('/api/users') || req.path === '/api/seed' || req.path === '/api/clear-data' || req.path === '/api/import') {
     return hasRole(role, ADMIN_ONLY) ? next() : forbidden(res, 'Administrator access required.');
   }
 

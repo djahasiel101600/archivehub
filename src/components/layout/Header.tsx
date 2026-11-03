@@ -68,8 +68,10 @@ export const Header: React.FC<HeaderProps> = ({
             <Menu className="w-5 h-5" />
           </button>
 
-          <div 
-            className="flex items-center gap-2 sm:gap-3 cursor-pointer select-none min-w-0" 
+          <button
+            type="button"
+            aria-label="Go to dashboard"
+            className="flex items-center gap-2 sm:gap-3 text-left select-none min-w-0"
             onClick={() => {
               setActiveTab('dashboard');
               if (onSelectTab) onSelectTab('dashboard');
@@ -92,7 +94,7 @@ export const Header: React.FC<HeaderProps> = ({
                 Physical & Digital Archive Management System
               </span>
             </div>
-          </div>
+          </button>
         </div>
 
         {/* Global Search Input on Desktop (Hidden on mobile) */}
@@ -101,6 +103,7 @@ export const Header: React.FC<HeaderProps> = ({
             <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
             <input
               type="text"
+              aria-label="Search archive"
               value={globalSearchQuery}
               onChange={(e) => {
                 setGlobalSearchQuery(e.target.value);
@@ -116,6 +119,7 @@ export const Header: React.FC<HeaderProps> = ({
               <button
                 type="button"
                 onClick={() => setGlobalSearchQuery('')}
+                aria-label="Clear search"
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
               >
                 <X className="w-3.5 h-3.5" />
@@ -131,8 +135,9 @@ export const Header: React.FC<HeaderProps> = ({
           <button
             type="button"
             onClick={() => setShowMobileSearch(!showMobileSearch)}
-            className="p-2 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors md:hidden"
             aria-label="Toggle search bar"
+            aria-expanded={showMobileSearch}
+            className="p-2 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors md:hidden"
           >
             <Search className="w-5 h-5" />
           </button>
@@ -166,6 +171,8 @@ export const Header: React.FC<HeaderProps> = ({
             <button
               type="button"
               onClick={() => setShowNotifDropdown(!showNotifDropdown)}
+              aria-label="Notifications"
+              aria-expanded={showNotifDropdown}
               className="p-2 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors relative"
               title="System Alerts & Notifications"
             >
@@ -214,6 +221,7 @@ export const Header: React.FC<HeaderProps> = ({
                         <button
                           type="button"
                           onClick={() => dismissNotification(n.id)}
+                          aria-label={`Dismiss notification: ${n.message}`}
                           className="text-slate-400 hover:text-slate-600 p-1"
                         >
                           <X className="w-3.5 h-3.5" />
@@ -231,6 +239,8 @@ export const Header: React.FC<HeaderProps> = ({
             <button
               type="button"
               onClick={() => setShowUserDropdown(!showUserDropdown)}
+              aria-label="User menu"
+              aria-expanded={showUserDropdown}
               className="flex items-center gap-1.5 sm:gap-2 pl-1.5 sm:pl-2 pr-2 sm:pr-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700/80 rounded-xl transition-colors border border-slate-200/80 dark:border-slate-700 min-h-[38px]"
             >
               <div className="w-7 h-7 rounded-lg bg-indigo-600 text-white font-bold text-xs flex items-center justify-center flex-shrink-0">
@@ -344,6 +354,7 @@ export const Header: React.FC<HeaderProps> = ({
             <input
               type="text"
               autoFocus
+              aria-label="Search archive"
               value={globalSearchQuery}
               onChange={(e) => {
                 setGlobalSearchQuery(e.target.value);

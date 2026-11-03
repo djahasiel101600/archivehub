@@ -51,18 +51,14 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
     <div className="space-y-6 animate-in fade-in duration-200">
       
       {/* Top Banner & Quick Actions */}
-      <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white rounded-3xl p-6 md:p-8 shadow-xl border border-indigo-900/40 relative overflow-hidden">
+      <div className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 rounded-2xl p-5 md:p-6 border border-slate-200 dark:border-slate-800">
         <div className="relative z-10 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6">
           <div className="space-y-2 max-w-2xl">
-            <div className="inline-flex items-center gap-2 px-3 py-1 bg-indigo-500/20 text-indigo-300 rounded-full text-xs font-mono font-bold border border-indigo-500/30">
-              <Building2 className="w-3.5 h-3.5" />
-              Physical & Digital Records Vault
-            </div>
-            <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight text-white">
-              Archive Command Dashboard
+            <h1 className="text-2xl font-semibold tracking-tight text-slate-900 dark:text-slate-100">
+              Archive overview
             </h1>
-            <p className="text-sm text-indigo-200/80 leading-relaxed">
-              Track physical hard-copy document positions, hierarchical storage structures, circulation borrowing history, and regulatory retention lifecycles.
+            <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
+              Monitor records, storage, circulation, and retention activity.
             </p>
           </div>
 
@@ -70,28 +66,28 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
             <button
               type="button"
               onClick={onOpenRegisterDoc}
-              className="inline-flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs rounded-xl shadow-lg shadow-indigo-600/30 transition-all hover:scale-105"
+              className="inline-flex min-h-11 items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm rounded-xl transition-colors"
             >
               <PlusCircle className="w-4 h-4" />
-              Register Document
+              Register document
             </button>
 
             <button
               type="button"
               onClick={onOpenCreateLocation}
-              className="inline-flex items-center gap-2 px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-100 font-semibold text-xs rounded-xl border border-slate-700 transition-all"
+              className="inline-flex min-h-11 items-center gap-2 px-4 py-2.5 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-semibold text-sm rounded-xl border border-slate-300 dark:border-slate-700 transition-colors"
             >
               <Building2 className="w-4 h-4" />
-              Add Storage Unit
+              Add location
             </button>
 
             <button
               type="button"
               onClick={onOpenScanner}
-              className="inline-flex items-center gap-2 px-4 py-2.5 bg-white/10 hover:bg-white/20 text-white font-semibold text-xs rounded-xl border border-white/20 transition-all"
+              className="inline-flex min-h-11 items-center gap-2 px-4 py-2.5 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-semibold text-sm rounded-xl border border-slate-300 dark:border-slate-700 transition-colors"
             >
-              <QrCode className="w-4 h-4 text-indigo-300" />
-              Scan QR / Barcode
+              <QrCode className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+              Scan tag
             </button>
           </div>
         </div>
@@ -99,7 +95,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
 
       {/* Overdue Warning Alert Banner if any overdue */}
       {overdueCheckouts.length > 0 && (
-        <div className="p-4 bg-rose-50 border-2 border-rose-300 rounded-2xl dark:bg-rose-950/50 dark:border-rose-800 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-sm animate-pulse">
+        <div className="p-4 bg-rose-50 border border-rose-200 rounded-2xl dark:bg-rose-950/50 dark:border-rose-800 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-rose-500 text-white rounded-xl">
               <AlertTriangle className="w-5 h-5" />
@@ -119,7 +115,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
             onClick={() => setActiveTab('checkouts')}
             className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold rounded-xl shadow-sm transition-colors whitespace-nowrap"
           >
-            Manage Overdue Records →
+            Review overdue loans
           </button>
         </div>
       )}
@@ -204,10 +200,10 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
           <div className="flex items-center justify-between gap-2">
             <div className="min-w-0">
               <h3 className="font-bold text-slate-900 dark:text-slate-100 text-sm sm:text-base truncate">
-                Recent Physical Document Movements
+                Recent activity
               </h3>
               <p className="text-xs text-slate-500 truncate">
-                Audit ledger of physical transfers, check-outs, and returns
+                Recent transfers, check-outs, and returns
               </p>
             </div>
 
@@ -221,11 +217,17 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
           </div>
 
           <div className="space-y-3 min-w-0">
-            {movements.slice(0, 5).map(mvt => (
-              <div
+            {movements.length === 0 ? (
+              <p className="py-8 text-center text-sm text-slate-500 dark:text-slate-400">
+                No recent archive activity.
+              </p>
+            ) : movements.slice(0, 5).map(mvt => (
+              <button
                 key={mvt.id}
+                type="button"
                 onClick={() => onSelectDocument(mvt.documentId)}
-                className="p-3 sm:p-3.5 bg-slate-50 hover:bg-slate-100/80 dark:bg-slate-800/50 dark:hover:bg-slate-800 rounded-xl border border-slate-200/80 dark:border-slate-700/60 transition-all cursor-pointer space-y-2.5 min-w-0 overflow-hidden"
+                aria-label={`Open document #${mvt.documentNumber}: ${mvt.documentTitle}`}
+                className="w-full text-left p-3 sm:p-3.5 bg-slate-50 hover:bg-slate-100/80 dark:bg-slate-800/50 dark:hover:bg-slate-800 rounded-xl border border-slate-200/80 dark:border-slate-700/60 transition-colors space-y-2.5 min-w-0 overflow-hidden"
               >
                 <div className="flex flex-wrap items-center justify-between gap-1.5 text-xs min-w-0">
                   <div className="flex items-center gap-2 min-w-0 max-w-full">
@@ -259,9 +261,9 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
 
                 <div className="flex flex-wrap items-center justify-between gap-1 text-[11px] text-slate-400 min-w-0">
                   <span className="truncate">Moved by: <strong className="text-slate-700 dark:text-slate-300">{mvt.performedByUserName}</strong></span>
-                  <span className="font-mono flex-shrink-0">{new Date(mvt.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                  <span className="font-mono flex-shrink-0">{new Date(mvt.timestamp).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}</span>
                 </div>
-              </div>
+              </button>
             ))}
           </div>
         </div>

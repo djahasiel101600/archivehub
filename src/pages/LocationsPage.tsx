@@ -4,6 +4,7 @@ import { LocationPathBreadcrumbs } from '../components/common/LocationPathBreadc
 import { QRBarcodeModal } from '../components/common/QRBarcodeModal';
 import { ConfirmModal } from '../components/common/ConfirmModal';
 import { StatusBadge } from '../components/common/StatusBadge';
+import { PageHeader } from '../components/common/PageHeader';
 import { getLocationImage, DEFAULT_TYPE_IMAGES } from '../utils/locationImages';
 import { PhotoUploader } from '../components/common/PhotoUploader';
 import { 
@@ -325,30 +326,24 @@ export const LocationsPage: React.FC<LocationsPageProps> = ({
   return (
     <div className="space-y-6 animate-in fade-in duration-200">
       
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-xl font-extrabold text-slate-900 dark:text-slate-100 flex items-center gap-2">
-            <Building2 className="w-6 h-6 text-indigo-600 dark:text-indigo-400" />
-            Physical Storage Location Hierarchy
-          </h1>
-          <p className="text-xs text-slate-500 dark:text-slate-400">
-            PRD Mandate: Building → Floor → Room → Storage Area → Cabinet → Rack → Shelf → Box → Folder
-          </p>
-        </div>
-
-        <button
-          type="button"
-          onClick={() => {
-            setCreateParentId(selectedLocationId);
-            setShowCreateModal(true);
-          }}
-          className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white text-xs font-semibold rounded-xl hover:bg-indigo-700 shadow-md shadow-indigo-600/20 transition-all"
-        >
-          <Plus className="w-4 h-4" />
-          Add Child Storage Unit
-        </button>
-      </div>
+      <PageHeader
+        icon={Building2}
+        title="Locations"
+        description="Browse the storage hierarchy and manage archive locations."
+        actions={
+          <button
+            type="button"
+            onClick={() => {
+              setCreateParentId(selectedLocationId);
+              setShowCreateModal(true);
+            }}
+            className="inline-flex min-h-11 items-center gap-2 px-4 py-2 bg-indigo-600 text-white text-sm font-semibold rounded-xl hover:bg-indigo-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 transition-colors"
+          >
+            <Plus className="w-4 h-4" aria-hidden="true" />
+            Add location
+          </button>
+        }
+      />
 
       {/* Mobile View Toggle Switcher (< lg) */}
       <div className="flex lg:hidden bg-slate-100 dark:bg-slate-800/90 p-1 rounded-2xl border border-slate-200 dark:border-slate-700/80 shadow-xs">

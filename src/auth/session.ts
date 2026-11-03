@@ -22,7 +22,10 @@ declare global {
 
 export function getSessionSecret(): string {
   const secret = process.env.SESSION_SECRET?.trim();
-  if (secret && secret.length >= 16) return secret;
+  if (secret && secret.length >= 16 && secret !== 'change-me-to-a-long-random-string') return secret;
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('SESSION_SECRET must be set to a strong, non-placeholder value in production.');
+  }
   return 'archivehub-dev-session-secret';
 }
 

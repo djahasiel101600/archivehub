@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useArchive } from '../context/ArchiveContext';
 import { StatusBadge } from '../components/common/StatusBadge';
+import { PageHeader } from '../components/common/PageHeader';
 import { 
   ArrowRightLeft, 
   AlertTriangle, 
@@ -53,18 +54,11 @@ export const CheckoutsPage: React.FC<CheckoutsPageProps> = ({ onSelectDocument }
   return (
     <div className="space-y-6 animate-in fade-in duration-200">
       
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-xl font-extrabold text-slate-900 dark:text-slate-100 flex items-center gap-2">
-            <ArrowRightLeft className="w-6 h-6 text-indigo-600 dark:text-indigo-400" />
-            Archive Circulation & Borrowing Desk
-          </h1>
-          <p className="text-xs text-slate-500 dark:text-slate-400">
-            Manage borrowing requests, dispatch custody releases, track overdue items, and process returns
-          </p>
-        </div>
-      </div>
+      <PageHeader
+        icon={ArrowRightLeft}
+        title="Circulation"
+        description="Manage requests, current loans, overdue records, and returns."
+      />
 
       {/* KPI Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 text-xs font-medium">

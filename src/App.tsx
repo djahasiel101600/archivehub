@@ -146,7 +146,6 @@ function AppContent() {
       {/* Mobile Bottom Navigation Bar (< md screens) */}
       <MobileBottomNav
         onOpenScanner={() => setShowScannerModal(true)}
-        onOpenBatchRelocate={() => setShowBatchRelocateModal(true)}
         onOpenMobileMenu={() => setIsMobileMenuOpen(true)}
         onSelectTab={handleSelectTab}
       />

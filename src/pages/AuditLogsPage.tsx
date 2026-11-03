@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useArchive } from '../context/ArchiveContext';
 import { ClipboardList, Search, User as UserIcon, Shield, Clock } from 'lucide-react';
+import { PageHeader } from '../components/common/PageHeader';
 
 export const AuditLogsPage: React.FC = () => {
   const { auditLogs } = useArchive();
@@ -20,16 +21,11 @@ export const AuditLogsPage: React.FC = () => {
   return (
     <div className="space-y-6 animate-in fade-in duration-200">
       
-      {/* Header */}
-      <div>
-        <h1 className="text-xl font-extrabold text-slate-900 dark:text-slate-100 flex items-center gap-2">
-          <ClipboardList className="w-6 h-6 text-indigo-600 dark:text-indigo-400" />
-          Immutable Archive Audit Ledger
-        </h1>
-        <p className="text-xs text-slate-500 dark:text-slate-400">
-          Complete regulatory transaction trail recording who moved, checked out, updated, or registered every physical document
-        </p>
-      </div>
+      <PageHeader
+        icon={ClipboardList}
+        title="Audit log"
+        description="Review archive activity by user, action, record, and time."
+      />
 
       {/* Filter */}
       <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center gap-3">
@@ -38,7 +34,8 @@ export const AuditLogsPage: React.FC = () => {
           type="text"
           value={filterQuery}
           onChange={(e) => setFilterQuery(e.target.value)}
-          placeholder="Filter audit entries by action, user, document, or details..."
+          aria-label="Filter audit log"
+          placeholder="Search by action, user, record, or details"
           className="flex-1 bg-transparent text-xs outline-none text-slate-900 dark:text-slate-100"
         />
       </div>
@@ -57,7 +54,13 @@ export const AuditLogsPage: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80 font-medium">
-              {filteredLogs.map(log => (
+              {filteredLogs.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="px-4 py-10 text-center text-sm text-slate-500 dark:text-slate-400">
+                    {filterQuery.trim() ? 'No audit entries match your search.' : 'No audit activity has been recorded yet.'}
+                  </td>
+                </tr>
+              ) : filteredLogs.map(log => (
                 <tr key={log.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40">
                   <td className="px-4 py-3 font-mono text-slate-400 whitespace-nowrap">
                     {new Date(log.timestamp).toLocaleString()}

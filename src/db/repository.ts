@@ -819,9 +819,8 @@ export async function createDocument(docData: Omit<DocumentItem, 'id' | 'created
         newDoc.qrCode = 'DOC-' + retryNumber;
         continue;
       }
-      console.warn('[Repository] createDocument DB transaction failed, adding to memory:', err);
-      memoryDocuments.unshift(newDoc);
-      return newDoc;
+      console.error('[Repository] createDocument DB transaction failed:', err);
+      throw err;
     }
   }
 
@@ -911,8 +910,8 @@ export async function updateDocument(id: string, updates: Partial<DocumentItem>,
       ]);
     }
   } catch (err) {
-    console.warn('[Repository] updateDocument DB query failed, updating memory:', err);
-    memoryDocuments = memoryDocuments.map(d => d.id === id ? { ...d, ...updates, updatedAt: new Date().toISOString() } : d);
+    console.error('[Repository] updateDocument DB query failed:', err);
+    throw err;
   }
 }
 

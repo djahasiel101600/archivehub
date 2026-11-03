@@ -9,12 +9,15 @@ import { checkDatabaseHealth, pgPool } from "./src/db/index.js";
 import { runMigrations } from "./src/db/migrate.js";
 import { seedDatabase } from "./src/db/seed.js";
 import * as repo from "./src/db/repository.js";
-import { sanitizeUser, verifyPassword, hashPassword } from "./src/auth/session.js";
+import { sanitizeUser, signAuthToken, verifyPassword, hashPassword } from "./src/auth/session.js";
+import { apiGuard } from "./src/auth/apiGuard.js";
 import { saveDigitalCopy, resolveDigitalCopy, decodeBase64Payload } from "./src/files/digitalCopies.js";
 
 async function startServer() {
   const app = express();
   const PORT = 3031;
+
+  app.use(apiGuard);
 
   // Full-database restore endpoint. Registered before the default JSON parser so
   // backup files larger than the standard 10 MB body limit are accepted.
@@ -33,7 +36,15 @@ async function startServer() {
   // JSON parser so scans larger than the standard 10 MB body limit are accepted.
   app.post("/api/documents/:id/digital-copy", express.json({ limit: "60mb" }), async (req, res) => {
     try {
-      const { fileName, fileData, fileType, version, user } = req.body;
+      const { fileName, fileData, fileType, version } = req.body;
+      if (!req.authUser) {
+        res.status(401).json({ success: false, error: "Authentication required." });
+        return;
+      }
+      const database = await checkDatabaseHealth();
+      if (!database.connected) {
+        return res.status(503).json({ success: false, error: `Database unavailable: ${database.message}` });
+      }
       if (!fileData) {
         res.status(400).json({ success: false, error: "fileData payload is required." });
         return;
@@ -56,7 +67,7 @@ async function startServer() {
         digitalFileType: fileType || "application/octet-stream",
         digitalFileVersion: Number(version) || 1,
         digitalFilePath: stored.relativePath
-      }, user);
+      }, req.authUser);
       res.json({ success: true, ...stored });
     } catch (err: any) {
       res.status(500).json({ success: false, error: err?.message || "Upload failed." });
@@ -243,15 +254,14 @@ async function startServer() {
         });
       }
 
-      if (user.password && password) {
-        const passwordValid = await verifyPassword(password, user.password);
-        if (!passwordValid) {
-          return res
-            .status(401)
-            .json({ success: false, message: "Incorrect password provided." });
-        }
+      if (!user.password || !(await verifyPassword(password, user.password))) {
+        return res
+          .status(401)
+          .json({ success: false, message: "Incorrect email or password." });
       }
 
+      const cookieAttributes = `Path=/; HttpOnly; SameSite=Strict; Max-Age=604800${process.env.NODE_ENV === "production" ? "; Secure" : ""}`;
+      res.setHeader("Set-Cookie", `archivehub_session=${signAuthToken(user)}; ${cookieAttributes}`);
       res.json({ success: true, user: sanitizeUser(user) });
     } catch (err: any) {
       res.status(500).json({ success: false, message: err.message });
@@ -267,6 +277,12 @@ async function startServer() {
           .json({
             success: false,
             message: "Email and full name are required.",
+          });
+
+          app.post("/api/auth/logout", (_req, res) => {
+            const secure = process.env.NODE_ENV === "production" ? "; Secure" : "";
+            res.setHeader("Set-Cookie", `archivehub_session=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0${secure}`);
+            res.json({ success: true });
           });
       }
 
@@ -466,8 +482,15 @@ async function startServer() {
 
   app.post("/api/documents", async (req, res) => {
     try {
-      const { docData, user, homePath } = req.body;
-      const newDoc = await repo.createDocument(docData, user, homePath || "");
+      const { docData, homePath } = req.body;
+      if (!req.authUser) {
+        return res.status(401).json({ error: "Authentication required." });
+      }
+      const database = await checkDatabaseHealth();
+      if (!database.connected) {
+        return res.status(503).json({ error: `Database unavailable: ${database.message}` });
+      }
+      const newDoc = await repo.createDocument(docData, req.authUser, homePath || "");
       res.status(201).json(newDoc);
     } catch (err: any) {
       res.status(500).json({ error: err.message });
@@ -476,8 +499,17 @@ async function startServer() {
 
   app.put("/api/documents/:id", async (req, res) => {
     try {
-      const { updates, user } = req.body;
-      await repo.updateDocument(req.params.id, updates || req.body, user);
+      const { updates } = req.body;
+      if (!req.authUser) {
+        return res.status(401).json({ error: "Authentication required." });
+      }
+      const database = await checkDatabaseHealth();
+      if (!database.connected) {
+        return res.status(503).json({ error: `Database unavailable: ${database.message}` });
+      }
+      const existing = await repo.getDocumentById(req.params.id);
+      if (!existing) return res.status(404).json({ error: "Document not found." });
+      await repo.updateDocument(req.params.id, updates || req.body, req.authUser);
       res.json({ success: true });
     } catch (err: any) {
       res.status(500).json({ error: err.message });

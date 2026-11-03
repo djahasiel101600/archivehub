@@ -1,14 +1,14 @@
 import React, { useState } from 'react';
 import { useArchive } from '../../context/ArchiveContext';
-import { 
-  LayoutDashboard, 
-  Network, 
-  FileText, 
-  ArrowRightLeft, 
-  ShieldCheck, 
-  ClipboardList, 
-  Settings, 
-  Building2, 
+import {
+  LayoutDashboard,
+  Network,
+  FileText,
+  ArrowRightLeft,
+  ShieldCheck,
+  ClipboardList,
+  Settings,
+  Building2,
   AlertTriangle,
   RotateCcw,
   X,
@@ -25,18 +25,15 @@ interface SidebarProps {
   onCloseMobile?: () => void;
 }
 
-export const Sidebar: React.FC<SidebarProps> = ({ 
+export const Sidebar: React.FC<SidebarProps> = ({
   onSelectTab,
   isMobileOpen = false,
   onCloseMobile
 }) => {
-  const { 
-    activeTab, 
-    setActiveTab, 
-    documents, 
-    locations, 
-    checkouts, 
-    bundles,
+  const {
+    activeTab,
+    setActiveTab,
+    checkouts,
     resetDataToDefaults,
     currentUser,
     setCurrentUser,
@@ -47,28 +44,26 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   const [showPersonaSwitcher, setShowPersonaSwitcher] = useState(false);
 
-  const totalDocs = documents.length;
   const overdueDocs = checkouts.filter(c => c.status === 'OVERDUE').length;
   const pendingRequests = checkouts.filter(c => c.status === 'REQUESTED').length;
-  const checkedOutCount = documents.filter(d => d.status === 'CHECKED_OUT').length;
 
   const navItems = [
-    { id: 'dashboard', label: 'Dashboard & Overview', icon: LayoutDashboard },
-    { id: 'locations', label: 'Physical Storage Tree', icon: Network, badge: locations.length },
-    { id: 'documents', label: 'Document Catalogue', icon: FileText, badge: totalDocs },
-    { id: 'bundles', label: 'Bundles & Dossiers', icon: Layers, badge: bundles.length || undefined },
-    { 
-      id: 'checkouts', 
-      label: 'Circulation Desk', 
-      icon: ArrowRightLeft, 
-      badge: overdueDocs > 0 ? `${overdueDocs} Overdue` : pendingRequests > 0 ? `${pendingRequests} Req` : checkedOutCount,
+    { id: 'dashboard', label: 'Overview', icon: LayoutDashboard },
+    { id: 'locations', label: 'Locations', icon: Network },
+    { id: 'documents', label: 'Documents', icon: FileText },
+    { id: 'bundles', label: 'Bundles', icon: Layers },
+    {
+      id: 'checkouts',
+      label: 'Circulation Desk',
+      icon: ArrowRightLeft,
+      badge: overdueDocs > 0 ? `${overdueDocs} overdue` : pendingRequests > 0 ? `${pendingRequests} pending` : undefined,
       badgeColor: overdueDocs > 0 ? 'bg-rose-500 text-white' : pendingRequests > 0 ? 'bg-blue-500 text-white' : 'bg-slate-200 text-slate-700'
     },
-    { id: 'retention', label: 'Retention & Disposal', icon: ShieldCheck },
-    { id: 'audit', label: 'Audit Trail Ledger', icon: ClipboardList },
-    { 
-      id: 'settings', 
-      label: 'System Settings', 
+    { id: 'retention', label: 'Retention', icon: ShieldCheck },
+    { id: 'audit', label: 'Audit log', icon: ClipboardList },
+    {
+      id: 'settings',
+      label: 'Settings',
       icon: Settings,
       badge: (currentUser.role === 'ADMIN' && pendingUsersCount > 0) ? `${pendingUsersCount} User${pendingUsersCount > 1 ? 's' : ''}` : undefined,
       badgeColor: 'bg-amber-500 text-white font-bold animate-pulse'
@@ -87,7 +82,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   const sidebarContent = (
     <div className="flex flex-col h-full bg-slate-900 text-slate-300">
-      
+
       {/* Mobile Drawer Header with Close Button */}
       <div className="p-4 border-b border-slate-800 flex items-center justify-between md:hidden">
         <div className="flex items-center gap-2.5">
@@ -111,7 +106,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
       <div className="p-4 flex-1 space-y-1 overflow-y-auto">
         <div className="px-3 py-2 text-[10px] uppercase font-mono font-bold tracking-wider text-slate-500">
-          Archive Navigation
+          Archive workspace
         </div>
 
         {navItems.map((item) => {
@@ -123,6 +118,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               key={item.id}
               type="button"
               onClick={() => handleItemClick(item.id)}
+              aria-current={isActive ? 'page' : undefined}
               className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl text-xs font-semibold transition-all min-h-[44px] ${
                 isActive
                   ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
@@ -148,7 +144,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
       {/* Active User Card & Quick Actions */}
       <div className="p-3 border-t border-slate-800 space-y-2 flex-shrink-0">
-        
+
         {/* User Card with Persona Switcher */}
         <div className="bg-slate-800/60 rounded-xl border border-slate-800 p-2.5 space-y-2">
           <div className="flex items-center justify-between">
@@ -169,6 +165,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <button
               type="button"
               onClick={() => setShowPersonaSwitcher(!showPersonaSwitcher)}
+              aria-label="Switch user persona"
+              aria-expanded={showPersonaSwitcher}
               className="p-1 text-slate-400 hover:text-slate-200 rounded-lg hover:bg-slate-700/60 transition-colors"
               title="Switch Persona"
             >
@@ -223,6 +221,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 resetDataToDefaults();
                 if (onCloseMobile) onCloseMobile();
               }}
+              aria-label="Reset demo data"
               className="py-1.5 px-2 bg-slate-900 hover:bg-slate-700 text-slate-400 hover:text-slate-200 border border-slate-800 rounded-lg text-[11px] font-medium transition-colors"
               title="Reset demo dataset to initial PRD seed state"
             >
@@ -246,7 +245,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       {isMobileOpen && (
         <div className="fixed inset-0 z-50 md:hidden flex">
           {/* Backdrop Overlay */}
-          <div 
+          <div
             className="fixed inset-0 bg-slate-950/70 backdrop-blur-sm animate-in fade-in duration-200"
             onClick={onCloseMobile}
           />

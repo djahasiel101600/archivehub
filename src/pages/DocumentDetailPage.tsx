@@ -407,7 +407,7 @@ export const DocumentDetailPage: React.FC<DocumentDetailPageProps> = ({
               </span>
               {doc.qrClaimedBy && (
                 <span className="inline-flex items-center gap-1">
-                  <User className="w-3 h-3" />
+                  <UserIcon className="w-3 h-3" />
                   {doc.qrClaimedBy}
                 </span>
               )}

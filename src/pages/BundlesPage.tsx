@@ -7,6 +7,7 @@ import { BundleModal } from '../components/documents/BundleModal';
 import { BatchRelocateModal } from '../components/scanner/BatchRelocateModal';
 import { ScanFillBundleModal } from '../components/scanner/ScanFillBundleModal';
 import { ConfirmModal } from '../components/common/ConfirmModal';
+import { PageHeader } from '../components/common/PageHeader';
 import { PhotoUploader } from '../components/common/PhotoUploader';
 import {
   Layers,
@@ -186,33 +187,21 @@ export const BundlesPage: React.FC = () => {
   return (
     <div className="space-y-5 animate-in fade-in duration-200">
       
-      {/* Page Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div>
-          <div className="flex items-center gap-2.5">
-            <div className="p-2 bg-indigo-100 dark:bg-indigo-900/40 text-indigo-600 dark:text-indigo-400 rounded-xl">
-              <Layers className="w-5 h-5" />
-            </div>
-            <div>
-              <h1 className="text-xl font-extrabold text-slate-900 dark:text-slate-100 tracking-tight">
-                Bundle & Dossier Management
-              </h1>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                Manage document bundles, relocate dossiers, and track bundle locations
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <button
-          type="button"
-          onClick={() => setShowNewBundleModal(true)}
-          className="inline-flex items-center gap-2 px-4 py-2.5 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-xl shadow-md shadow-amber-600/20 transition-colors self-start sm:self-auto"
-        >
-          <Plus className="w-4 h-4" />
-          New Empty Bundle
-        </button>
-      </div>
+      <PageHeader
+        icon={Layers}
+        title="Bundles"
+        description="Group records, manage bundle locations, and track dossier activity."
+        actions={
+          <button
+            type="button"
+            onClick={() => setShowNewBundleModal(true)}
+            className="inline-flex min-h-11 items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 transition-colors"
+          >
+            <Plus className="w-4 h-4" aria-hidden="true" />
+            New bundle
+          </button>
+        }
+      />
 
       {/* KPI Stats Row */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
