@@ -105,9 +105,34 @@ let memoryRetentionPolicies: RetentionPolicy[] = [];
 let memoryAuditLogs: AuditLogRecord[] = [];
 let memoryReusableCustomFields: ReusableCustomField[] = [];
 let memoryBundles: DocumentBundle[] = [];
+let memoryDisposalRecords: DisposalRecord[] = [];
 
 function isDbAvailable(): boolean {
   return Boolean(getPool());
+}
+
+// --- DISPOSAL RECORDS REPOSITORY ---
+export async function getDisposals(): Promise<DisposalRecord[]> {
+  if (!isDbAvailable()) return memoryDisposalRecords;
+  try {
+    const res = await pgPool!.query('SELECT * FROM disposal_records ORDER BY disposal_date DESC');
+    return res.rows.map(r => ({
+      id: r.id,
+      documentId: r.document_id,
+      documentNumber: r.document_number,
+      documentTitle: r.document_title,
+      requestedByUserName: r.requested_by_user_name,
+      approvedByUserName: r.approved_by_user_name,
+      disposalDate: r.disposal_date,
+      disposalMethod: r.disposal_method,
+      certificateNumber: r.certificate_number,
+      witnessName: r.witness_name,
+      notes: r.notes
+    }));
+  } catch (err) {
+    console.warn('[Repository] getDisposals DB query failed, using memory state:', err);
+    return memoryDisposalRecords;
+  }
 }
 
 // --- USERS REPOSITORY ---
@@ -1972,6 +1997,33 @@ export async function exportAllData(): Promise<BackupPayload> {
   };
 }
 
+// --- CSV Export Helpers ---
+
+/**
+ * Escape a field for CSV: wrap in quotes if it contains comma, quote, or newline.
+ */
+function csvEscape(value: unknown): string {
+  const str = value === null || value === undefined ? '' : String(value);
+  if (/[",\n\r]/.test(str)) {
+    return `"${str.replace(/"/g, '""')}"`;
+  }
+  return str;
+}
+
+/**
+ * Generate a CSV header row from an array of objects (using common keys).
+ */
+function generateCsvHeader(rows: Record<string, unknown>[]): string {
+  if (rows.length === 0) return '';
+  const keys = new Set<string>();
+  for (const row of rows) {
+    for (const key of Object.keys(row)) {
+      keys.add(key);
+    }
+  }
+  return [...keys].map(csvEscape).join(',') + '\n';
+}
+
 export async function importAllData(payload: any): Promise<Record<string, number>> {
   if (!isDbAvailable()) {
     throw new Error('Data import requires a connected PostgreSQL database. The server is currently running in memory fallback mode.');
@@ -2033,4 +2085,64 @@ export async function importAllData(payload: any): Promise<Record<string, number
   }
 
   return counts;
+}
+
+// ========== CSV Export Utils ==========
+
+/** Build a CSV string from an array of objects (all entities). */
+export function generateCsvFromEntities(rows: any[]): string {
+  if (rows.length === 0) return '';
+  const keys = new Set<string>();
+  for (const row of rows) {
+    for (const key of Object.keys(row)) {
+      keys.add(key);
+    }
+  }
+  const header = [...keys].map(csvEscape).join(',') + '\n';
+  let body = '';
+  for (const row of rows) {
+    const vals = [...keys].map(k => csvEscape(row[k]));
+    body += vals.join(',') + '\n';
+  }
+  return header + body;
+}
+
+export function generateCsvFromDocuments(docs: DocumentItem[]): string {
+  return generateCsvFromEntities(docs);
+}
+
+export function generateCsvFromLocations(locations: LocationItem[]): string {
+  return generateCsvFromEntities(locations);
+}
+
+export function generateCsvFromUsers(users: User[]): string {
+  return generateCsvFromEntities(users);
+}
+
+export function generateCsvFromDocumentTypes(docTypes: DocumentTypeInfo[]): string {
+  return generateCsvFromEntities(docTypes);
+}
+
+export function generateCsvFromCheckouts(checkouts: CheckoutRecord[]): string {
+  return generateCsvFromEntities(checkouts);
+}
+
+export function generateCsvFromMovements(movements: MovementRecord[]): string {
+  return generateCsvFromEntities(movements);
+}
+
+export function generateCsvFromRetentionPolicies(policies: RetentionPolicy[]): string {
+  return generateCsvFromEntities(policies);
+}
+
+export function generateCsvFromBundles(bundles: DocumentBundle[]): string {
+  return generateCsvFromEntities(bundles);
+}
+
+export function generateCsvFromDisposals(disposals: DisposalRecord[]): string {
+  return generateCsvFromEntities(disposals);
+}
+
+export function generateCsvFromAuditLogs(auditLogs: AuditLogRecord[]): string {
+  return generateCsvFromEntities(auditLogs);
 }

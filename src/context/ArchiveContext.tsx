@@ -50,6 +50,7 @@ interface ArchiveContextType {
   updateUserProfile: (userId: string, updates: Partial<User> & { currentPassword?: string; newPassword?: string }) => Promise<{ success: boolean; message?: string }>;
   // Data Backup & Restore
   exportAllData: () => Promise<{ success: boolean; message?: string; blob?: Blob }>;
+  exportCsv: (endpoint: string) => Promise<{ success: boolean; message?: string; filename?: string }>;
   importAllData: (payload: any) => Promise<{ success: boolean; message?: string; counts?: Record<string, number> }>;
 
   // Data State
@@ -364,6 +365,34 @@ export const ArchiveProvider: React.FC<{ children: React.ReactNode }> = ({ child
       return { success: true, blob };
     } catch (e: any) {
       addNotification('error', `Export request failed: ${e.message}`);
+      return { success: false, message: e.message };
+    }
+  };
+
+  // CSV Export - download a single entity type as CSV
+  const exportCsv = async (endpoint: string): Promise<{ success: boolean; message?: string; filename?: string }> => {
+    try {
+      const res = await fetch(endpoint);
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        const msg = data?.message || `Export failed (HTTP ${res.status}).`;
+        addNotification('error', msg);
+        return { success: false, message: msg };
+      }
+      const blob = await res.blob();
+      const timestamp = new Date().toISOString().slice(0, 10);
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `archivehub-${endpoint.split('/').pop()}-${timestamp}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+      addNotification('success', `CSV export downloaded: ${link.download}`);
+      return { success: true, filename: link.download };
+    } catch (e: any) {
+      addNotification('error', `CSV export failed: ${e.message}`);
       return { success: false, message: e.message };
     }
   };
@@ -1396,6 +1425,7 @@ export const ArchiveProvider: React.FC<{ children: React.ReactNode }> = ({ child
         deleteUser,
         updateUserProfile,
         exportAllData,
+        exportCsv,
         importAllData,
         departments,
         addDepartment,

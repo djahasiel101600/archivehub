@@ -218,6 +218,127 @@ async function startServer() {
     }
   });
 
+  // CSV export endpoints (one per entity type)
+  app.get("/api/export/csv/documents", async (req, res) => {
+    try {
+      const docs = await repo.getDocuments();
+      res.setHeader("Content-Type", "text/csv");
+      res.setHeader("Content-Disposition", `attachment; filename="documents-${new Date().toISOString().slice(0,10)}.csv"`);
+      const csv = repo.generateCsvFromDocuments(docs);
+      res.send(csv);
+    } catch (err: any) {
+      res.status(500).json({ success: false, message: err.message });
+    }
+  });
+
+  app.get("/api/export/csv/locations", async (req, res) => {
+    try {
+      const locations = await repo.getLocations();
+      res.setHeader("Content-Type", "text/csv");
+      res.setHeader("Content-Disposition", `attachment; filename="locations-${new Date().toISOString().slice(0,10)}.csv"`);
+      const csv = repo.generateCsvFromLocations(locations);
+      res.send(csv);
+    } catch (err: any) {
+      res.status(500).json({ success: false, message: err.message });
+    }
+  });
+
+  app.get("/api/export/csv/users", async (req, res) => {
+    try {
+      const users = await repo.getUsers();
+      res.setHeader("Content-Type", "text/csv");
+      res.setHeader("Content-Disposition", `attachment; filename="users-${new Date().toISOString().slice(0,10)}.csv"`);
+      const csv = repo.generateCsvFromUsers(users);
+      res.send(csv);
+    } catch (err: any) {
+      res.status(500).json({ success: false, message: err.message });
+    }
+  });
+
+  app.get("/api/export/csv/document-types", async (req, res) => {
+    try {
+      const docTypes = await repo.getDocumentTypes();
+      res.setHeader("Content-Type", "text/csv");
+      res.setHeader("Content-Disposition", `attachment; filename="document_types-${new Date().toISOString().slice(0,10)}.csv"`);
+      const csv = repo.generateCsvFromDocumentTypes(docTypes);
+      res.send(csv);
+    } catch (err: any) {
+      res.status(500).json({ success: false, message: err.message });
+    }
+  });
+
+  app.get("/api/export/csv/checkouts", async (req, res) => {
+    try {
+      const checkouts = await repo.getCheckouts();
+      res.setHeader("Content-Type", "text/csv");
+      res.setHeader("Content-Disposition", `attachment; filename="checkouts-${new Date().toISOString().slice(0,10)}.csv"`);
+      const csv = repo.generateCsvFromCheckouts(checkouts);
+      res.send(csv);
+    } catch (err: any) {
+      res.status(500).json({ success: false, message: err.message });
+    }
+  });
+
+  app.get("/api/export/csv/movements", async (req, res) => {
+    try {
+      const movements = await repo.getMovements();
+      res.setHeader("Content-Type", "text/csv");
+      res.setHeader("Content-Disposition", `attachment; filename="movements-${new Date().toISOString().slice(0,10)}.csv"`);
+      const csv = repo.generateCsvFromMovements(movements);
+      res.send(csv);
+    } catch (err: any) {
+      res.status(500).json({ success: false, message: err.message });
+    }
+  });
+
+  app.get("/api/export/csv/retention-policies", async (req, res) => {
+    try {
+      const policies = await repo.getRetentionPolicies();
+      res.setHeader("Content-Type", "text/csv");
+      res.setHeader("Content-Disposition", `attachment; filename="retention_policies-${new Date().toISOString().slice(0,10)}.csv"`);
+      const csv = repo.generateCsvFromRetentionPolicies(policies);
+      res.send(csv);
+    } catch (err: any) {
+      res.status(500).json({ success: false, message: err.message });
+    }
+  });
+
+  app.get("/api/export/csv/bundles", async (req, res) => {
+    try {
+      const bundles = await repo.getBundles();
+      res.setHeader("Content-Type", "text/csv");
+      res.setHeader("Content-Disposition", `attachment; filename="bundles-${new Date().toISOString().slice(0,10)}.csv"`);
+      const csv = repo.generateCsvFromBundles(bundles);
+      res.send(csv);
+    } catch (err: any) {
+      res.status(500).json({ success: false, message: err.message });
+    }
+  });
+
+  app.get("/api/export/csv/disposals", async (req, res) => {
+    try {
+      const disposals = await repo.getDisposals();
+      res.setHeader("Content-Type", "text/csv");
+      res.setHeader("Content-Disposition", `attachment; filename="disposals-${new Date().toISOString().slice(0,10)}.csv"`);
+      const csv = repo.generateCsvFromDisposals(disposals);
+      res.send(csv);
+    } catch (err: any) {
+      res.status(500).json({ success: false, message: err.message });
+    }
+  });
+
+  app.get("/api/export/csv/audit-logs", async (req, res) => {
+    try {
+      const auditLogs = await repo.getAuditLogs();
+      res.setHeader("Content-Type", "text/csv");
+      res.setHeader("Content-Disposition", `attachment; filename="audit_logs-${new Date().toISOString().slice(0,10)}.csv"`);
+      const csv = repo.generateCsvFromAuditLogs(auditLogs);
+      res.send(csv);
+    } catch (err: any) {
+      res.status(500).json({ success: false, message: err.message });
+    }
+  });
+
   app.post("/api/auth/login", async (req, res) => {
     try {
       const { email, password } = req.body;

@@ -67,6 +67,7 @@ export const SettingsPage: React.FC = () => {
     refreshDbHealth,
     reseedDatabase,
     exportAllData,
+    exportCsv,
     importAllData
   } = useArchive();
 
@@ -412,6 +413,10 @@ export const SettingsPage: React.FC = () => {
     }
   };
 
+  const handleExportCsv = async (entity: string) => {
+    await exportCsv(`/api/export/csv/${entity}`);
+  };
+
   const handleImportFileSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     e.target.value = '';
@@ -595,6 +600,87 @@ export const SettingsPage: React.FC = () => {
             >
               <Upload className="w-4 h-4 text-amber-600 dark:text-amber-400" />
               {isImporting ? 'Restoring...' : 'Import / Restore Backup'}
+            </button>
+            <div className="h-6 w-px bg-slate-300 dark:bg-slate-600" />
+            <button
+              type="button"
+              onClick={() => handleExportCsv('documents')}
+              className="inline-flex items-center gap-1.5 px-3 py-2 bg-emerald-50 hover:bg-emerald-100 disabled:opacity-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 text-xs font-bold rounded-xl transition-colors border border-emerald-200/80 dark:border-emerald-800 shadow-sm"
+            >
+              <Download className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+              Documents (CSV)
+            </button>
+            <button
+              type="button"
+              onClick={() => handleExportCsv('locations')}
+              className="inline-flex items-center gap-1.5 px-3 py-2 bg-emerald-50 hover:bg-emerald-100 disabled:opacity-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 text-xs font-bold rounded-xl transition-colors border border-emerald-200/80 dark:border-emerald-800 shadow-sm"
+            >
+              <Download className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+              Locations (CSV)
+            </button>
+            <button
+              type="button"
+              onClick={() => handleExportCsv('users')}
+              className="inline-flex items-center gap-1.5 px-3 py-2 bg-emerald-50 hover:bg-emerald-100 disabled:opacity-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 text-xs font-bold rounded-xl transition-colors border border-emerald-200/80 dark:border-emerald-800 shadow-sm"
+            >
+              <Download className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+              Users (CSV)
+            </button>
+            <button
+              type="button"
+              onClick={() => handleExportCsv('checkouts')}
+              className="inline-flex items-center gap-1.5 px-3 py-2 bg-emerald-50 hover:bg-emerald-100 disabled:opacity-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 text-xs font-bold rounded-xl transition-colors border border-emerald-200/80 dark:border-emerald-800 shadow-sm"
+            >
+              <Download className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+              Checkouts (CSV)
+            </button>
+            <button
+              type="button"
+              onClick={() => handleExportCsv('document-types')}
+              className="inline-flex items-center gap-1.5 px-3 py-2 bg-emerald-50 hover:bg-emerald-100 disabled:opacity-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 text-xs font-bold rounded-xl transition-colors border border-emerald-200/80 dark:border-emerald-800 shadow-sm"
+            >
+              <Download className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+              Doc Types (CSV)
+            </button>
+            <button
+              type="button"
+              onClick={() => handleExportCsv('movements')}
+              className="inline-flex items-center gap-1.5 px-3 py-2 bg-emerald-50 hover:bg-emerald-100 disabled:opacity-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 text-xs font-bold rounded-xl transition-colors border border-emerald-200/80 dark:border-emerald-800 shadow-sm"
+            >
+              <Download className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+              Movements (CSV)
+            </button>
+            <button
+              type="button"
+              onClick={() => handleExportCsv('retention-policies')}
+              className="inline-flex items-center gap-1.5 px-3 py-2 bg-emerald-50 hover:bg-emerald-100 disabled:opacity-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 text-xs font-bold rounded-xl transition-colors border border-emerald-200/80 dark:border-emerald-800 shadow-sm"
+            >
+              <Download className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+              Retention Policies (CSV)
+            </button>
+            <button
+              type="button"
+              onClick={() => handleExportCsv('bundles')}
+              className="inline-flex items-center gap-1.5 px-3 py-2 bg-emerald-50 hover:bg-emerald-100 disabled:opacity-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 text-xs font-bold rounded-xl transition-colors border border-emerald-200/80 dark:border-emerald-800 shadow-sm"
+            >
+              <Download className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+              Bundles (CSV)
+            </button>
+            <button
+              type="button"
+              onClick={() => handleExportCsv('disposals')}
+              className="inline-flex items-center gap-1.5 px-3 py-2 bg-emerald-50 hover:bg-emerald-100 disabled:opacity-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 text-xs font-bold rounded-xl transition-colors border border-emerald-200/80 dark:border-emerald-800 shadow-sm"
+            >
+              <Download className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+              Disposals (CSV)
+            </button>
+            <button
+              type="button"
+              onClick={() => handleExportCsv('audit-logs')}
+              className="inline-flex items-center gap-1.5 px-3 py-2 bg-emerald-50 hover:bg-emerald-100 disabled:opacity-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 text-xs font-bold rounded-xl transition-colors border border-emerald-200/80 dark:border-emerald-800 shadow-sm"
+            >
+              <Download className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+              Audit Logs (CSV)
             </button>
           </div>
         </div>
