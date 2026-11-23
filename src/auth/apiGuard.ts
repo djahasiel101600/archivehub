@@ -8,6 +8,7 @@ const WRITE_ROLES: RoleCode[] = ['ADMIN', 'RECORDS_ADMIN', 'RECORDS_OFFICER'];
 const CATALOG_ROLES: RoleCode[] = ['ADMIN', 'RECORDS_ADMIN'];
 const ADMIN_ONLY: RoleCode[] = ['ADMIN'];
 const CIRCULATION_ROLES: RoleCode[] = ['ADMIN', 'RECORDS_ADMIN', 'RECORDS_OFFICER'];
+const OVERSIGHT_ROLES: RoleCode[] = ['ADMIN', 'RECORDS_ADMIN', 'RECORDS_OFFICER', 'AUDITOR'];
 
 function isPublicApi(req: Request): boolean {
   const path = req.path;
@@ -67,8 +68,15 @@ export async function apiGuard(req: Request, res: Response, next: NextFunction) 
   const role = user.role as RoleCode;
 
   if (req.method === 'GET') {
-    if (req.path === '/api/users' && !hasRole(role, ADMIN_ONLY.concat(['RECORDS_ADMIN', 'AUDITOR']))) {
-      // Department users can see a reduced directory — still authenticated
+    // Full backups and CSV exports contain every record (and user directory):
+    // administrators only.
+    if (req.path === '/api/export' || req.path.startsWith('/api/export/csv')) {
+      return hasRole(role, ADMIN_ONLY) ? next() : forbidden(res, 'Only administrators can export data.');
+    }
+    // Movement history, audit trail and disposal certificates are oversight
+    // material: records staff and auditors only.
+    if (req.path === '/api/movements' || req.path === '/api/audit-logs' || req.path === '/api/disposals') {
+      return hasRole(role, OVERSIGHT_ROLES) ? next() : forbidden(res, 'You do not have permission to view this trail.');
     }
     return next();
   }
@@ -105,8 +113,10 @@ export async function apiGuard(req: Request, res: Response, next: NextFunction) 
     return hasRole(role, WRITE_ROLES) ? next() : forbidden(res);
   }
 
+  // Audit entries are written by the server inside each operation's
+  // transaction; clients must not be able to forge or inject trail records.
   if (req.path === '/api/audit-logs' && req.method === 'POST') {
-    return next();
+    return forbidden(res, 'Audit entries are recorded by the server.');
   }
 
   if (role === 'AUDITOR') {

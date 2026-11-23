@@ -34,13 +34,13 @@ export const LocationPathBreadcrumbs: React.FC<LocationPathBreadcrumbsProps> = (
   const { locations } = useArchive();
   
   if (!locationId) {
-    return <span className="text-slate-400 italic text-sm">Unassigned Storage</span>;
+    return <span className="text-zinc-400 italic text-sm">Unassigned Storage</span>;
   }
 
   const pathNodes = getLocationAncestors(locations, locationId);
 
   if (pathNodes.length === 0) {
-    return <span className="text-slate-400 italic text-sm">Unknown Location ({locationId})</span>;
+    return <span className="text-zinc-400 italic text-sm">Unknown Location ({locationId})</span>;
   }
 
   const renderIcon = (type: LocationType) => {
@@ -55,7 +55,7 @@ export const LocationPathBreadcrumbs: React.FC<LocationPathBreadcrumbsProps> = (
       case 'SHELF': return <Columns className={`${iconClass} text-orange-600 dark:text-orange-400`} />;
       case 'BOX': return <Box className={`${iconClass} text-blue-600 dark:text-blue-400`} />;
       case 'FOLDER': return <Folder className={`${iconClass} text-purple-600 dark:text-purple-400`} />;
-      default: return <MapPin className={`${iconClass} text-slate-600 dark:text-slate-400`} />;
+      default: return <MapPin className={`${iconClass} text-zinc-600 dark:text-zinc-400`} />;
     }
   };
 
@@ -67,7 +67,7 @@ export const LocationPathBreadcrumbs: React.FC<LocationPathBreadcrumbsProps> = (
         return (
           <React.Fragment key={node.id}>
             {index > 0 && (
-              <ChevronRight className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
+              <ChevronRight className="w-3.5 h-3.5 text-zinc-400 flex-shrink-0" />
             )}
             <button
               type="button"
@@ -77,8 +77,8 @@ export const LocationPathBreadcrumbs: React.FC<LocationPathBreadcrumbsProps> = (
                 badgeSize === 'sm' ? 'px-2 py-0.5 text-xs' : 'px-2.5 py-1 text-xs font-medium'
               } ${
                 isLast
-                  ? 'bg-indigo-50 text-indigo-950 font-semibold border border-indigo-200 dark:bg-indigo-950/60 dark:text-indigo-200 dark:border-indigo-800'
-                  : 'bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200/80 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700 dark:hover:bg-slate-700'
+                  ? 'bg-teal-50 text-teal-950 font-semibold border border-teal-200 dark:bg-teal-950/60 dark:text-teal-200 dark:border-teal-800'
+                  : 'bg-zinc-100 text-zinc-700 hover:bg-zinc-200 border border-zinc-200/80 dark:bg-zinc-800 dark:text-zinc-300 dark:border-zinc-700 dark:hover:bg-zinc-700'
               } ${onNodeClick ? 'cursor-pointer' : 'cursor-default'}`}
               title={`${node.type}: ${node.name} (${node.code})`}
             >

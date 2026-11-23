@@ -159,22 +159,22 @@ export const EditDocumentModal: React.FC<EditDocumentModalProps> = ({
     }
   };
 
-  const inputClass = 'w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-900 outline-none focus:border-indigo-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100';
-  const labelClass = 'mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-300';
+  const inputClass = 'input';
+  const labelClass = 'label';
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-3 backdrop-blur-sm sm:p-4">
-      <div className="my-auto flex max-h-[92vh] w-full max-w-3xl flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl dark:border-slate-800 dark:bg-slate-900">
-        <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50 px-6 py-4 dark:border-slate-800 dark:bg-slate-800/50">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950/60 p-3 backdrop-blur-sm sm:p-4 animate-in fade-in">
+      <div className="card my-auto flex max-h-[92vh] w-full max-w-3xl flex-col overflow-hidden" role="dialog" aria-modal="true">
+        <div className="flex items-center justify-between border-b border-zinc-100 px-5 py-4 dark:border-zinc-800 shrink-0">
           <div className="flex min-w-0 items-center gap-3">
-            <FileText className="h-5 w-5 shrink-0 text-indigo-600 dark:text-indigo-400" />
+            <FileText className="h-5 w-5 shrink-0 text-teal-600 dark:text-teal-400" aria-hidden="true" />
             <div className="min-w-0">
-              <h2 className="font-bold text-slate-900 dark:text-slate-100">Edit document</h2>
-              <p className="truncate text-xs text-slate-500">{document.documentNumber}</p>
+              <h2 className="section-title">Edit document</h2>
+              <p className="meta truncate">{document.documentNumber}</p>
             </div>
           </div>
-          <button type="button" onClick={onClose} disabled={isSubmitting} aria-label="Close edit document" className="rounded-lg p-2 text-slate-400 hover:bg-slate-200 hover:text-slate-700 disabled:opacity-50 dark:hover:bg-slate-700 dark:hover:text-slate-200">
-            <X className="h-5 w-5" />
+          <button type="button" onClick={onClose} disabled={isSubmitting} aria-label="Close edit document" className="btn btn-ghost btn-icon btn-sm">
+            <X className="h-4 w-4" aria-hidden="true" />
           </button>
         </div>
 
@@ -190,7 +190,7 @@ export const EditDocumentModal: React.FC<EditDocumentModalProps> = ({
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="sm:col-span-2">
                 <label className={labelClass} htmlFor="edit-document-title">
-                  Title {document.status === 'DRAFT' && draftStatus === 'DRAFT' ? <span className="font-normal text-slate-400">(optional while draft)</span> : '*'}
+                  Title {document.status === 'DRAFT' && draftStatus === 'DRAFT' ? <span className="font-normal text-zinc-400">(optional while draft)</span> : '*'}
                 </label>
                 <input id="edit-document-title" required={document.status !== 'DRAFT' || draftStatus !== 'DRAFT'} maxLength={500} value={title} onChange={event => setTitle(event.target.value)} className={inputClass} />
               </div>
@@ -291,28 +291,28 @@ export const EditDocumentModal: React.FC<EditDocumentModalProps> = ({
                 </div>
               ))}
 
-              <div className="sm:col-span-2 rounded-xl border border-slate-200 p-3 dark:border-slate-700">
+              <div className="sm:col-span-2 rounded-xl border border-zinc-200 p-3 dark:border-zinc-700">
                 <DocumentPhotosEditor photos={photos} onChange={setPhotos} user={currentUser} />
               </div>
 
-              <div className="sm:col-span-2 rounded-xl border border-slate-200 p-3 dark:border-slate-700">
+              <div className="sm:col-span-2 rounded-xl border border-zinc-200 p-3 dark:border-zinc-700">
                 <label className={labelClass}>Digital copy</label>
                 {document.hasDigitalCopy && (
-                  <p className="mb-2 text-xs text-slate-500">Current file: {document.digitalFileName || 'Attached'}{document.digitalFileVersion ? ` (version ${document.digitalFileVersion})` : ''}</p>
+                  <p className="mb-2 text-xs text-zinc-500">Current file: {document.digitalFileName || 'Attached'}{document.digitalFileVersion ? ` (version ${document.digitalFileVersion})` : ''}</p>
                 )}
                 <input ref={digitalFileInputRef} type="file" onChange={event => setPendingDigitalFile(event.target.files?.[0] || null)} className="sr-only" />
-                <button type="button" onClick={() => digitalFileInputRef.current?.click()} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800">
-                  <Upload className="h-4 w-4" /> {pendingDigitalFile ? pendingDigitalFile.name : document.hasDigitalCopy ? 'Replace digital copy' : 'Attach digital copy'}
+                <button type="button" onClick={() => digitalFileInputRef.current?.click()} className="btn btn-secondary btn-sm">
+                  <Upload className="h-4 w-4" aria-hidden="true" /> {pendingDigitalFile ? pendingDigitalFile.name : document.hasDigitalCopy ? 'Replace digital copy' : 'Attach digital copy'}
                 </button>
               </div>
             </div>
           </div>
 
-          <div className="flex justify-end gap-2 border-t border-slate-100 bg-slate-50 px-5 py-4 dark:border-slate-800 dark:bg-slate-800/50 sm:px-6">
-            <button type="button" onClick={onClose} disabled={isSubmitting} className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200">
+          <div className="flex justify-end gap-2 border-t border-zinc-100 bg-zinc-50 px-5 py-4 dark:border-zinc-800 dark:bg-zinc-800/50 shrink-0">
+            <button type="button" onClick={onClose} disabled={isSubmitting} className="btn btn-secondary">
               Cancel
             </button>
-            <button type="submit" disabled={isSubmitting || !documentTypeId || !homeLocationId} className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-5 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50">
+            <button type="submit" disabled={isSubmitting || !documentTypeId || !homeLocationId} className="btn btn-primary">
               {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
               {isSubmitting ? 'Saving...' : document.status === 'DRAFT' && draftStatus === 'DRAFT' ? 'Save draft' : 'Save changes'}
             </button>

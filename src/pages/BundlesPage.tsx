@@ -129,30 +129,30 @@ export const BundlesPage: React.FC = () => {
     switch (status) {
       case 'ACTIVE':
         return (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800/50">
+          <span className="chip rounded-full text-xs bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800/50">
             <CheckCircle2 className="w-3 h-3" /> Active
           </span>
         );
       case 'ARCHIVED':
         return (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full bg-slate-100 text-slate-600 border border-slate-300 dark:bg-slate-800 dark:text-slate-400">
+          <span className="chip rounded-full text-xs bg-zinc-100 text-zinc-600 border border-zinc-300 dark:bg-zinc-800 dark:text-zinc-400">
             <Archive className="w-3 h-3" /> Archived
           </span>
         );
       case 'SEALED':
         return (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full bg-purple-50 text-purple-700 border border-purple-200 dark:bg-purple-950/40 dark:text-purple-400 dark:border-purple-800/50">
+          <span className="chip rounded-full text-xs bg-violet-50 text-violet-700 border border-violet-200 dark:bg-violet-950/40 dark:text-violet-400 dark:border-violet-800/50">
             <Lock className="w-3 h-3" /> Sealed
           </span>
         );
       case 'CHECKED_OUT':
         return (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-800/50">
+          <span className="chip rounded-full text-xs bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-800/50">
             <ArrowRightLeft className="w-3 h-3" /> Checked Out
           </span>
         );
       default:
-        return <span className="px-2 py-0.5 text-xs rounded-full bg-slate-100 text-slate-600">{status}</span>;
+        return <span className="px-2 py-0.5 text-xs rounded-full bg-zinc-100 text-zinc-600">{status}</span>;
     }
   };
 
@@ -195,7 +195,7 @@ export const BundlesPage: React.FC = () => {
           <button
             type="button"
             onClick={() => setShowNewBundleModal(true)}
-            className="inline-flex min-h-11 items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 transition-colors"
+            className="btn btn-primary"
           >
             <Plus className="w-4 h-4" aria-hidden="true" />
             New bundle
@@ -203,62 +203,83 @@ export const BundlesPage: React.FC = () => {
         }
       />
 
-      {/* KPI Stats Row */}
+      {/* KPI Stats Row — clicking a status card applies that filter */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3">
+        <button
+          type="button"
+          onClick={() => setStatusFilter('')}
+          aria-pressed={statusFilter === ''}
+          className={`card p-3 text-left transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-800/60 ${statusFilter === '' ? 'ring-2 ring-teal-500/40' : ''}`}
+        >
           <div className="flex items-center gap-2">
-            <Package className="w-4 h-4 text-indigo-500" />
-            <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Total Bundles</span>
+            <Package className="w-4 h-4 text-teal-500" aria-hidden="true" />
+            <span className="meta">Total bundles</span>
           </div>
-          <p className="text-2xl font-extrabold text-slate-900 dark:text-white mt-1">{totalBundles}</p>
-        </div>
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3">
+          <p className="text-2xl font-semibold text-zinc-900 dark:text-white mt-1">{totalBundles}</p>
+        </button>
+        <button
+          type="button"
+          onClick={() => setStatusFilter(statusFilter === 'ACTIVE' ? '' : 'ACTIVE')}
+          aria-pressed={statusFilter === 'ACTIVE'}
+          className={`card p-3 text-left transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-800/60 ${statusFilter === 'ACTIVE' ? 'ring-2 ring-teal-500/40' : ''}`}
+        >
           <div className="flex items-center gap-2">
-            <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-            <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Active</span>
+            <CheckCircle2 className="w-4 h-4 text-emerald-500" aria-hidden="true" />
+            <span className="meta">Active</span>
           </div>
-          <p className="text-2xl font-extrabold text-emerald-600 dark:text-emerald-400 mt-1">{activeBundles}</p>
-        </div>
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3">
+          <p className="text-2xl font-semibold text-emerald-600 dark:text-emerald-400 mt-1">{activeBundles}</p>
+        </button>
+        <button
+          type="button"
+          onClick={() => setStatusFilter(statusFilter === 'ARCHIVED' ? '' : 'ARCHIVED')}
+          aria-pressed={statusFilter === 'ARCHIVED'}
+          className={`card p-3 text-left transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-800/60 ${statusFilter === 'ARCHIVED' ? 'ring-2 ring-teal-500/40' : ''}`}
+        >
           <div className="flex items-center gap-2">
-            <Archive className="w-4 h-4 text-slate-400" />
-            <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Archived</span>
+            <Archive className="w-4 h-4 text-zinc-400" aria-hidden="true" />
+            <span className="meta">Archived</span>
           </div>
-          <p className="text-2xl font-extrabold text-slate-600 dark:text-slate-400 mt-1">{archivedBundles}</p>
-        </div>
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3">
+          <p className="text-2xl font-semibold text-zinc-600 dark:text-zinc-400 mt-1">{archivedBundles}</p>
+        </button>
+        <button
+          type="button"
+          onClick={() => setStatusFilter(statusFilter === 'SEALED' ? '' : 'SEALED')}
+          aria-pressed={statusFilter === 'SEALED'}
+          className={`card p-3 text-left transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-800/60 ${statusFilter === 'SEALED' ? 'ring-2 ring-teal-500/40' : ''}`}
+        >
           <div className="flex items-center gap-2">
-            <Lock className="w-4 h-4 text-purple-500" />
-            <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Sealed</span>
+            <Lock className="w-4 h-4 text-violet-500" aria-hidden="true" />
+            <span className="meta">Sealed</span>
           </div>
-          <p className="text-2xl font-extrabold text-purple-600 dark:text-purple-400 mt-1">{sealedBundles}</p>
-        </div>
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3 col-span-2 sm:col-span-1">
+          <p className="text-2xl font-semibold text-violet-600 dark:text-violet-400 mt-1">{sealedBundles}</p>
+        </button>
+        <div className="card p-3 col-span-2 sm:col-span-1">
           <div className="flex items-center gap-2">
-            <FileText className="w-4 h-4 text-blue-500" />
-            <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Docs Bundled</span>
+            <FileText className="w-4 h-4 text-sky-500" aria-hidden="true" />
+            <span className="meta">Docs bundled</span>
           </div>
-          <p className="text-2xl font-extrabold text-blue-600 dark:text-blue-400 mt-1">{totalDocsInBundles}</p>
+          <p className="text-2xl font-semibold text-sky-600 dark:text-sky-400 mt-1">{totalDocsInBundles}</p>
         </div>
       </div>
 
       {/* Search & Filter Toolbar */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3 space-y-3">
+      <div className="card p-3 space-y-3">
         <div className="flex flex-col sm:flex-row gap-3">
           {/* Search */}
           <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+            <Search className="absolute left-3 top-1/2 -tranzinc-y-1/2 w-4 h-4 text-zinc-400" />
             <input
               type="text"
               placeholder="Search bundles by code, title, department, or tags..."
+              aria-label="Search bundles"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-9 pr-3 py-2.5 text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 dark:text-slate-200 transition-colors"
+              className="input pl-9"
             />
             {searchQuery && (
               <button
                 onClick={() => setSearchQuery('')}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                className="absolute right-3 top-1/2 -tranzinc-y-1/2 text-zinc-400 hover:text-zinc-600"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -267,11 +288,12 @@ export const BundlesPage: React.FC = () => {
 
           {/* Status Filter */}
           <div className="flex items-center gap-2">
-            <Filter className="w-4 h-4 text-slate-400 flex-shrink-0" />
+            <Filter className="w-4 h-4 text-zinc-400 flex-shrink-0" />
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              className="px-3 py-2.5 text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-indigo-500 dark:text-slate-200 min-w-[140px]"
+              aria-label="Filter by status"
+              className="input w-auto min-w-[140px]"
             >
               <option value="">All Statuses</option>
               <option value="ACTIVE">Active</option>
@@ -284,13 +306,13 @@ export const BundlesPage: React.FC = () => {
 
         {(searchQuery || statusFilter) && (
           <div className="flex items-center gap-2 pt-1">
-            <span className="text-xs text-slate-500">
+            <span className="meta">
               Showing {filteredBundles.length} of {totalBundles} bundles
             </span>
             {(searchQuery || statusFilter) && (
               <button
                 onClick={() => { setSearchQuery(''); setStatusFilter(''); }}
-                className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline font-medium"
+                className="btn btn-ghost btn-xs text-teal-600 dark:text-teal-400"
               >
                 Clear all filters
               </button>
@@ -301,12 +323,12 @@ export const BundlesPage: React.FC = () => {
 
       {/* Bundles Table */}
       {filteredBundles.length === 0 ? (
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-12 text-center">
-          <Layers className="w-12 h-12 text-slate-300 dark:text-slate-600 mx-auto mb-3" />
-          <h3 className="text-lg font-bold text-slate-500 dark:text-slate-400">
-            {bundles.length === 0 ? 'No Bundles Created Yet' : 'No Bundles Match Your Search'}
+        <div className="card empty-state py-12">
+          <Layers className="w-10 h-10 text-zinc-300 dark:text-zinc-600" aria-hidden="true" />
+          <h3 className="text-base font-semibold text-zinc-700 dark:text-zinc-300">
+            {bundles.length === 0 ? 'No bundles created yet' : 'No bundles match your search'}
           </h3>
-          <p className="text-sm text-slate-400 dark:text-slate-500 mt-1 max-w-md mx-auto">
+          <p className="max-w-md">
             {bundles.length === 0
               ? 'Create bundles from the Document Catalogue by selecting documents and clicking "Bundle Selected".'
               : 'Try adjusting your search terms or clearing the status filter.'
@@ -315,49 +337,49 @@ export const BundlesPage: React.FC = () => {
           {bundles.length === 0 && (
             <button
               onClick={() => setActiveTab('documents')}
-              className="mt-4 inline-flex items-center gap-1.5 px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-xl hover:bg-indigo-700 transition-colors"
+              className="btn btn-primary btn-sm mt-2"
             >
-              <FileText className="w-4 h-4" />
+              <FileText className="w-4 h-4" aria-hidden="true" />
               Go to Document Catalogue
             </button>
           )}
         </div>
       ) : (
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden shadow-sm">
+        <div className="card overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-700">
+                <tr className="bg-zinc-50 dark:bg-zinc-800/60 border-b border-zinc-200 dark:border-zinc-700">
                   <th className="w-10 px-3 py-3 text-center">
                     <span className="sr-only">Expand</span>
                   </th>
                   <th className="w-12 px-2 py-3 text-center">
-                    <ImageIcon className="w-3.5 h-3.5 text-slate-400 mx-auto" />
+                    <ImageIcon className="w-3.5 h-3.5 text-zinc-400 mx-auto" />
                   </th>
-                  <th className="px-3 py-3 text-left text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                  <th className="th">
                     Bundle Code
                   </th>
-                  <th className="px-3 py-3 text-left text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                  <th className="th">
                     Title & Description
                   </th>
-                  <th className="px-3 py-3 text-left text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider hidden lg:table-cell">
+                  <th className="th hidden lg:table-cell">
                     Department
                   </th>
-                  <th className="px-3 py-3 text-left text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider hidden md:table-cell">
+                  <th className="th hidden md:table-cell">
                     Location
                   </th>
-                  <th className="px-3 py-3 text-center text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                  <th className="th text-center">
                     Docs
                   </th>
-                  <th className="px-3 py-3 text-center text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                  <th className="th text-center">
                     Status
                   </th>
-                  <th className="px-3 py-3 text-right text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                  <th className="th text-right">
                     Actions
                   </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+              <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
                 {filteredBundles.map(bundle => {
                   const isExpanded = expandedBundleIds.has(bundle.id);
                   const bundleDocs = getBundleDocuments(bundle);
@@ -366,12 +388,12 @@ export const BundlesPage: React.FC = () => {
                   return (
                     <React.Fragment key={bundle.id}>
                       {/* Bundle Row */}
-                      <tr className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors group">
+                      <tr className="hover:bg-zinc-50/50 dark:hover:bg-zinc-800/30 transition-colors group">
                         {/* Expand Toggle */}
                         <td className="px-3 py-3 text-center">
                           <button
                             onClick={() => toggleExpand(bundle.id)}
-                            className="p-1 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
+                            className="p-1 rounded-lg hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
                           >
                             {isExpanded ? (
                               <ChevronDown className="w-4 h-4" />
@@ -387,32 +409,32 @@ export const BundlesPage: React.FC = () => {
                             <img
                               src={bundle.imageUrl}
                               alt={bundle.title}
-                              className="w-9 h-9 rounded-lg object-cover border border-slate-200 dark:border-slate-700 shadow-sm mx-auto cursor-zoom-in"
+                              className="w-9 h-9 rounded-lg object-cover border border-zinc-200 dark:border-zinc-700 shadow-sm mx-auto cursor-zoom-in"
                               referrerPolicy="no-referrer"
                               onMouseEnter={(e) => showImagePreview(e, bundle)}
                               onMouseLeave={hideImagePreview}
                             />
                           ) : (
-                            <div className="w-9 h-9 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center mx-auto">
-                              <Package className="w-4 h-4 text-slate-300 dark:text-slate-600" />
+                            <div className="w-9 h-9 rounded-lg bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 flex items-center justify-center mx-auto">
+                              <Package className="w-4 h-4 text-zinc-300 dark:text-zinc-600" />
                             </div>
                           )}
                         </td>
                         
                         {/* Bundle Code */}
                         <td className="px-3 py-3">
-                          <span className="font-mono font-bold text-xs text-indigo-600 dark:text-indigo-400">
+                          <span className="font-mono font-bold text-xs text-teal-600 dark:text-teal-400">
                             {bundle.bundleNumber}
                           </span>
                         </td>
 
                         {/* Title & Description */}
                         <td className="px-3 py-3 max-w-xs">
-                          <div className="font-semibold text-slate-900 dark:text-slate-100 truncate">
+                          <div className="font-semibold text-zinc-900 dark:text-zinc-100 truncate">
                             {bundle.title}
                           </div>
                           {bundle.description && (
-                            <div className="text-xs text-slate-500 dark:text-slate-400 truncate mt-0.5">
+                            <div className="text-xs text-zinc-500 dark:text-zinc-400 truncate mt-0.5">
                               {bundle.description}
                             </div>
                           )}
@@ -421,13 +443,13 @@ export const BundlesPage: React.FC = () => {
                               {bundle.tags.slice(0, 3).map(tag => (
                                 <span
                                   key={tag}
-                                  className="px-1.5 py-0.5 text-[10px] font-medium rounded bg-indigo-50 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400"
+                                  className="px-1.5 py-0.5 text-[10px] font-medium rounded bg-teal-50 text-teal-600 dark:bg-teal-900/30 dark:text-teal-400"
                                 >
                                   {tag}
                                 </span>
                               ))}
                               {bundle.tags.length > 3 && (
-                                <span className="text-[10px] text-slate-400">+{bundle.tags.length - 3}</span>
+                                <span className="text-[10px] text-zinc-400">+{bundle.tags.length - 3}</span>
                               )}
                             </div>
                           )}
@@ -435,7 +457,7 @@ export const BundlesPage: React.FC = () => {
 
                         {/* Department */}
                         <td className="px-3 py-3 hidden lg:table-cell">
-                          <span className="text-xs text-slate-600 dark:text-slate-400">
+                          <span className="text-xs text-zinc-600 dark:text-zinc-400">
                             {bundle.departmentName}
                           </span>
                         </td>
@@ -447,13 +469,13 @@ export const BundlesPage: React.FC = () => {
                               <LocationPathBreadcrumbs locationId={bundle.locationId} badgeSize="sm" />
                             </div>
                           ) : (
-                            <span className="text-xs text-slate-400 italic">No location set</span>
+                            <span className="text-xs text-zinc-400 italic">No location set</span>
                           )}
                         </td>
 
                         {/* Document Count */}
                         <td className="px-3 py-3 text-center">
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-bold rounded-full bg-blue-50 text-blue-700 border border-blue-200 dark:bg-blue-950/40 dark:text-blue-400 dark:border-blue-800/50">
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-bold rounded-full bg-sky-50 text-sky-700 border border-sky-200 dark:bg-sky-950/40 dark:text-sky-400 dark:border-sky-800/50">
                             <FileText className="w-3 h-3" />
                             {bundle.documentIds.length}
                           </span>
@@ -470,37 +492,42 @@ export const BundlesPage: React.FC = () => {
                             <button
                               onClick={() => setScanFillingBundle(bundle)}
                               title="Scan Documents In (QR)"
-                              className="p-1.5 rounded-lg text-amber-600 hover:bg-amber-50 dark:text-amber-400 dark:hover:bg-amber-900/30 transition-colors"
+                              aria-label={`Scan documents into ${bundle.bundleNumber}`}
+                              className="btn btn-ghost btn-icon btn-xs text-amber-600 dark:text-amber-400"
                             >
-                              <ScanLine className="w-4 h-4" />
+                              <ScanLine className="w-4 h-4" aria-hidden="true" />
                             </button>
                             <button
                               onClick={() => setRelocatingBundle(bundle)}
                               title="Relocate Bundle"
-                              className="p-1.5 rounded-lg text-emerald-600 hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-900/30 transition-colors"
+                              aria-label={`Relocate ${bundle.bundleNumber}`}
+                              className="btn btn-ghost btn-icon btn-xs text-emerald-600 dark:text-emerald-400"
                             >
-                              <Truck className="w-4 h-4" />
+                              <Truck className="w-4 h-4" aria-hidden="true" />
                             </button>
                             <button
                               onClick={() => setQrModalBundle(bundle)}
                               title="View / Print QR Code"
-                              className="p-1.5 rounded-lg text-indigo-600 hover:bg-indigo-50 dark:text-indigo-400 dark:hover:bg-indigo-900/30 transition-colors"
+                              aria-label={`Print tag for ${bundle.bundleNumber}`}
+                              className="btn btn-ghost btn-icon btn-xs text-teal-600 dark:text-teal-400"
                             >
-                              <QrCode className="w-4 h-4" />
+                              <QrCode className="w-4 h-4" aria-hidden="true" />
                             </button>
                             <button
                               onClick={() => setEditingBundle(bundle)}
                               title="Edit Bundle"
-                              className="p-1.5 rounded-lg text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-700/50 transition-colors"
+                              aria-label={`Edit ${bundle.bundleNumber}`}
+                              className="btn btn-ghost btn-icon btn-xs"
                             >
-                              <Edit3 className="w-4 h-4" />
+                              <Edit3 className="w-4 h-4" aria-hidden="true" />
                             </button>
                             <button
                               onClick={() => setDeleteConfirm(bundle)}
                               title="Dissolve Bundle"
-                              className="p-1.5 rounded-lg text-rose-500 hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-rose-900/30 transition-colors"
+                              aria-label={`Dissolve ${bundle.bundleNumber}`}
+                              className="btn btn-ghost btn-icon btn-xs hover:text-rose-600"
                             >
-                              <Trash2 className="w-4 h-4" />
+                              <Trash2 className="w-4 h-4" aria-hidden="true" />
                             </button>
                           </div>
                         </td>
@@ -508,33 +535,33 @@ export const BundlesPage: React.FC = () => {
 
                       {/* Expanded Documents Section */}
                       {isExpanded && (
-                        <tr className="bg-slate-50/60 dark:bg-slate-800/20">
+                        <tr className="bg-zinc-50/60 dark:bg-zinc-800/20">
                           <td colSpan={9} className="px-3 py-3">
                             <div className="ml-8 space-y-2">
                               {/* Expanded header */}
                               <div className="flex items-center justify-between mb-2">
                                 <div className="flex items-center gap-3">
-                                  <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-                                    Documents in this Bundle
+                                  <span className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+                                    Documents in this bundle
                                   </span>
-                                  <span className="text-xs text-slate-400">
+                                  <span className="meta">
                                     ({bundleDocs.length} document{bundleDocs.length !== 1 ? 's' : ''})
                                   </span>
                                 </div>
                                 <div className="flex items-center gap-2">
                                   <button
                                     onClick={() => selectAllBundleDocs(bundle)}
-                                    className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline font-medium"
+                                    className="btn btn-ghost btn-xs text-teal-600 dark:text-teal-400"
                                   >
-                                    {allDocsSelected ? 'Deselect All' : 'Select All'}
+                                    {allDocsSelected ? 'Deselect all' : 'Select all'}
                                   </button>
                                   {bundle.documentIds.some(id => selectedDocIds.has(id)) && (
                                     <button
                                       onClick={() => setRelocatingBundle(bundle)}
-                                      className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors"
+                                      className="btn btn-xs bg-emerald-600 text-white hover:bg-emerald-700"
                                     >
-                                      <Truck className="w-3 h-3" />
-                                      Relocate Selected ({bundle.documentIds.filter(id => selectedDocIds.has(id)).length})
+                                      <Truck className="w-3 h-3" aria-hidden="true" />
+                                      Relocate selected ({bundle.documentIds.filter(id => selectedDocIds.has(id)).length})
                                     </button>
                                   )}
                                 </div>
@@ -542,16 +569,16 @@ export const BundlesPage: React.FC = () => {
 
                               {/* Mobile location display */}
                               {bundle.locationId && (
-                                <div className="md:hidden mb-2 p-2 bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700">
-                                  <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider block mb-1">
-                                    Location:
+                                <div className="md:hidden mb-2 p-2 bg-white dark:bg-zinc-900 rounded-lg border border-zinc-200 dark:border-zinc-700">
+                                  <span className="meta block mb-1">
+                                    Location
                                   </span>
                                   <LocationPathBreadcrumbs locationId={bundle.locationId} badgeSize="sm" />
                                 </div>
                               )}
 
                               {bundleDocs.length === 0 ? (
-                                <p className="text-xs text-slate-400 italic py-2">
+                                <p className="text-xs text-zinc-400 italic py-2">
                                   No documents found in this bundle.
                                 </p>
                               ) : (
@@ -563,8 +590,8 @@ export const BundlesPage: React.FC = () => {
                                         key={doc.id}
                                         className={`flex items-center gap-3 p-2 rounded-lg transition-colors cursor-pointer ${
                                           isSelected
-                                            ? 'bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-800/50'
-                                            : 'bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50'
+                                            ? 'bg-teal-50 dark:bg-teal-900/20 border border-teal-200 dark:border-teal-800/50'
+                                            : 'bg-white dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-800/50'
                                         }`}
                                         onClick={() => toggleDocSelection(doc.id)}
                                       >
@@ -573,12 +600,12 @@ export const BundlesPage: React.FC = () => {
                                           checked={isSelected}
                                           onChange={() => toggleDocSelection(doc.id)}
                                           onClick={(e) => e.stopPropagation()}
-                                          className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                                          className="w-4 h-4 rounded border-zinc-300 text-teal-600 focus:ring-teal-500"
                                         />
-                                        <span className="font-mono text-[11px] font-bold text-indigo-600 dark:text-indigo-400 min-w-[80px]">
+                                        <span className="font-mono text-[11px] font-bold text-teal-600 dark:text-teal-400 min-w-[80px]">
                                           {doc.documentNumber}
                                         </span>
-                                        <span className="text-xs font-medium text-slate-700 dark:text-slate-300 flex-1 truncate">
+                                        <span className="text-xs font-medium text-zinc-700 dark:text-zinc-300 flex-1 truncate">
                                           {doc.title}
                                         </span>
                                         <span className={`inline-flex items-center px-1.5 py-0.5 text-[10px] font-medium rounded-full flex-shrink-0 ${
@@ -586,7 +613,7 @@ export const BundlesPage: React.FC = () => {
                                             ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400'
                                             : doc.status === 'CHECKED_OUT'
                                             ? 'bg-amber-50 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400'
-                                            : 'bg-slate-100 text-slate-500'
+                                            : 'bg-zinc-100 text-zinc-500'
                                         }`}>
                                           {doc.status.replace('_', ' ')}
                                         </span>
@@ -596,10 +623,11 @@ export const BundlesPage: React.FC = () => {
                                             setActiveTab('documents');
                                             // Note: Could add document selection callback here
                                           }}
-                                          className="p-1 text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors flex-shrink-0"
+                                          className="btn btn-ghost btn-icon btn-xs shrink-0"
                                           title="View document in catalogue"
+                                          aria-label="View document in catalogue"
                                         >
-                                          <Eye className="w-3.5 h-3.5" />
+                                          <Eye className="w-3.5 h-3.5" aria-hidden="true" />
                                         </button>
                                       </div>
                                     );
@@ -608,12 +636,12 @@ export const BundlesPage: React.FC = () => {
                               )}
 
                               {/* Bundle metadata */}
-                              <div className="flex flex-wrap items-center gap-4 mt-3 pt-2 border-t border-slate-200 dark:border-slate-700 text-[11px] text-slate-500">
+                              <div className="flex flex-wrap items-center gap-4 mt-3 pt-2 border-t border-zinc-200 dark:border-zinc-700 text-[11px] text-zinc-500">
                                 {bundle.imageUrl && (
                                   <img
                                     src={bundle.imageUrl}
                                     alt={bundle.title}
-                                    className="w-16 h-16 rounded-xl object-cover border border-slate-200 dark:border-slate-700 shadow-sm cursor-zoom-in"
+                                    className="w-16 h-16 rounded-lg object-cover border border-zinc-200 dark:border-zinc-700 cursor-zoom-in"
                                     referrerPolicy="no-referrer"
                                     onMouseEnter={(e) => showImagePreview(e, bundle)}
                                     onMouseLeave={hideImagePreview}
@@ -642,14 +670,14 @@ export const BundlesPage: React.FC = () => {
           className="fixed z-[100] pointer-events-none"
           style={{ left: imagePreview.x, top: imagePreview.y, width: PREVIEW_WIDTH }}
         >
-          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-2xl overflow-hidden">
+          <div className="card rounded-xl shadow-lg overflow-hidden">
             <img
               src={imagePreview.src}
               alt={imagePreview.title}
-              className="w-full max-h-64 object-contain bg-slate-50 dark:bg-slate-800"
+              className="w-full max-h-64 object-contain bg-zinc-50 dark:bg-zinc-800"
               referrerPolicy="no-referrer"
             />
-            <div className="px-3 py-2 text-xs font-semibold text-slate-600 dark:text-slate-300 border-t border-slate-100 dark:border-slate-800 truncate">
+            <div className="px-3 py-2 text-xs font-semibold text-zinc-600 dark:text-zinc-300 border-t border-zinc-100 dark:border-zinc-800 truncate">
               {imagePreview.title}
             </div>
           </div>
@@ -776,50 +804,50 @@ const EditBundleInlineModal: React.FC<EditBundleInlineModalProps> = ({ bundle, o
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="fixed inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 w-full max-w-lg max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between p-5 border-b border-slate-200 dark:border-slate-700">
+      <div className="relative card w-full max-w-lg max-h-[90vh] overflow-y-auto" role="dialog" aria-modal="true" aria-label="Edit bundle">
+        <div className="flex items-center justify-between p-5 border-b border-zinc-100 dark:border-zinc-800">
           <div className="flex items-center gap-2">
-            <Edit3 className="w-5 h-5 text-indigo-600" />
-            <h3 className="text-lg font-bold text-slate-900 dark:text-white">Edit Bundle</h3>
+            <Edit3 className="w-4 h-4 text-teal-600 dark:text-teal-400" aria-hidden="true" />
+            <h3 className="section-title">Edit bundle</h3>
           </div>
-          <button onClick={onClose} className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">
-            <X className="w-5 h-5" />
+          <button onClick={onClose} className="btn btn-ghost btn-icon btn-sm" aria-label="Close dialog">
+            <X className="w-4 h-4" aria-hidden="true" />
           </button>
         </div>
 
         <div className="p-5 space-y-4">
-          <div className="bg-slate-50 dark:bg-slate-800 rounded-lg p-3 text-xs">
-            <span className="font-mono font-bold text-indigo-600 dark:text-indigo-400">{bundle.bundleNumber}</span>
-            <span className="text-slate-500 ml-2">{bundle.documentIds.length} document(s)</span>
+          <div className="bg-zinc-50 dark:bg-zinc-800 rounded-lg p-3 text-xs">
+            <span className="font-mono font-bold text-teal-600 dark:text-teal-400">{bundle.bundleNumber}</span>
+            <span className="text-zinc-500 ml-2">{bundle.documentIds.length} document(s)</span>
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1.5">Title</label>
+            <label className="label">Title</label>
             <input
               type="text"
               value={title}
               onChange={e => setTitle(e.target.value)}
-              className="w-full px-3 py-2.5 text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-indigo-500 dark:text-slate-200"
+              className="input"
             />
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1.5">Description</label>
+            <label className="label">Description</label>
             <textarea
               value={description}
               onChange={e => setDescription(e.target.value)}
               rows={2}
-              className="w-full px-3 py-2.5 text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-indigo-500 dark:text-slate-200 resize-none"
+              className="input resize-none"
             />
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1.5">Department</label>
+              <label className="label">Department</label>
               <select
                 value={departmentId}
                 onChange={e => setDepartmentId(e.target.value)}
-                className="w-full px-3 py-2.5 text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-indigo-500 dark:text-slate-200"
+                className="input"
               >
                 {departments.map(d => (
                   <option key={d.id} value={d.id}>{d.name}</option>
@@ -827,11 +855,11 @@ const EditBundleInlineModal: React.FC<EditBundleInlineModalProps> = ({ bundle, o
               </select>
             </div>
             <div>
-              <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1.5">Status</label>
+              <label className="label">Status</label>
               <select
                 value={status}
                 onChange={e => setStatus(e.target.value as DocumentBundle['status'])}
-                className="w-full px-3 py-2.5 text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-indigo-500 dark:text-slate-200"
+                className="input"
               >
                 <option value="ACTIVE">Active</option>
                 <option value="ARCHIVED">Archived</option>
@@ -842,13 +870,13 @@ const EditBundleInlineModal: React.FC<EditBundleInlineModalProps> = ({ bundle, o
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1.5">
+            <label className="label">
               Storage Location
             </label>
             <select
               value={locationId}
               onChange={e => setLocationId(e.target.value)}
-              className="w-full px-3 py-2.5 text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-indigo-500 dark:text-slate-200"
+              className="input"
             >
               <option value="">— No location set —</option>
               {locations.map(l => (
@@ -864,19 +892,19 @@ const EditBundleInlineModal: React.FC<EditBundleInlineModalProps> = ({ bundle, o
           />
         </div>
 
-        <div className="flex items-center justify-end gap-2 p-5 border-t border-slate-200 dark:border-slate-700">
+        <div className="flex items-center justify-end gap-2 p-5 border-t border-zinc-100 dark:border-zinc-800">
           <button
             onClick={onClose}
-            className="px-4 py-2 text-sm font-medium text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-xl transition-colors"
+            className="btn btn-secondary"
           >
             Cancel
           </button>
           <button
             onClick={handleSave}
             disabled={saving || !title.trim()}
-            className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl transition-colors disabled:opacity-50"
+            className="btn btn-primary"
           >
-            {saving ? 'Saving...' : 'Save Changes'}
+            {saving ? 'Saving...' : 'Save changes'}
           </button>
         </div>
       </div>

@@ -96,6 +96,8 @@ export interface ReusableCustomField {
   required?: boolean;
   description?: string;
   category?: string; // e.g. "Financial", "Engineering", "Legal", "Procurement", "General"
+  departmentId?: string; // owning department scope; absent/'ALL' = universal
+  isGlobal?: boolean; // true when available to all departments
   createdAt?: string;
 }
 
@@ -303,7 +305,7 @@ export interface AuditLogRecord {
   userName: string;
   userRole: string;
   action: string; // e.g. "DOCUMENT_CREATED", "LOCATION_MOVED", "CHECKOUT_APPROVED"
-  entityType: 'DOCUMENT' | 'LOCATION' | 'CHECKOUT' | 'USER' | 'RETENTION';
+  entityType: 'DOCUMENT' | 'LOCATION' | 'CHECKOUT' | 'USER' | 'RETENTION' | 'BUNDLE';
   entityId: string;
   entityName: string;
   timestamp: string;

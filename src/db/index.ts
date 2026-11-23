@@ -13,6 +13,21 @@ let poolInstance: pg.Pool | null = null;
 let dbInstance: ReturnType<typeof drizzle> | null = null;
 let isDbConnectedFlag = false;
 
+// .env is parsed once and cached — getDatabaseUrl() runs on every pool access
+// and must not hit the filesystem per query.
+let cachedEnvFile: Record<string, string> | null | undefined;
+function readEnvFile(): Record<string, string> | null {
+  if (cachedEnvFile !== undefined) return cachedEnvFile;
+  try {
+    const envPath = path.resolve(process.cwd(), '.env');
+    cachedEnvFile = fs.existsSync(envPath) ? dotenv.parse(fs.readFileSync(envPath)) : null;
+  } catch (err) {
+    console.warn('[Database] Failed to parse .env file directly:', err);
+    cachedEnvFile = null;
+  }
+  return cachedEnvFile;
+}
+
 // Reads a variable from the .env file first, then falls back to process.env.
 function readEnvVar(parsed: Record<string, string> | null, name: string): string | undefined {
   const value = (parsed && parsed[name] !== undefined ? parsed[name] : process.env[name]) || '';
@@ -21,28 +36,13 @@ function readEnvVar(parsed: Record<string, string> | null, name: string): string
 
 // Resolves the active database provider: "supabase" | "local" (defaults to supabase).
 export function getDbProvider(): 'supabase' | 'local' {
-  try {
-    const envPath = path.resolve(process.cwd(), '.env');
-    if (fs.existsSync(envPath)) {
-      const raw = dotenv.parse(fs.readFileSync(envPath)).DB_PROVIDER;
-      if (raw) return raw.toLowerCase() === 'local' ? 'local' : 'supabase';
-    }
-  } catch (err) {
-    console.warn('[Database] Failed to parse .env file directly:', err);
-  }
+  const raw = readEnvFile()?.DB_PROVIDER;
+  if (raw) return raw.toLowerCase() === 'local' ? 'local' : 'supabase';
   return (process.env.DB_PROVIDER || '').toLowerCase() === 'local' ? 'local' : 'supabase';
 }
 
 export function getDatabaseUrl(): string | undefined {
-  let parsed: Record<string, string> | null = null;
-  try {
-    const envPath = path.resolve(process.cwd(), '.env');
-    if (fs.existsSync(envPath)) {
-      parsed = dotenv.parse(fs.readFileSync(envPath));
-    }
-  } catch (err) {
-    console.warn('[Database] Failed to parse .env file directly:', err);
-  }
+  const parsed = readEnvFile();
 
   // DB_PROVIDER=local | supabase selects which connection string is used.
   const provider = getDbProvider();

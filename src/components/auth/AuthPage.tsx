@@ -204,9 +204,9 @@ export const AuthPage: React.FC = () => {
                   setSignInError('');
                   setIsPendingError(false);
                 }}
-                className="w-full py-3 px-4 bg-indigo-600 hover:bg-indigo-500 font-bold text-xs text-white rounded-xl transition-all shadow-lg shadow-indigo-600/30 flex items-center justify-center gap-2"
+                className="btn btn-primary w-full h-11"
               >
-                <ArrowRight className="w-4 h-4" />
+                <ArrowRight className="w-4 h-4" aria-hidden="true" />
                 Return to Sign In
               </button>
             </div>
@@ -308,9 +308,9 @@ export const AuthPage: React.FC = () => {
                   <button
                     type="submit"
                     disabled={isSubmitting}
-                    className="w-full py-3 px-4 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 font-bold text-xs text-white rounded-xl transition-all shadow-lg shadow-indigo-600/30 flex items-center justify-center gap-2"
+                    className="btn btn-primary w-full h-11"
                   >
-                    <LogIn className="w-4 h-4" />
+                    <LogIn className="w-4 h-4" aria-hidden="true" />
                     {isSubmitting ? 'Signing In...' : 'Sign In to ArchiveHub'}
                   </button>
                 </form>
@@ -449,9 +449,9 @@ export const AuthPage: React.FC = () => {
                   <button
                     type="submit"
                     disabled={isSubmitting}
-                    className="w-full py-3 px-4 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 font-bold text-xs text-white rounded-xl transition-all shadow-lg shadow-indigo-600/30 flex items-center justify-center gap-2"
+                    className="btn btn-primary w-full h-11"
                   >
-                    <UserPlus className="w-4 h-4" />
+                    <UserPlus className="w-4 h-4" aria-hidden="true" />
                     {isSubmitting ? 'Submitting Registration...' : 'Submit Account for Admin Approval'}
                   </button>
                 </form>

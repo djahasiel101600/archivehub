@@ -118,19 +118,19 @@ export const PhotoUploader: React.FC<PhotoUploaderProps> = ({
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between">
-        <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+        <label className="label">
           {label}
         </label>
         
         {/* Toggle Mode Buttons */}
-        <div className="inline-flex p-0.5 bg-slate-100 dark:bg-slate-800 rounded-lg text-[10px] font-medium">
+        <div className="inline-flex p-0.5 bg-zinc-100 dark:bg-zinc-800 rounded-lg text-[10px] font-medium">
           <button
             type="button"
             onClick={() => setMode('upload')}
             className={`px-2 py-1 rounded-md transition-all flex items-center gap-1 ${
               mode === 'upload'
-                ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-300 shadow-xs font-bold'
-                : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                ? 'bg-white dark:bg-zinc-700 text-teal-600 dark:text-teal-300 shadow-xs font-bold'
+                : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'
             }`}
           >
             <Upload className="w-3 h-3" />
@@ -141,8 +141,8 @@ export const PhotoUploader: React.FC<PhotoUploaderProps> = ({
             onClick={() => setMode('url')}
             className={`px-2 py-1 rounded-md transition-all flex items-center gap-1 ${
               mode === 'url'
-                ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-300 shadow-xs font-bold'
-                : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                ? 'bg-white dark:bg-zinc-700 text-teal-600 dark:text-teal-300 shadow-xs font-bold'
+                : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'
             }`}
           >
             <LinkIcon className="w-3 h-3" />
@@ -153,19 +153,19 @@ export const PhotoUploader: React.FC<PhotoUploaderProps> = ({
 
       {/* Preview Box if Photo is Present */}
       {value ? (
-        <div className="relative group rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-800 bg-slate-900/5 p-2 flex items-center gap-3">
+        <div className="relative group rounded-xl overflow-hidden border border-zinc-200 dark:border-zinc-800 bg-zinc-900/5 p-2 flex items-center gap-3">
           <img
             src={value}
             alt="Storage Photo Preview"
-            className="w-20 h-20 rounded-xl object-cover bg-slate-100 border border-slate-200 dark:border-slate-700"
+            className="w-20 h-20 rounded-lg object-cover bg-zinc-100 border border-zinc-200 dark:border-zinc-700"
             referrerPolicy="no-referrer"
           />
           <div className="flex-1 min-w-0 text-xs">
             <div className="flex items-center gap-1.5 mb-1">
-              <span className={`px-2 py-0.5 text-[10px] font-bold uppercase rounded-md ${
+              <span className={`chip uppercase ${
                 isBase64 
                   ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300' 
-                  : 'bg-indigo-100 text-indigo-800 dark:bg-indigo-950 dark:text-indigo-300'
+                  : 'bg-teal-100 text-teal-800 dark:bg-teal-950 dark:text-teal-300'
               }`}>
                 {isBase64 ? 'Local Upload' : 'Web URL'}
               </span>
@@ -173,7 +173,7 @@ export const PhotoUploader: React.FC<PhotoUploaderProps> = ({
                 <Check className="w-3 h-3" /> Attached
               </span>
             </div>
-            <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
+            <p className="text-[11px] text-zinc-500 dark:text-zinc-400 truncate">
               {isBase64 ? 'Photo stored from local file storage' : value}
             </p>
 
@@ -181,17 +181,17 @@ export const PhotoUploader: React.FC<PhotoUploaderProps> = ({
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
-                className="text-[11px] text-indigo-600 dark:text-indigo-400 hover:underline font-semibold flex items-center gap-1"
+                className="btn btn-ghost btn-xs text-teal-600 dark:text-teal-400"
               >
-                <RefreshCw className="w-3 h-3" /> Change File
+                <RefreshCw className="w-3 h-3" aria-hidden="true" /> Change File
               </button>
-              <span className="text-slate-300">|</span>
+              <span className="text-zinc-300">|</span>
               <button
                 type="button"
                 onClick={() => onChange('')}
-                className="text-[11px] text-rose-600 dark:text-rose-400 hover:underline font-semibold flex items-center gap-1"
+                className="btn btn-ghost btn-xs text-rose-600 dark:text-rose-400"
               >
-                <X className="w-3 h-3" /> Remove
+                <X className="w-3 h-3" aria-hidden="true" /> Remove
               </button>
             </div>
           </div>
@@ -205,10 +205,10 @@ export const PhotoUploader: React.FC<PhotoUploaderProps> = ({
               onDragLeave={handleDragLeave}
               onDrop={handleDrop}
               onClick={() => fileInputRef.current?.click()}
-              className={`border-2 border-dashed rounded-2xl p-4 text-center cursor-pointer transition-all ${
+              className={`border-2 border-dashed rounded-xl p-4 text-center cursor-pointer transition-all ${
                 isDragging
-                  ? 'border-indigo-500 bg-indigo-50/50 dark:bg-indigo-950/30'
-                  : 'border-slate-300 dark:border-slate-700 hover:border-indigo-400 hover:bg-slate-50 dark:hover:bg-slate-800/50'
+                  ? 'border-teal-500 bg-teal-50/50 dark:bg-teal-950/30'
+                  : 'border-zinc-300 dark:border-zinc-700 hover:border-teal-400 hover:bg-zinc-50 dark:hover:bg-zinc-800/50'
               }`}
             >
               <input
@@ -220,7 +220,7 @@ export const PhotoUploader: React.FC<PhotoUploaderProps> = ({
               />
               
               <div className="flex flex-col items-center gap-1.5 py-1">
-                <div className="p-2.5 bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 rounded-2xl">
+                <div className="p-2.5 bg-teal-50 dark:bg-teal-950/60 text-teal-600 dark:text-teal-400 rounded-lg">
                   {isProcessing ? (
                     <RefreshCw className="w-5 h-5 animate-spin" />
                   ) : (
@@ -228,10 +228,10 @@ export const PhotoUploader: React.FC<PhotoUploaderProps> = ({
                   )}
                 </div>
                 <div>
-                  <p className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                  <p className="text-xs font-bold text-zinc-800 dark:text-zinc-200">
                     {isProcessing ? 'Processing local image...' : 'Click to select photo or drag & drop'}
                   </p>
-                  <p className="text-[10px] text-slate-400 mt-0.5">
+                  <p className="text-[10px] text-zinc-400 mt-0.5">
                     Supports PNG, JPG, WEBP, GIF from your computer
                   </p>
                 </div>
@@ -244,7 +244,7 @@ export const PhotoUploader: React.FC<PhotoUploaderProps> = ({
                 value={value || ''}
                 onChange={(e) => onChange(e.target.value)}
                 placeholder="https://images.unsplash.com/photo-..."
-                className="w-full px-3 py-2 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl outline-none"
+                className="input"
               />
             </div>
           )}
@@ -266,13 +266,13 @@ export const PhotoUploader: React.FC<PhotoUploaderProps> = ({
       {presets.length > 0 && (
         <div className="pt-1">
           <div className="flex items-center gap-1.5 flex-wrap">
-            <span className="text-[10px] text-slate-400 font-medium">Sample Presets:</span>
+            <span className="text-[10px] text-zinc-400 font-medium">Sample Presets:</span>
             {presets.map((preset, idx) => (
               <button
                 key={idx}
                 type="button"
                 onClick={() => onChange(preset.url)}
-                className="text-[10px] bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 px-2 py-0.5 rounded-md border border-slate-200 dark:border-slate-700 font-medium transition-colors"
+                className="btn btn-secondary btn-xs"
               >
                 {preset.label}
               </button>

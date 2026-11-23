@@ -141,28 +141,28 @@ export const DocumentCapturePage: React.FC<DocumentCapturePageProps> = ({ onCanc
     }
   };
 
-  const inputClass = 'w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none focus:border-indigo-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100';
-  const labelClass = 'mb-1.5 block text-xs font-semibold text-slate-700 dark:text-slate-300';
+  const inputClass = 'w-full rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-sm text-zinc-900 outline-none focus:border-teal-500 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100';
+  const labelClass = 'mb-1.5 block text-xs font-semibold text-zinc-700 dark:text-zinc-300';
 
   return (
     <div className="space-y-5 animate-in fade-in duration-200">
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <div className="rounded-xl bg-indigo-50 p-2 text-indigo-600 dark:bg-indigo-950/60 dark:text-indigo-400">
+          <div className="rounded-xl bg-teal-50 p-2 text-teal-600 dark:bg-teal-950/60 dark:text-teal-400">
             <Camera className="h-5 w-5" />
           </div>
           <div>
-            <h1 className="text-xl font-semibold tracking-tight text-slate-900 dark:text-slate-100">Photo-first document intake</h1>
-            <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">Capture the cover now; complete the record now or later.</p>
+            <h1 className="text-xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">Photo-first document intake</h1>
+            <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">Capture the cover now; complete the record now or later.</p>
           </div>
         </div>
-        <button type="button" onClick={onCancel} className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800">
+        <button type="button" onClick={onCancel} className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-zinc-200 bg-white px-4 py-2 text-sm font-semibold text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800">
           <ArrowLeft className="h-4 w-4" /> Back to documents
         </button>
       </header>
 
       <form onSubmit={handleSaveDraft} className="space-y-5">
-        <section className="grid gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900 md:grid-cols-3">
+        <section className="grid gap-4 rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-900 md:grid-cols-3">
           <div>
             <label htmlFor="capture-department" className={labelClass}>Owning department</label>
             <select id="capture-department" required value={departmentId} onChange={event => handleDepartmentChange(event.target.value)} className={inputClass}>
@@ -190,26 +190,26 @@ export const DocumentCapturePage: React.FC<DocumentCapturePageProps> = ({ onCanc
         </section>
 
         <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1.1fr)_minmax(360px,0.9fr)]">
-          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-5">
+          <div className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-900 sm:p-5">
             <DocumentPhotosEditor photos={photos} onChange={setPhotos} user={currentUser} disabled={!presetsReady} />
           </div>
 
-          <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-5">
+          <section className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-900 sm:p-5">
             <div className="mb-4 flex items-center justify-between gap-3">
               <div>
-                <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100">Record details</h2>
-                <p className="mt-1 text-xs text-slate-500">A title is optional for a draft. You can finish it later.</p>
+                <h2 className="text-sm font-bold text-zinc-900 dark:text-zinc-100">Record details</h2>
+                <p className="mt-1 text-xs text-zinc-500">A title is optional for a draft. You can finish it later.</p>
               </div>
               <span className="shrink-0 rounded-full bg-amber-100 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-amber-800 dark:bg-amber-950/50 dark:text-amber-300">Draft intake</span>
             </div>
 
             <div className="space-y-4">
               <div>
-                <label htmlFor="capture-title" className={labelClass}>Title <span className="font-normal text-slate-400">(optional)</span></label>
+                <label htmlFor="capture-title" className={labelClass}>Title <span className="font-normal text-zinc-400">(optional)</span></label>
                 <input id="capture-title" maxLength={500} value={title} onChange={event => setTitle(event.target.value)} placeholder="Add a title now or later" className={inputClass} />
               </div>
               <div>
-                <label htmlFor="capture-reference" className={labelClass}>Reference number <span className="font-normal text-slate-400">(optional)</span></label>
+                <label htmlFor="capture-reference" className={labelClass}>Reference number <span className="font-normal text-zinc-400">(optional)</span></label>
                 <input id="capture-reference" maxLength={100} value={referenceNumber} onChange={event => setReferenceNumber(event.target.value)} className={inputClass} />
               </div>
               <div>
@@ -240,9 +240,9 @@ export const DocumentCapturePage: React.FC<DocumentCapturePageProps> = ({ onCanc
           </section>
         </div>
 
-        <footer className="flex flex-col-reverse justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:flex-row sm:items-center">
-          <p className="text-xs text-slate-500">Images are resized before saving. Maximum five photos; the first photo is the cover.</p>
-          <button type="submit" disabled={!presetsReady || photos.length === 0 || isSaving} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50">
+        <footer className="flex flex-col-reverse justify-between gap-3 rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-900 sm:flex-row sm:items-center">
+          <p className="text-xs text-zinc-500">Images are resized before saving. Maximum five photos; the first photo is the cover.</p>
+          <button type="submit" disabled={!presetsReady || photos.length === 0 || isSaving} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-teal-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-teal-700 disabled:cursor-not-allowed disabled:opacity-50">
             {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
             {isSaving ? 'Saving draft...' : <><FilePlus2 className="h-4 w-4" /> Save photo intake as draft</>}
           </button>

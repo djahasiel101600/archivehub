@@ -2,17 +2,15 @@ import React, { useState } from 'react';
 import { useArchive } from '../context/ArchiveContext';
 import { StatusBadge } from '../components/common/StatusBadge';
 import { PageHeader } from '../components/common/PageHeader';
-import { 
-  ArrowRightLeft, 
-  AlertTriangle, 
-  CheckCircle2, 
-  Clock, 
-  XCircle, 
-  RotateCcw, 
-  FileText, 
-  User as UserIcon, 
-  Calendar,
-  Building2,
+import { ConfirmModal } from '../components/common/ConfirmModal';
+import { LocationPathBreadcrumbs } from '../components/common/LocationPathBreadcrumbs';
+import { DocumentCondition } from '../types';
+import {
+  ArrowRightLeft,
+  AlertTriangle,
+  CheckCircle2,
+  Clock,
+  RotateCcw,
   Check,
   X
 } from 'lucide-react';
@@ -21,22 +19,30 @@ interface CheckoutsPageProps {
   onSelectDocument: (docId: string) => void;
 }
 
+type CirculationTab = 'all' | 'pending' | 'active' | 'overdue' | 'returned';
+
+const CONDITIONS: DocumentCondition[] = ['EXCELLENT', 'GOOD', 'FAIR', 'DAMAGED', 'MISSING'];
+
 export const CheckoutsPage: React.FC<CheckoutsPageProps> = ({ onSelectDocument }) => {
-  const { 
-    checkouts, 
-    documents, 
-    locations,
-    approveCheckout, 
-    rejectCheckout, 
-    processCheckoutDispatch, 
-    processCheckInReturn,
-    calculatePath
+  const {
+    checkouts,
+    documents,
+    approveCheckout,
+    rejectCheckout,
+    processCheckoutDispatch,
+    processCheckInReturn
   } = useArchive();
 
-  const [activeTab, setActiveTab] = useState<'all' | 'pending' | 'active' | 'overdue' | 'returned'>('all');
-  
-  // Return Modal State
+  const [activeTab, setActiveTab] = useState<CirculationTab>('all');
+
+  // Check-in return dialog state
   const [returnChkId, setReturnChkId] = useState<string | null>(null);
+  const [returnCondition, setReturnCondition] = useState<DocumentCondition>('GOOD');
+  const [returnNotes, setReturnNotes] = useState('');
+  const [isReturning, setIsReturning] = useState(false);
+
+  // Reject confirmation state
+  const [rejectChkId, setRejectChkId] = useState<string | null>(null);
 
   const pendingList = checkouts.filter(c => c.status === 'REQUESTED');
   const activeList = checkouts.filter(c => c.status === 'CHECKED_OUT');
@@ -51,167 +57,145 @@ export const CheckoutsPage: React.FC<CheckoutsPageProps> = ({ onSelectDocument }
     return true;
   });
 
+  const tabs: { id: CirculationTab; label: string; count: number }[] = [
+    { id: 'all', label: 'All', count: checkouts.length },
+    { id: 'pending', label: 'Pending', count: pendingList.length },
+    { id: 'active', label: 'Active', count: activeList.length },
+    { id: 'overdue', label: 'Overdue', count: overdueList.length },
+    { id: 'returned', label: 'Returned', count: returnedList.length }
+  ];
+
+  const returnCheckout = returnChkId ? checkouts.find(c => c.id === returnChkId) : null;
+  const returnDoc = returnCheckout ? documents.find(d => d.id === returnCheckout.documentId) : null;
+
+  const openReturnDialog = (chkId: string) => {
+    const chk = checkouts.find(c => c.id === chkId);
+    const doc = chk ? documents.find(d => d.id === chk.documentId) : null;
+    setReturnCondition(doc?.condition || 'GOOD');
+    setReturnNotes('');
+    setReturnChkId(chkId);
+  };
+
+  const confirmReturn = async () => {
+    if (!returnCheckout || !returnDoc || isReturning) return;
+    setIsReturning(true);
+    try {
+      await processCheckInReturn(
+        returnCheckout.id,
+        returnCondition,
+        returnDoc.homeLocationId,
+        returnNotes.trim() || 'Checked in at Circulation Desk'
+      );
+      setReturnChkId(null);
+    } finally {
+      setIsReturning(false);
+    }
+  };
+
   return (
     <div className="space-y-6 animate-in fade-in duration-200">
-      
+
       <PageHeader
         icon={ArrowRightLeft}
-        title="Circulation"
+        title="Circulation Desk"
         description="Manage requests, current loans, overdue records, and returns."
       />
 
-      {/* KPI Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 text-xs font-medium">
-        <div 
-          onClick={() => setActiveTab('pending')}
-          className={`p-3.5 sm:p-4 rounded-2xl border cursor-pointer transition-all ${
-            activeTab === 'pending'
-              ? 'bg-blue-50 border-blue-300 dark:bg-blue-950/60'
-              : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800'
-          }`}
-        >
-          <div className="flex justify-between items-center text-slate-500">
-            <span className="truncate pr-1">Pending</span>
-            <Clock className="w-4 h-4 text-blue-500 flex-shrink-0" />
-          </div>
-          <span className="text-xl sm:text-2xl font-extrabold text-slate-900 dark:text-slate-100 mt-1 block">
-            {pendingList.length}
-          </span>
-        </div>
-
-        <div 
-          onClick={() => setActiveTab('active')}
-          className={`p-3.5 sm:p-4 rounded-2xl border cursor-pointer transition-all ${
-            activeTab === 'active'
-              ? 'bg-amber-50 border-amber-300 dark:bg-amber-950/60'
-              : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800'
-          }`}
-        >
-          <div className="flex justify-between items-center text-slate-500">
-            <span className="truncate pr-1">Active</span>
-            <ArrowRightLeft className="w-4 h-4 text-amber-500 flex-shrink-0" />
-          </div>
-          <span className="text-xl sm:text-2xl font-extrabold text-slate-900 dark:text-slate-100 mt-1 block">
-            {activeList.length}
-          </span>
-        </div>
-
-        <div 
-          onClick={() => setActiveTab('overdue')}
-          className={`p-3.5 sm:p-4 rounded-2xl border cursor-pointer transition-all ${
-            activeTab === 'overdue'
-              ? 'bg-rose-50 border-rose-300 dark:bg-rose-950/60'
-              : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800'
-          }`}
-        >
-          <div className="flex justify-between items-center text-slate-500">
-            <span className="text-rose-600 font-bold truncate pr-1">Overdue</span>
-            <AlertTriangle className="w-4 h-4 text-rose-500 animate-pulse flex-shrink-0" />
-          </div>
-          <span className="text-xl sm:text-2xl font-extrabold text-rose-600 mt-1 block">
-            {overdueList.length}
-          </span>
-        </div>
-
-        <div 
-          onClick={() => setActiveTab('returned')}
-          className={`p-3.5 sm:p-4 rounded-2xl border cursor-pointer transition-all ${
-            activeTab === 'returned'
-              ? 'bg-emerald-50 border-emerald-300 dark:bg-emerald-950/60'
-              : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800'
-          }`}
-        >
-          <div className="flex justify-between items-center text-slate-500">
-            <span className="truncate pr-1">Returned</span>
-            <CheckCircle2 className="w-4 h-4 text-emerald-500 flex-shrink-0" />
-          </div>
-          <span className="text-xl sm:text-2xl font-extrabold text-slate-900 dark:text-slate-100 mt-1 block">
-            {returnedList.length}
-          </span>
-        </div>
-      </div>
-
-      {/* Circulation Table */}
-      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm space-y-4 p-4 sm:p-5">
-        
-        {/* Filter Bar */}
-        <div className="flex items-center overflow-x-auto pb-3 gap-1.5 sm:gap-2 text-xs font-semibold border-b border-slate-100 dark:border-slate-800 flex-nowrap sm:flex-wrap no-scrollbar">
-          {(['all', 'pending', 'active', 'overdue', 'returned'] as const).map(tab => (
+      {/* Single segmented control: counts + filtering in one place */}
+      <div className="flex items-center overflow-x-auto gap-1.5 text-xs font-medium no-scrollbar" role="tablist" aria-label="Circulation views">
+        {tabs.map(tab => {
+          const isActive = activeTab === tab.id;
+          const isOverdueTab = tab.id === 'overdue' && tab.count > 0;
+          return (
             <button
-              key={tab}
+              key={tab.id}
               type="button"
-              onClick={() => setActiveTab(tab)}
-              className={`px-3 py-2 rounded-xl capitalize transition-all whitespace-nowrap flex-shrink-0 min-h-[36px] ${
-                activeTab === tab
-                  ? 'bg-indigo-600 text-white font-bold shadow-sm'
-                  : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+              role="tab"
+              aria-selected={isActive}
+              onClick={() => setActiveTab(tab.id)}
+              className={`px-3 py-2 rounded-lg transition-colors whitespace-nowrap flex-shrink-0 min-h-[36px] inline-flex items-center gap-1.5 border ${
+                isActive
+                  ? 'bg-teal-600 text-white border-teal-600'
+                  : 'bg-white dark:bg-zinc-900 text-zinc-600 dark:text-zinc-300 border-zinc-200 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-800'
               }`}
             >
-              {tab} ({tab === 'all' ? checkouts.length : tab === 'pending' ? pendingList.length : tab === 'active' ? activeList.length : tab === 'overdue' ? overdueList.length : returnedList.length})
+              {tab.id === 'overdue' && <AlertTriangle className={`w-3.5 h-3.5 ${isActive ? 'text-white' : 'text-rose-500'}`} aria-hidden="true" />}
+              {tab.id === 'pending' && <Clock className={`w-3.5 h-3.5 ${isActive ? 'text-white' : 'text-sky-500'}`} aria-hidden="true" />}
+              {tab.id === 'active' && <ArrowRightLeft className={`w-3.5 h-3.5 ${isActive ? 'text-white' : 'text-amber-500'}`} aria-hidden="true" />}
+              {tab.id === 'returned' && <CheckCircle2 className={`w-3.5 h-3.5 ${isActive ? 'text-white' : 'text-emerald-500'}`} aria-hidden="true" />}
+              {tab.label}
+              <span className={`chip ${
+                isActive
+                  ? 'bg-white/20 text-white'
+                  : isOverdueTab
+                    ? 'bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-400'
+                    : 'bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300'
+              }`}>
+                {tab.count}
+              </span>
             </button>
-          ))}
-        </div>
+          );
+        })}
+      </div>
 
-        {/* List */}
-        <div className="space-y-3">
-          {filteredCheckouts.length === 0 ? (
-            <p className="text-xs text-slate-400 italic py-8 text-center">No circulation records under this view.</p>
-          ) : (
-            filteredCheckouts.map(chk => {
-              const doc = documents.find(d => d.id === chk.documentId);
-
-              return (
-                <div
-                  key={chk.id}
-                  className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 space-y-3"
-                >
-                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
-                    <div className="flex items-center gap-2">
-                      <span className="font-mono text-xs font-bold text-indigo-600 dark:text-indigo-400">
-                        #{chk.documentNumber}
-                      </span>
-                      <h4
-                        onClick={() => onSelectDocument(chk.documentId)}
-                        className="font-bold text-slate-900 dark:text-slate-100 text-sm hover:underline cursor-pointer"
-                      >
-                        {chk.documentTitle}
-                      </h4>
-                    </div>
-
-                    <StatusBadge type="checkout" value={chk.status} size="sm" />
+      {/* Circulation list */}
+      <div className="card overflow-hidden">
+        {filteredCheckouts.length === 0 ? (
+          <div className="empty-state">
+            <ArrowRightLeft className="w-8 h-8 text-zinc-300 dark:text-zinc-600" aria-hidden="true" />
+            <p className="font-medium text-zinc-700 dark:text-zinc-300">No circulation records under this view</p>
+            <p className="text-xs">Requests, loans and returns will appear here as they are created.</p>
+          </div>
+        ) : (
+          <div className="divide-y divide-zinc-100 dark:divide-zinc-800">
+            {filteredCheckouts.map(chk => (
+              <div key={chk.id} className="p-4 space-y-2.5">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="font-mono text-xs font-semibold text-teal-600 dark:text-teal-400 flex-shrink-0">
+                      #{chk.documentNumber}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => onSelectDocument(chk.documentId)}
+                      className="font-medium text-zinc-900 dark:text-zinc-100 text-sm hover:text-teal-600 dark:hover:text-teal-400 hover:underline text-left truncate"
+                    >
+                      {chk.documentTitle}
+                    </button>
                   </div>
+                  <StatusBadge type="checkout" value={chk.status} size="sm" />
+                </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs bg-white dark:bg-slate-900 p-3 rounded-xl border border-slate-100 dark:border-slate-800">
-                    <div>
-                      <span className="text-[10px] uppercase font-bold text-slate-400 block">Borrower:</span>
-                      <span className="font-semibold text-slate-800 dark:text-slate-200">
-                        {chk.requestedByUserName} ({chk.requestedByDepartment})
-                      </span>
-                    </div>
-
-                    <div>
-                      <span className="text-[10px] uppercase font-bold text-slate-400 block">Purpose:</span>
-                      <span className="text-slate-700 dark:text-slate-300 line-clamp-1">{chk.purpose}</span>
-                    </div>
-
-                    <div>
-                      <span className="text-[10px] uppercase font-bold text-slate-400 block">Due Date:</span>
-                      <span className={`font-mono font-bold ${chk.status === 'OVERDUE' ? 'text-rose-600' : 'text-slate-800 dark:text-slate-200'}`}>
-                        {chk.dueDate}
-                      </span>
-                    </div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-4 text-xs">
+                  <div className="min-w-0">
+                    <span className="text-[10px] uppercase font-semibold text-zinc-400 block">Borrower</span>
+                    <span className="font-medium text-zinc-800 dark:text-zinc-200 truncate block">
+                      {chk.requestedByUserName} ({chk.requestedByDepartment})
+                    </span>
                   </div>
+                  <div className="min-w-0">
+                    <span className="text-[10px] uppercase font-semibold text-zinc-400 block">Purpose</span>
+                    <span className="text-zinc-700 dark:text-zinc-300 line-clamp-1">{chk.purpose}</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] uppercase font-semibold text-zinc-400 block">Due date</span>
+                    <span className={`font-mono font-medium ${chk.status === 'OVERDUE' ? 'text-rose-600 dark:text-rose-400' : 'text-zinc-800 dark:text-zinc-200'}`}>
+                      {chk.dueDate}
+                      {chk.status === 'OVERDUE' && ' · overdue'}
+                    </span>
+                  </div>
+                </div>
 
-                  {/* Actions Bar */}
-                  <div className="flex flex-wrap items-center justify-end gap-2 pt-1">
+                {(chk.status === 'REQUESTED' || chk.status === 'CHECKED_OUT' || chk.status === 'OVERDUE') && (
+                  <div className="flex flex-wrap items-center justify-end gap-1.5 pt-1">
                     {chk.status === 'REQUESTED' && (
                       <>
                         <button
                           type="button"
-                          onClick={() => rejectCheckout(chk.id, 'Request rejected by Records Officer')}
-                          className="inline-flex items-center gap-1 px-3 py-1.5 bg-rose-50 text-rose-700 hover:bg-rose-100 rounded-lg text-xs font-semibold"
+                          onClick={() => setRejectChkId(chk.id)}
+                          className="btn-danger-outline btn-sm"
                         >
-                          <X className="w-3.5 h-3.5" />
+                          <X className="w-3.5 h-3.5" aria-hidden="true" />
                           Reject
                         </button>
                         <button
@@ -220,10 +204,10 @@ export const CheckoutsPage: React.FC<CheckoutsPageProps> = ({ onSelectDocument }
                             approveCheckout(chk.id);
                             processCheckoutDispatch(chk.id);
                           }}
-                          className="inline-flex items-center gap-1 px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-semibold shadow-xs"
+                          className="btn-primary btn-sm"
                         >
-                          <Check className="w-3.5 h-3.5" />
-                          Approve & Release Custody
+                          <Check className="w-3.5 h-3.5" aria-hidden="true" />
+                          Approve & Release
                         </button>
                       </>
                     )}
@@ -231,23 +215,115 @@ export const CheckoutsPage: React.FC<CheckoutsPageProps> = ({ onSelectDocument }
                     {(chk.status === 'CHECKED_OUT' || chk.status === 'OVERDUE') && (
                       <button
                         type="button"
-                        onClick={() => {
-                          if (doc) processCheckInReturn(chk.id, doc.condition, doc.homeLocationId, 'Checked in at Circulation Desk');
-                        }}
-                        className="inline-flex items-center gap-1 px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold shadow-xs"
+                        onClick={() => openReturnDialog(chk.id)}
+                        className="btn btn-sm bg-emerald-600 text-white hover:bg-emerald-700"
                       >
-                        <RotateCcw className="w-3.5 h-3.5" />
-                        Process Check-In Return
+                        <RotateCcw className="w-3.5 h-3.5" aria-hidden="true" />
+                        Check-In Return
                       </button>
                     )}
                   </div>
-                </div>
-              );
-            })
-          )}
-        </div>
-
+                )}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
+
+      {/* Check-in return dialog: verify condition before the record goes back */}
+      {returnCheckout && returnDoc && (
+        <div className="fixed inset-0 z-50 bg-zinc-950/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 animate-in fade-in">
+          <div className="card max-w-md w-full max-h-[90vh] flex flex-col overflow-hidden shadow-2xl my-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="flex justify-between items-start gap-3 px-6 pt-6 pb-2">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="p-2.5 rounded-xl bg-emerald-100 text-emerald-600 dark:bg-emerald-950/60 dark:text-emerald-400 flex-shrink-0">
+                  <RotateCcw className="w-5 h-5" aria-hidden="true" />
+                </div>
+                <div className="min-w-0">
+                  <h3 className="font-semibold text-zinc-900 dark:text-zinc-100 text-base">Check-in return</h3>
+                  <p className="text-xs text-zinc-500 dark:text-zinc-400 truncate">
+                    #{returnCheckout.documentNumber} · {returnCheckout.documentTitle}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setReturnChkId(null)}
+                aria-label="Close return dialog"
+                className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 p-1 rounded-lg transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="px-6 py-3 space-y-4 overflow-y-auto flex-1 text-sm">
+              <div className="text-xs text-zinc-600 dark:text-zinc-300 space-y-1">
+                <p>
+                  Borrowed by <span className="font-medium">{returnCheckout.requestedByUserName}</span> ({returnCheckout.requestedByDepartment}), due <span className={`font-mono ${returnCheckout.status === 'OVERDUE' ? 'text-rose-600 dark:text-rose-400 font-medium' : ''}`}>{returnCheckout.dueDate}</span>.
+                </p>
+                <p className="flex items-center gap-1.5 flex-wrap">
+                  Returns to home storage:
+                  <LocationPathBreadcrumbs locationId={returnDoc.homeLocationId} badgeSize="sm" />
+                </p>
+              </div>
+
+              <div>
+                <label htmlFor="return-condition" className="label">Condition on return</label>
+                <select
+                  id="return-condition"
+                  value={returnCondition}
+                  onChange={(e) => setReturnCondition(e.target.value as DocumentCondition)}
+                  className="input"
+                >
+                  {CONDITIONS.map(c => (
+                    <option key={c} value={c}>{c.charAt(0) + c.slice(1).toLowerCase()}</option>
+                  ))}
+                </select>
+                <p className="field-hint">Inspect the physical record before confirming. Damage or loss is recorded on the document.</p>
+              </div>
+
+              <div>
+                <label htmlFor="return-notes" className="label">Notes (optional)</label>
+                <input
+                  id="return-notes"
+                  type="text"
+                  value={returnNotes}
+                  onChange={(e) => setReturnNotes(e.target.value)}
+                  placeholder="e.g. returned with folded corner"
+                  className="input"
+                />
+              </div>
+            </div>
+
+            <div className="px-6 py-4 border-t border-zinc-100 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-800/50 flex justify-end gap-2">
+              <button type="button" onClick={() => setReturnChkId(null)} className="btn-secondary">
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmReturn}
+                disabled={isReturning}
+                className="btn bg-emerald-600 text-white hover:bg-emerald-700"
+              >
+                <CheckCircle2 className="w-4 h-4" aria-hidden="true" />
+                {isReturning ? 'Processing…' : 'Confirm Return'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <ConfirmModal
+        isOpen={rejectChkId !== null}
+        onClose={() => setRejectChkId(null)}
+        onConfirm={() => {
+          if (rejectChkId) rejectCheckout(rejectChkId, 'Request rejected by Records Officer');
+        }}
+        title="Reject checkout request?"
+        message="The requesting department will be notified that this checkout request was rejected. The document remains available in the archive."
+        confirmText="Reject Request"
+        variant="danger"
+      />
 
     </div>
   );

@@ -144,20 +144,20 @@ export const BundleModal: React.FC<BundleModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 animate-in fade-in">
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-2xl w-full max-h-[90vh] flex flex-col overflow-hidden shadow-2xl">
+    <div className="fixed inset-0 z-50 bg-zinc-950/70 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 animate-in fade-in">
+      <div className="card max-w-2xl w-full max-h-[90vh] flex flex-col overflow-hidden my-auto" role="dialog" aria-modal="true">
         
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60 flex-shrink-0">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-100 dark:border-zinc-800 flex-shrink-0">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-amber-600 text-white flex items-center justify-center shadow-sm">
-              <Layers className="w-4 h-4" />
+            <div className="w-8 h-8 rounded-lg bg-teal-600 text-white flex items-center justify-center">
+              <Layers className="w-4 h-4" aria-hidden="true" />
             </div>
             <div>
-              <h3 className="font-extrabold text-slate-900 dark:text-slate-100 text-sm">
+              <h3 className="section-title">
                 {emptyMode ? 'Create Empty Bundle / Dossier' : 'Bundle & Group Selected Documents'}
               </h3>
-              <p className="text-[11px] text-slate-500">
+              <p className="meta">
                 {emptyMode
                   ? 'Create an empty dossier, then fill it by scanning document QR codes'
                   : `Organize ${selectedDocuments.length} physical record(s) into a unified dossier/folder`}
@@ -167,22 +167,23 @@ export const BundleModal: React.FC<BundleModalProps> = ({
           <button
             type="button"
             onClick={onClose}
-            className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg"
+            className="btn btn-ghost btn-icon btn-sm"
+            aria-label="Close dialog"
           >
-            <X className="w-5 h-5" />
+            <X className="w-4 h-4" aria-hidden="true" />
           </button>
         </div>
 
         {/* Mode Selector Tabs (hidden in empty-bundle mode — create only) */}
         {!emptyMode && (
-        <div className="flex border-b border-slate-200 dark:border-slate-800 bg-slate-100/70 dark:bg-slate-800/40 p-2 gap-2 text-xs font-semibold flex-shrink-0">
+        <div className="flex border-b border-zinc-200 dark:border-zinc-800 bg-zinc-100/70 dark:bg-zinc-800/40 p-2 gap-2 text-xs font-semibold flex-shrink-0">
           <button
             type="button"
             onClick={() => setMode('create')}
             className={`flex-1 py-2 rounded-xl transition-all flex items-center justify-center gap-1.5 ${
               mode === 'create'
-                ? 'bg-white dark:bg-slate-900 text-amber-700 dark:text-amber-400 shadow-sm border border-slate-200/80 dark:border-slate-700'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                ? 'bg-white dark:bg-zinc-900 text-teal-700 dark:text-teal-300 shadow-sm border border-zinc-200/80 dark:border-zinc-700'
+                : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900'
             }`}
           >
             <Plus className="w-3.5 h-3.5" />
@@ -195,8 +196,8 @@ export const BundleModal: React.FC<BundleModalProps> = ({
             disabled={bundles.length === 0}
             className={`flex-1 py-2 rounded-xl transition-all flex items-center justify-center gap-1.5 disabled:opacity-40 ${
               mode === 'existing'
-                ? 'bg-white dark:bg-slate-900 text-amber-700 dark:text-amber-400 shadow-sm border border-slate-200/80 dark:border-slate-700'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                ? 'bg-white dark:bg-zinc-900 text-teal-700 dark:text-teal-300 shadow-sm border border-zinc-200/80 dark:border-zinc-700'
+                : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900'
             }`}
           >
             <FolderPlus className="w-3.5 h-3.5" />
@@ -207,14 +208,14 @@ export const BundleModal: React.FC<BundleModalProps> = ({
 
         {/* Selected Documents Ribbon (hidden in empty-bundle mode) */}
         {!emptyMode && (
-        <div className="bg-amber-50/70 dark:bg-amber-950/30 px-6 py-2.5 border-b border-amber-200/60 dark:border-amber-900/40 text-xs flex items-center justify-between">
+        <div className="bg-amber-50/70 dark:bg-amber-950/30 px-5 py-2.5 border-b border-amber-200/60 dark:border-amber-900/40 text-xs flex items-center justify-between">
           <div className="flex items-center gap-2">
             <span className="font-mono font-bold text-amber-900 dark:text-amber-200">
               {selectedDocuments.length} Record(s) Selected:
             </span>
             <div className="flex gap-1.5 flex-wrap max-w-md truncate">
               {selectedDocuments.slice(0, 3).map(d => (
-                <span key={d.id} className="font-mono text-[10px] bg-white dark:bg-slate-800 px-1.5 py-0.5 rounded border border-amber-200 dark:border-amber-800 font-semibold text-slate-700 dark:text-slate-300">
+                <span key={d.id} className="font-mono text-[10px] bg-white dark:bg-zinc-800 px-1.5 py-0.5 rounded border border-amber-200 dark:border-amber-800 font-semibold text-zinc-700 dark:text-zinc-300">
                   {d.documentNumber}
                 </span>
               ))}
@@ -235,7 +236,7 @@ export const BundleModal: React.FC<BundleModalProps> = ({
               
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  <label className="label">
                     Bundle / Dossier Number *
                   </label>
                   <input
@@ -244,18 +245,18 @@ export const BundleModal: React.FC<BundleModalProps> = ({
                     value={bundleNumber}
                     onChange={(e) => setBundleNumber(e.target.value)}
                     placeholder="e.g. BNDL-2026-001"
-                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none font-mono font-bold text-amber-700 dark:text-amber-400"
+                    className="input font-mono font-bold text-amber-700 dark:text-amber-400"
                   />
                 </div>
 
                 <div>
-                  <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  <label className="label">
                     Owning Department *
                   </label>
                   <select
                     value={departmentId}
                     onChange={(e) => setDepartmentId(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none font-semibold"
+                    className="input font-semibold"
                   >
                     {departments.map(d => (
                       <option key={d.id} value={d.id}>{d.name}</option>
@@ -266,7 +267,7 @@ export const BundleModal: React.FC<BundleModalProps> = ({
 
               <div>
                 <div className="flex items-center justify-between">
-                  <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  <label className="label">
                     Bundle Title / Dossier Subject *
                   </label>
                   {isSuggesting && (
@@ -282,18 +283,18 @@ export const BundleModal: React.FC<BundleModalProps> = ({
                   value={bundleTitle}
                   onChange={(e) => setBundleTitle(e.target.value)}
                   placeholder="e.g. 2026 Jalaur River Project Bid & Contract Dossier"
-                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none font-medium"
+                  className="input font-medium"
                 />
               </div>
 
               <div>
-                <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                <label className="block font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
                   Designated Archive Location *
                 </label>
                 <select
                   value={locationId}
                   onChange={(e) => setLocationId(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none font-mono text-[11px]"
+                  className="input font-mono text-[11px]"
                 >
                   {locations.map(loc => (
                     <option key={loc.id} value={loc.id}>
@@ -304,7 +305,7 @@ export const BundleModal: React.FC<BundleModalProps> = ({
               </div>
 
               <div>
-                <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                <label className="block font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
                   Scope & Contents Description
                 </label>
                 <textarea
@@ -312,12 +313,12 @@ export const BundleModal: React.FC<BundleModalProps> = ({
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   placeholder="Summary of bundle contents and purpose..."
-                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none resize-none"
+                  className="input resize-none"
                 />
               </div>
 
               <div>
-                <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                <label className="block font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
                   Tags (Comma-separated)
                 </label>
                 <input
@@ -325,7 +326,7 @@ export const BundleModal: React.FC<BundleModalProps> = ({
                   value={tagsInput}
                   onChange={(e) => setTagsInput(e.target.value)}
                   placeholder="e.g. Bid Package, Legal, Multi-part"
-                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none"
+                  className="input"
                 />
               </div>
 
@@ -338,18 +339,18 @@ export const BundleModal: React.FC<BundleModalProps> = ({
             </div>
 
             {/* Form Actions */}
-            <div className="px-6 py-3.5 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-100 dark:border-slate-800 flex justify-end gap-2 flex-shrink-0">
+            <div className="px-5 py-4 bg-zinc-50 dark:bg-zinc-800/50 border-t border-zinc-100 dark:border-zinc-800 flex justify-end gap-2 flex-shrink-0">
               <button
                 type="button"
                 onClick={onClose}
-                className="px-4 py-2 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-xl font-medium"
+                className="btn btn-secondary"
               >
                 Cancel
               </button>
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className="px-5 py-2 text-white bg-amber-600 hover:bg-amber-700 disabled:opacity-50 rounded-xl font-semibold shadow-md shadow-amber-600/20 flex items-center gap-1.5"
+                className="btn btn-primary"
               >
                 <Layers className="w-3.5 h-3.5" />
                 <span>{isSubmitting ? 'Creating Bundle...' : emptyMode ? 'Create Empty Bundle' : `Create Bundle & Group ${selectedDocuments.length} Item(s)`}</span>
@@ -360,7 +361,7 @@ export const BundleModal: React.FC<BundleModalProps> = ({
           <form onSubmit={handleAddToExistingBundle} className="flex-1 flex flex-col min-h-0">
             <div className="p-6 space-y-4 overflow-y-auto flex-1 text-xs">
               <div>
-                <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-2">
+                <label className="label mb-2">
                   Select Existing Target Bundle Dossier *
                 </label>
                 
@@ -368,10 +369,10 @@ export const BundleModal: React.FC<BundleModalProps> = ({
                   {bundles.map(b => (
                     <label
                       key={b.id}
-                      className={`flex items-start gap-3 p-3 rounded-2xl border cursor-pointer transition-all ${
+                      className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-all ${
                         selectedExistingBundleId === b.id
-                          ? 'border-amber-500 bg-amber-50/50 dark:bg-amber-950/30'
-                          : 'border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/40'
+                          ? 'border-teal-500 bg-teal-50/50 dark:bg-teal-950/30'
+                          : 'border-zinc-200 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-800/40'
                       }`}
                     >
                       <input
@@ -380,21 +381,21 @@ export const BundleModal: React.FC<BundleModalProps> = ({
                         value={b.id}
                         checked={selectedExistingBundleId === b.id}
                         onChange={(e) => setSelectedExistingBundleId(e.target.value)}
-                        className="mt-0.5 text-amber-600"
+                        className="mt-0.5 text-teal-600"
                       />
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between">
                           <span className="font-mono font-bold text-amber-700 dark:text-amber-400">
                             {b.bundleNumber}
                           </span>
-                          <span className="text-[10px] text-slate-400 font-mono">
+                          <span className="text-[10px] text-zinc-400 font-mono">
                             {b.documentIds.length} existing items
                           </span>
                         </div>
-                        <div className="font-bold text-slate-900 dark:text-slate-100 text-xs">
+                        <div className="font-bold text-zinc-900 dark:text-zinc-100 text-xs">
                           {b.title}
                         </div>
-                        <div className="text-[10px] text-slate-500 mt-0.5 truncate">
+                        <div className="text-[10px] text-zinc-500 mt-0.5 truncate">
                           Dept: {b.departmentName} | Loc: {b.locationPath}
                         </div>
                       </div>
@@ -405,18 +406,18 @@ export const BundleModal: React.FC<BundleModalProps> = ({
             </div>
 
             {/* Form Actions */}
-            <div className="px-6 py-3.5 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-100 dark:border-slate-800 flex justify-end gap-2 flex-shrink-0">
+            <div className="px-5 py-4 bg-zinc-50 dark:bg-zinc-800/50 border-t border-zinc-100 dark:border-zinc-800 flex justify-end gap-2 flex-shrink-0">
               <button
                 type="button"
                 onClick={onClose}
-                className="px-4 py-2 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-xl font-medium"
+                className="btn btn-secondary"
               >
                 Cancel
               </button>
               <button
                 type="submit"
                 disabled={isSubmitting || !selectedExistingBundleId}
-                className="px-5 py-2 text-white bg-amber-600 hover:bg-amber-700 disabled:opacity-50 rounded-xl font-semibold shadow-md shadow-amber-600/20 flex items-center gap-1.5"
+                className="btn btn-primary"
               >
                 <FolderPlus className="w-3.5 h-3.5" />
                 <span>{isSubmitting ? 'Adding...' : `Add ${selectedDocuments.length} Item(s) to Bundle`}</span>

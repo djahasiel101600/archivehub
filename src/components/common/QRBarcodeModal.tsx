@@ -172,85 +172,86 @@ export const QRBarcodeModal: React.FC<QRBarcodeModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-      <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 max-w-md w-full overflow-hidden">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-900/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+      <div className="card max-w-md w-full overflow-hidden my-auto" role="dialog" aria-modal="true">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/40">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-100 dark:border-zinc-800">
           <div className="flex items-center gap-2">
-            <QrCode className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
-            <h3 className="font-semibold text-slate-900 dark:text-slate-100">
+            <QrCode className="w-5 h-5 text-teal-600 dark:text-teal-400" aria-hidden="true" />
+            <h3 className="section-title">
               {entityType === 'DOCUMENT' ? 'Document Tag' : 'Location Storage Tag'}
             </h3>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1 rounded-lg transition-colors"
+            className="btn btn-ghost btn-icon btn-sm"
+            aria-label="Close dialog"
           >
-            <X className="w-5 h-5" />
+            <X className="w-4 h-4" aria-hidden="true" />
           </button>
         </div>
 
         {/* Printable Physical Tag Content */}
         <div className="p-6 space-y-5 text-center printable-area">
           <div>
-            <span className="inline-block px-2.5 py-0.5 text-xs font-mono font-bold tracking-wider uppercase bg-indigo-100 text-indigo-800 dark:bg-indigo-900/50 dark:text-indigo-300 rounded-md mb-1">
+            <span className="chip font-mono font-bold tracking-wider uppercase bg-indigo-100 text-indigo-800 dark:bg-indigo-900/50 dark:text-indigo-300 mb-1">
               {entityCode}
             </span>
-            <h4 className="text-lg font-bold text-slate-900 dark:text-slate-100 line-clamp-2">
+            <h4 className="text-lg font-bold text-zinc-900 dark:text-zinc-100 line-clamp-2">
               {title}
             </h4>
             {subtitle && (
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+              <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
                 {subtitle}
               </p>
             )}
             {pathString && (
-              <p className="text-[11px] font-mono text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 p-2 rounded-lg mt-2 text-left line-clamp-2">
+              <p className="text-[11px] font-mono text-zinc-600 dark:text-zinc-400 bg-zinc-100 dark:bg-zinc-800 p-2 rounded-lg mt-2 text-left line-clamp-2">
                 📍 {pathString}
               </p>
             )}
           </div>
 
           {/* QR Code Graphic */}
-          <div className="flex flex-col items-center justify-center p-3 bg-white border border-slate-200 rounded-xl shadow-inner mx-auto max-w-[220px]">
+          <div className="flex flex-col items-center justify-center p-3 bg-white border border-zinc-200 rounded-xl shadow-inner mx-auto max-w-[220px]">
             {qrDataUrl ? (
               <img src={qrDataUrl} alt={`QR Code for ${qrValue}`} className="w-48 h-48" />
             ) : (
-              <div className="w-48 h-48 flex items-center justify-center text-slate-400 text-xs">
+              <div className="w-48 h-48 flex items-center justify-center text-zinc-400 text-xs">
                 Generating QR...
               </div>
             )}
-            <span className="text-[11px] font-mono font-semibold text-slate-700 mt-1">
+            <span className="text-[11px] font-mono font-semibold text-zinc-700 mt-1">
               {qrValue}
             </span>
           </div>
 
           {/* Barcode Graphic */}
-          <div className="flex flex-col items-center justify-center p-2 bg-white border border-slate-200 rounded-xl shadow-inner">
+          <div className="flex flex-col items-center justify-center p-2 bg-white border border-zinc-200 rounded-xl shadow-inner">
             <canvas ref={barcodeCanvasRef} className="max-w-full h-auto" />
           </div>
         </div>
 
         {/* Actions Footer */}
-        <div className="flex items-center justify-between px-6 py-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/40">
+        <div className="flex items-center justify-between px-5 py-4 border-t border-zinc-100 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-800/50">
           <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={handleCopyCode}
-              className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
+              className="btn btn-secondary btn-sm"
             >
-              {copied ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4" />}
+              {copied ? <Check className="w-4 h-4 text-emerald-600" aria-hidden="true" /> : <Copy className="w-4 h-4" aria-hidden="true" />}
               {copied ? 'Copied' : 'Copy Code'}
             </button>
 
             <button
               type="button"
               onClick={handleDownload}
-              className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
+              className="btn btn-secondary btn-sm"
               title="Download standalone HTML tag"
             >
-              <Download className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+              <Download className="w-4 h-4 text-teal-600 dark:text-teal-400" aria-hidden="true" />
               <span>Download</span>
             </button>
           </div>
@@ -259,9 +260,9 @@ export const QRBarcodeModal: React.FC<QRBarcodeModalProps> = ({
             type="button"
             disabled={isPrinting}
             onClick={handlePrint}
-            className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 disabled:opacity-50 shadow-sm transition-colors cursor-pointer"
+            className="btn btn-primary btn-sm"
           >
-            <Printer className="w-4 h-4" />
+            <Printer className="w-4 h-4" aria-hidden="true" />
             {isPrinting ? 'Opening...' : 'Print Tag'}
           </button>
         </div>

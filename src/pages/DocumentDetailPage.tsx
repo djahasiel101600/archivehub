@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { QrScannerView } from '../components/scanner/QrScannerView';
 import { useArchive } from '../context/ArchiveContext';
 import { StatusBadge } from '../components/common/StatusBadge';
@@ -61,7 +61,8 @@ export const DocumentDetailPage: React.FC<DocumentDetailPageProps> = ({
     processCheckInReturn,
     deleteDocument,
     calculatePath,
-    lookupByQR
+    lookupByQR,
+    lookupByQRRemote
   } = useArchive();
 
   const [activeTab, setActiveTab] = useState<'movements' | 'checkouts' | 'audit'>('movements');
@@ -78,6 +79,8 @@ export const DocumentDetailPage: React.FC<DocumentDetailPageProps> = ({
   // Destination QR scan state (relocation modal)
   const [showDestScanner, setShowDestScanner] = useState(false);
   const [destScanError, setDestScanError] = useState('');
+  // Continuous camera decodes must not stack overlapping remote lookups.
+  const destLookupBusyRef = useRef(false);
 
   // Destination scanner opens from a user click — unlock Web Audio inside
   // that gesture window so camera decodes can play feedback sounds.
@@ -89,8 +92,18 @@ export const DocumentDetailPage: React.FC<DocumentDetailPageProps> = ({
     setSelectedPhotoIndex(0);
   }, [documentId]);
 
-  const processDestScannedCode = useCallback((code: string) => {
-    const result = lookupByQR(code);
+  const processDestScannedCode = useCallback(async (code: string) => {
+    if (destLookupBusyRef.current) return;
+    let result = lookupByQR(code);
+    if (!result) {
+      // Tag not in the local cache — resolve it on the server.
+      destLookupBusyRef.current = true;
+      try {
+        result = await lookupByQRRemote(code);
+      } finally {
+        destLookupBusyRef.current = false;
+      }
+    }
     if (!result) {
       scanFeedback('error');
       setDestScanError(`Unknown code: "${code.slice(0, 30)}"`);
@@ -106,7 +119,7 @@ export const DocumentDetailPage: React.FC<DocumentDetailPageProps> = ({
     setTargetLocationId(loc.id);
     setDestScanError('');
     setShowDestScanner(false);
-  }, [lookupByQR]);
+  }, [lookupByQR, lookupByQRRemote]);
 
   // Request Borrowing Modal
   const [showBorrowModal, setShowBorrowModal] = useState(false);
@@ -126,14 +139,14 @@ export const DocumentDetailPage: React.FC<DocumentDetailPageProps> = ({
 
   if (!doc) {
     return (
-      <div className="p-12 text-center bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800">
+      <div className="p-12 text-center bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800">
         <AlertTriangle className="w-12 h-12 text-amber-500 mx-auto mb-3" />
-        <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100">Document Record Not Found</h3>
-        <p className="text-xs text-slate-500 mt-1">The requested document ID does not exist or has been removed.</p>
+        <h3 className="text-lg font-bold text-zinc-800 dark:text-zinc-100">Document Record Not Found</h3>
+        <p className="text-xs text-zinc-500 mt-1">The requested document ID does not exist or has been removed.</p>
         <button
           type="button"
           onClick={onBack}
-          className="mt-4 px-4 py-2 bg-slate-800 text-white text-xs font-semibold rounded-xl"
+          className="mt-4 px-4 py-2 bg-zinc-800 text-white text-xs font-semibold rounded-xl"
         >
           ← Return to Catalogue
         </button>
@@ -183,9 +196,9 @@ export const DocumentDetailPage: React.FC<DocumentDetailPageProps> = ({
         <button
           type="button"
           onClick={onBack}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl hover:bg-slate-50 transition-colors"
+          className="btn-secondary btn-sm"
         >
-          <ArrowLeft className="w-4 h-4" />
+          <ArrowLeft className="w-4 h-4" aria-hidden="true" />
           Back to Catalogue
         </button>
 
@@ -193,35 +206,35 @@ export const DocumentDetailPage: React.FC<DocumentDetailPageProps> = ({
           <button
             type="button"
             onClick={() => setShowQRModal(true)}
-            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold text-slate-800 dark:text-slate-200 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 transition-colors"
+            className="btn-secondary btn-sm"
           >
-            <QrCode className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
-            Print Document QR Tag
+            <QrCode className="w-4 h-4 text-teal-600 dark:text-teal-400" aria-hidden="true" />
+            Print QR Tag
           </button>
         </div>
       </div>
 
       {/* Main Document Master Header Card */}
-      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm space-y-6">
+      <div className="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 p-6 shadow-sm space-y-6">
         
-        <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 pb-6 border-b border-slate-100 dark:border-slate-800">
+        <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 pb-6 border-b border-zinc-100 dark:border-zinc-800">
           <div className="space-y-2 max-w-3xl">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="px-2.5 py-1 text-xs font-mono font-extrabold uppercase tracking-wider bg-indigo-100 text-indigo-800 dark:bg-indigo-950 dark:text-indigo-300 rounded-lg">
+              <span className="px-2.5 py-1 text-xs font-mono font-extrabold uppercase tracking-wider bg-teal-100 text-teal-800 dark:bg-teal-950 dark:text-teal-300 rounded-lg">
                 #{doc.documentNumber}
               </span>
-              {doc.referenceNumber && <span className="text-xs font-mono text-slate-500">REF: {doc.referenceNumber}</span>}
+              {doc.referenceNumber && <span className="text-xs font-mono text-zinc-500">REF: {doc.referenceNumber}</span>}
               <StatusBadge type="status" value={doc.status} size="md" />
               <StatusBadge type="confidentiality" value={doc.confidentiality} size="md" />
               {doc.status === 'DRAFT' && <span className="rounded-lg bg-amber-100 px-2.5 py-1 text-xs font-bold uppercase text-amber-800 dark:bg-amber-950/60 dark:text-amber-300">Details pending</span>}
             </div>
 
-            <h1 className="text-xl md:text-2xl font-extrabold text-slate-900 dark:text-slate-100">
+            <h1 className="text-xl md:text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">
               {doc.title || 'Untitled draft'}
             </h1>
 
             {doc.subject && (
-              <p className="text-xs text-slate-600 dark:text-slate-400 font-medium">
+              <p className="text-xs text-zinc-600 dark:text-zinc-400 font-medium">
                 {doc.subject}
               </p>
             )}
@@ -233,10 +246,11 @@ export const DocumentDetailPage: React.FC<DocumentDetailPageProps> = ({
               <button
                 type="button"
                 onClick={() => setShowBorrowModal(true)}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs rounded-xl shadow-md shadow-indigo-600/20 transition-all"
+                className="btn-primary btn-sm"
+                title="Request borrowing / check-out of this document"
               >
-                <ArrowRightLeft className="w-4 h-4" />
-                Request Borrowing / Check-Out
+                <ArrowRightLeft className="w-4 h-4" aria-hidden="true" />
+                Check Out
               </button>
             )}
 
@@ -247,21 +261,22 @@ export const DocumentDetailPage: React.FC<DocumentDetailPageProps> = ({
                   setReturnLocationId(doc.homeLocationId);
                   setShowReturnModal(true);
                 }}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs rounded-xl shadow-md shadow-emerald-600/20 transition-all"
+                className="btn btn-sm bg-emerald-600 text-white hover:bg-emerald-700"
+                title="Check in and return this document to storage"
               >
-                <RotateCcw className="w-4 h-4" />
-                Check In & Return to Storage
+                <RotateCcw className="w-4 h-4" aria-hidden="true" />
+                Check In & Return
               </button>
             )}
 
             <button
               type="button"
               onClick={() => setShowEditModal(true)}
-              className="inline-flex items-center gap-2 px-3.5 py-2 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 font-semibold text-xs rounded-xl border border-indigo-200 dark:border-indigo-800 transition-all shadow-sm"
+              className="btn-secondary btn-sm"
               title="Edit Document Metadata & Classification"
             >
-              <Edit className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
-              Edit Document
+              <Edit className="w-4 h-4" aria-hidden="true" />
+              Edit
             </button>
 
             <button
@@ -270,34 +285,35 @@ export const DocumentDetailPage: React.FC<DocumentDetailPageProps> = ({
                 setTargetLocationId(doc.currentLocationId);
                 setShowMoveModal(true);
               }}
-              className="inline-flex items-center gap-2 px-3.5 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-800 dark:text-slate-200 font-semibold text-xs rounded-xl border border-slate-200 dark:border-slate-700 transition-all"
+              className="btn-secondary btn-sm"
+              title="Relocate the physical document to another storage node"
             >
-              <MapPin className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
-              Relocate Physical Position
+              <MapPin className="w-4 h-4" aria-hidden="true" />
+              Relocate
             </button>
 
             <button
               type="button"
               onClick={() => setShowDeleteConfirm(true)}
-              className="inline-flex items-center gap-2 px-3.5 py-2 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/50 text-rose-700 dark:text-rose-300 font-semibold text-xs rounded-xl border border-rose-200 dark:border-rose-800 transition-all"
+              className="btn-danger-outline btn-sm"
               title="Delete Document Record"
             >
-              <Trash2 className="w-4 h-4 text-rose-600 dark:text-rose-400" />
-              Delete Record
+              <Trash2 className="w-4 h-4" aria-hidden="true" />
+              Delete
             </button>
           </div>
         </div>
 
         {doc.photos?.length > 0 && (
-          <section className="grid gap-4 border-b border-slate-100 pb-6 dark:border-slate-800 lg:grid-cols-[minmax(0,1.4fr)_minmax(180px,0.6fr)]">
-            <div className="flex min-h-64 items-center justify-center overflow-hidden rounded-2xl bg-slate-100 dark:bg-slate-800">
+          <section className="grid gap-4 border-b border-zinc-100 pb-6 dark:border-zinc-800 lg:grid-cols-[minmax(0,1.4fr)_minmax(180px,0.6fr)]">
+            <div className="flex min-h-64 items-center justify-center overflow-hidden rounded-2xl bg-zinc-100 dark:bg-zinc-800">
               <img src={doc.photos[selectedPhotoIndex]?.url || doc.photos[0].url} alt={doc.photos[selectedPhotoIndex]?.fileName || 'Document cover'} className="max-h-[520px] w-full object-contain" />
             </div>
             <div className="grid grid-cols-3 content-start gap-2 lg:grid-cols-2">
               {doc.photos.map((photo, index) => (
-                <button key={photo.id} type="button" onClick={() => setSelectedPhotoIndex(index)} aria-label={`View document photo ${index + 1}${index === 0 ? ', cover image' : ''}`} aria-pressed={selectedPhotoIndex === index} className={`relative aspect-square overflow-hidden rounded-xl border-2 ${selectedPhotoIndex === index ? 'border-indigo-500' : 'border-transparent'}`}>
+                <button key={photo.id} type="button" onClick={() => setSelectedPhotoIndex(index)} aria-label={`View document photo ${index + 1}${index === 0 ? ', cover image' : ''}`} aria-pressed={selectedPhotoIndex === index} className={`relative aspect-square overflow-hidden rounded-xl border-2 ${selectedPhotoIndex === index ? 'border-teal-500' : 'border-transparent'}`}>
                   <img src={photo.url} alt={photo.fileName || `Document photo ${index + 1}`} className="h-full w-full object-cover" />
-                  {index === 0 && <span className="absolute left-1 top-1 rounded bg-indigo-600 px-1.5 py-0.5 text-[9px] font-bold text-white">COVER</span>}
+                  {index === 0 && <span className="absolute left-1 top-1 rounded bg-teal-600 px-1.5 py-0.5 text-[9px] font-bold text-white">COVER</span>}
                 </button>
               ))}
             </div>
@@ -308,13 +324,13 @@ export const DocumentDetailPage: React.FC<DocumentDetailPageProps> = ({
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           
           {/* Home Archive Location Box */}
-          <div className="p-4 bg-indigo-50/70 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800/80 rounded-2xl space-y-2">
+          <div className="p-4 bg-teal-50/70 dark:bg-teal-950/40 border border-teal-200 dark:border-teal-800/80 rounded-2xl space-y-2">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-bold uppercase tracking-wider text-indigo-900 dark:text-indigo-200 flex items-center gap-1.5">
-                <Building2 className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+              <span className="text-xs font-bold uppercase tracking-wider text-teal-900 dark:text-teal-200 flex items-center gap-1.5">
+                <Building2 className="w-4 h-4 text-teal-600 dark:text-teal-400" />
                 Home Archive Storage Location (Permanent)
               </span>
-              <span className="text-[10px] font-mono text-indigo-600 font-bold">HOME</span>
+              <span className="text-[10px] font-mono text-teal-600 font-bold">HOME</span>
             </div>
             
             <LocationPathBreadcrumbs
@@ -322,7 +338,7 @@ export const DocumentDetailPage: React.FC<DocumentDetailPageProps> = ({
               onNodeClick={(id) => onNavigateLocation(id)}
             />
 
-            <p className="text-[11px] text-indigo-700 dark:text-indigo-300 pt-1">
+            <p className="text-[11px] text-teal-700 dark:text-teal-300 pt-1">
               Where this physical document permanently belongs in the archive vault.
             </p>
           </div>
@@ -353,7 +369,7 @@ export const DocumentDetailPage: React.FC<DocumentDetailPageProps> = ({
                   Custody: {doc.custodianName}
                 </p>
                 <p className="text-[11px] text-amber-800 dark:text-amber-300">
-                  📍 Desk Position: {currentPath}
+                  Desk position: {currentPath}
                 </p>
                 {activeCheckout && (
                   <p className="text-[11px] font-mono text-amber-900 font-semibold pt-1">
@@ -372,34 +388,34 @@ export const DocumentDetailPage: React.FC<DocumentDetailPageProps> = ({
         </div>
 
         {/* Metadata Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 pt-4 border-t border-slate-100 dark:border-slate-800 text-xs">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 pt-4 border-t border-zinc-100 dark:border-zinc-800 text-xs">
           <div>
-            <span className="text-slate-400 font-medium block">Owning Department:</span>
-            <span className="font-semibold text-slate-800 dark:text-slate-200">{doc.departmentName}</span>
+            <span className="text-zinc-400 font-medium block">Owning Department:</span>
+            <span className="font-semibold text-zinc-800 dark:text-zinc-200">{doc.departmentName}</span>
           </div>
 
           <div>
-            <span className="text-slate-400 font-medium block">Document Type:</span>
-            <span className="font-semibold text-slate-800 dark:text-slate-200">{doc.documentTypeName}</span>
+            <span className="text-zinc-400 font-medium block">Document Type:</span>
+            <span className="font-semibold text-zinc-800 dark:text-zinc-200">{doc.documentTypeName}</span>
           </div>
 
           <div>
-            <span className="text-slate-400 font-medium block">Retention Period Expiry:</span>
-            <span className="font-semibold text-indigo-600 font-mono">{doc.retentionEndDate}</span>
+            <span className="text-zinc-400 font-medium block">Retention Period Expiry:</span>
+            <span className="font-semibold text-teal-600 font-mono">{doc.retentionEndDate}</span>
           </div>
 
           <div>
-            <span className="text-slate-400 font-medium block">Physical Condition:</span>
+            <span className="text-zinc-400 font-medium block">Physical Condition:</span>
             <StatusBadge type="condition" value={doc.condition} size="sm" />
           </div>
         </div>
 
         {/* QR Code Claim Status Card */}
-        <div className="p-4 bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-3">
+        <div className="p-4 bg-zinc-50 dark:bg-zinc-900/50 rounded-2xl border border-zinc-200 dark:border-zinc-800 space-y-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <QrCode className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
-              <span className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-200">
+              <QrCode className="w-4 h-4 text-teal-600 dark:text-teal-400" />
+              <span className="text-xs font-bold uppercase tracking-wider text-zinc-700 dark:text-zinc-200">
                 QR Code Claim
               </span>
             </div>
@@ -422,7 +438,7 @@ export const DocumentDetailPage: React.FC<DocumentDetailPageProps> = ({
           </p>
 
           {doc.qrClaimed && doc.qrClaimedAt && (
-            <div className="flex gap-2 text-[10px] text-slate-400">
+            <div className="flex gap-2 text-[10px] text-zinc-400">
               <span className="inline-flex items-center gap-1">
                 <ScanLine className="w-3 h-3" />
                 {new Date(doc.qrClaimedAt).toLocaleString()}
@@ -447,16 +463,16 @@ export const DocumentDetailPage: React.FC<DocumentDetailPageProps> = ({
                   <Layers className="w-4 h-4 text-amber-600 dark:text-amber-400" />
                   Dossier Bundle Association
                 </span>
-                <span className="text-[10px] font-mono font-bold text-amber-800 dark:text-amber-300 bg-white dark:bg-slate-900 px-2 py-0.5 rounded border border-amber-200 dark:border-amber-800">
+                <span className="text-[10px] font-mono font-bold text-amber-800 dark:text-amber-300 bg-white dark:bg-zinc-900 px-2 py-0.5 rounded border border-amber-200 dark:border-amber-800">
                   {doc.bundleNumber || parentBundle?.bundleNumber}
                 </span>
               </div>
               <div className="text-xs">
-                <p className="font-bold text-slate-900 dark:text-slate-100">
+                <p className="font-bold text-zinc-900 dark:text-zinc-100">
                   {doc.bundleTitle || parentBundle?.title || 'Consolidated Archive Dossier'}
                 </p>
                 {parentBundle?.description && (
-                  <p className="text-[11px] text-slate-600 dark:text-slate-400 mt-0.5">
+                  <p className="text-[11px] text-zinc-600 dark:text-zinc-400 mt-0.5">
                     {parentBundle.description}
                   </p>
                 )}
@@ -472,22 +488,22 @@ export const DocumentDetailPage: React.FC<DocumentDetailPageProps> = ({
 
         {/* Dynamic Document Type Custom Fields Card */}
         {doc.customFieldValues && Object.keys(doc.customFieldValues).length > 0 && (
-          <div className="p-4 bg-indigo-50/60 dark:bg-indigo-950/40 rounded-2xl border border-indigo-200 dark:border-indigo-800/80 space-y-2.5">
+          <div className="p-4 bg-teal-50/60 dark:bg-teal-950/40 rounded-2xl border border-teal-200 dark:border-teal-800/80 space-y-2.5">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-bold uppercase tracking-wider text-indigo-950 dark:text-indigo-200 flex items-center gap-1.5">
-                <SlidersHorizontal className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+              <span className="text-xs font-bold uppercase tracking-wider text-teal-950 dark:text-teal-200 flex items-center gap-1.5">
+                <SlidersHorizontal className="w-4 h-4 text-teal-600 dark:text-teal-400" />
                 Custom Document Classification Attributes
               </span>
-              <span className="text-[10px] font-mono font-bold text-indigo-600 dark:text-indigo-400 bg-white dark:bg-slate-900 px-2 py-0.5 rounded border border-indigo-200 dark:border-indigo-800">
+              <span className="text-[10px] font-mono font-bold text-teal-600 dark:text-teal-400 bg-white dark:bg-zinc-900 px-2 py-0.5 rounded border border-teal-200 dark:border-teal-800">
                 {doc.documentTypeName}
               </span>
             </div>
 
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 text-xs pt-1">
               {Object.entries(doc.customFieldValues).map(([key, val]) => (
-                <div key={key} className="bg-white dark:bg-slate-900 p-3 rounded-xl border border-indigo-100 dark:border-indigo-900/60 shadow-xs space-y-0.5">
-                  <span className="text-[10px] font-bold font-mono uppercase text-indigo-600 dark:text-indigo-400 block tracking-wider">{key}</span>
-                  <span className="font-bold text-slate-900 dark:text-slate-100 text-xs sm:text-sm">{String(val)}</span>
+                <div key={key} className="bg-white dark:bg-zinc-900 p-3 rounded-xl border border-teal-100 dark:border-teal-900/60 shadow-xs space-y-0.5">
+                  <span className="text-[10px] font-bold font-mono uppercase text-teal-600 dark:text-teal-400 block tracking-wider">{key}</span>
+                  <span className="font-bold text-zinc-900 dark:text-zinc-100 text-xs sm:text-sm">{String(val)}</span>
                 </div>
               ))}
             </div>
@@ -496,14 +512,14 @@ export const DocumentDetailPage: React.FC<DocumentDetailPageProps> = ({
 
         {/* Digital Copy Attachment Preview Bar */}
         {doc.hasDigitalCopy && (
-          <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700 flex items-center justify-between text-xs">
+          <div className="p-3 bg-zinc-50 dark:bg-zinc-800/60 rounded-xl border border-zinc-200 dark:border-zinc-700 flex items-center justify-between text-xs">
             <div className="flex items-center gap-2">
-              <HardDrive className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+              <HardDrive className="w-4 h-4 text-teal-600 dark:text-teal-400" />
               <div>
-                <span className="font-semibold text-slate-800 dark:text-slate-200 block">
+                <span className="font-semibold text-zinc-800 dark:text-zinc-200 block">
                   Attached Digital Scan: {doc.digitalFileName}
                 </span>
-                <span className="text-[10px] text-slate-400">
+                <span className="text-[10px] text-zinc-400">
                   {doc.digitalFileType} • {doc.digitalFileSize} • Version {doc.digitalFileVersion}
                 </span>
               </div>
@@ -512,7 +528,7 @@ export const DocumentDetailPage: React.FC<DocumentDetailPageProps> = ({
             <a
               href={`/api/documents/${doc.id}/digital-copy`}
               download={doc.digitalFileName || 'digital-copy'}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 hover:bg-slate-100 border border-slate-200 dark:border-slate-700 rounded-lg font-medium shadow-xs"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white dark:bg-zinc-900 text-teal-600 dark:text-teal-400 hover:bg-zinc-100 border border-zinc-200 dark:border-zinc-700 rounded-lg font-medium shadow-xs"
             >
               <Download className="w-3.5 h-3.5" />
               Download Scan
@@ -523,17 +539,17 @@ export const DocumentDetailPage: React.FC<DocumentDetailPageProps> = ({
       </div>
 
       {/* Tabbed History Panels: Movement History, Checkout Circulation, Audit Trail */}
-      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm space-y-4">
+      <div className="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 p-6 shadow-sm space-y-4">
         
         {/* Tab Headers */}
-        <div className="flex border-b border-slate-100 dark:border-slate-800 gap-6 text-xs font-semibold">
+        <div className="flex border-b border-zinc-100 dark:border-zinc-800 gap-6 text-xs font-semibold">
           <button
             type="button"
             onClick={() => setActiveTab('movements')}
             className={`pb-3 border-b-2 transition-colors flex items-center gap-2 ${
               activeTab === 'movements'
-                ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400'
-                : 'border-transparent text-slate-400 hover:text-slate-600'
+                ? 'border-teal-600 text-teal-600 dark:text-teal-400'
+                : 'border-transparent text-zinc-400 hover:text-zinc-600'
             }`}
           >
             <History className="w-4 h-4" />
@@ -545,8 +561,8 @@ export const DocumentDetailPage: React.FC<DocumentDetailPageProps> = ({
             onClick={() => setActiveTab('checkouts')}
             className={`pb-3 border-b-2 transition-colors flex items-center gap-2 ${
               activeTab === 'checkouts'
-                ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400'
-                : 'border-transparent text-slate-400 hover:text-slate-600'
+                ? 'border-teal-600 text-teal-600 dark:text-teal-400'
+                : 'border-transparent text-zinc-400 hover:text-zinc-600'
             }`}
           >
             <ArrowRightLeft className="w-4 h-4" />
@@ -558,8 +574,8 @@ export const DocumentDetailPage: React.FC<DocumentDetailPageProps> = ({
             onClick={() => setActiveTab('audit')}
             className={`pb-3 border-b-2 transition-colors flex items-center gap-2 ${
               activeTab === 'audit'
-                ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400'
-                : 'border-transparent text-slate-400 hover:text-slate-600'
+                ? 'border-teal-600 text-teal-600 dark:text-teal-400'
+                : 'border-transparent text-zinc-400 hover:text-zinc-600'
             }`}
           >
             <ShieldCheck className="w-4 h-4" />
@@ -571,26 +587,26 @@ export const DocumentDetailPage: React.FC<DocumentDetailPageProps> = ({
         {activeTab === 'movements' && (
           <div className="space-y-3">
             {docMovements.length === 0 ? (
-              <p className="text-xs text-slate-400 italic py-4">No movement history logged yet.</p>
+              <p className="text-xs text-zinc-400 italic py-4">No movement history logged yet.</p>
             ) : (
-              <div className="relative pl-6 space-y-4 before:absolute before:left-2 before:top-2 before:bottom-2 before:w-0.5 before:bg-slate-200 dark:before:bg-slate-800">
+              <div className="relative pl-6 space-y-4 before:absolute before:left-2 before:top-2 before:bottom-2 before:w-0.5 before:bg-zinc-200 dark:before:bg-zinc-800">
                 {docMovements.map(mvt => (
                   <div key={mvt.id} className="relative text-xs space-y-1">
-                    <span className="absolute -left-6 top-1 w-2.5 h-2.5 rounded-full bg-indigo-600 ring-4 ring-indigo-50 dark:ring-indigo-950" />
+                    <span className="absolute -left-6 top-1 w-2.5 h-2.5 rounded-full bg-teal-600 ring-4 ring-teal-50 dark:ring-teal-950" />
                     
                     <div className="flex items-center justify-between">
-                      <span className="font-bold text-slate-900 dark:text-slate-100">
+                      <span className="font-bold text-zinc-900 dark:text-zinc-100">
                         {mvt.movementType} — {mvt.reason}
                       </span>
-                      <span className="font-mono text-[10px] text-slate-400">
+                      <span className="font-mono text-[10px] text-zinc-400">
                         {new Date(mvt.timestamp).toLocaleString()}
                       </span>
                     </div>
 
-                    <div className="p-2.5 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-200/80 dark:border-slate-700 text-[11px] space-y-1">
-                      <p><strong className="text-slate-700 dark:text-slate-300">From:</strong> {mvt.fromLocationPath}</p>
-                      <p><strong className="text-indigo-600 dark:text-indigo-400">To:</strong> {mvt.toLocationPath}</p>
-                      <p className="text-slate-400 pt-1 border-t border-slate-100 dark:border-slate-800">
+                    <div className="p-2.5 bg-zinc-50 dark:bg-zinc-800/50 rounded-xl border border-zinc-200/80 dark:border-zinc-700 text-[11px] space-y-1">
+                      <p><strong className="text-zinc-700 dark:text-zinc-300">From:</strong> {mvt.fromLocationPath}</p>
+                      <p><strong className="text-teal-600 dark:text-teal-400">To:</strong> {mvt.toLocationPath}</p>
+                      <p className="text-zinc-400 pt-1 border-t border-zinc-100 dark:border-zinc-800">
                         Performed by: <strong>{mvt.performedByUserName}</strong>
                         {mvt.authorizedByUserName && ` • Approved by: ${mvt.authorizedByUserName}`}
                       </p>
@@ -606,19 +622,19 @@ export const DocumentDetailPage: React.FC<DocumentDetailPageProps> = ({
         {activeTab === 'checkouts' && (
           <div className="space-y-3 text-xs">
             {docCheckouts.length === 0 ? (
-              <p className="text-xs text-slate-400 italic py-4">No borrowing transactions recorded.</p>
+              <p className="text-xs text-zinc-400 italic py-4">No borrowing transactions recorded.</p>
             ) : (
-              <div className="divide-y divide-slate-100 dark:divide-slate-800">
+              <div className="divide-y divide-zinc-100 dark:divide-zinc-800">
                 {docCheckouts.map(chk => (
                   <div key={chk.id} className="py-3 space-y-1">
                     <div className="flex items-center justify-between">
-                      <span className="font-bold text-slate-900 dark:text-slate-100">
+                      <span className="font-bold text-zinc-900 dark:text-zinc-100">
                         Borrower: {chk.requestedByUserName} ({chk.requestedByDepartment})
                       </span>
                       <StatusBadge type="checkout" value={chk.status} size="sm" />
                     </div>
-                    <p className="text-slate-500">Purpose: {chk.purpose}</p>
-                    <div className="flex items-center gap-4 text-[11px] text-slate-400 pt-1 font-mono">
+                    <p className="text-zinc-500">Purpose: {chk.purpose}</p>
+                    <div className="flex items-center gap-4 text-[11px] text-zinc-400 pt-1 font-mono">
                       <span>Request: {chk.requestDate}</span>
                       <span>Due: {chk.dueDate}</span>
                       {chk.returnDate && <span className="text-emerald-600 font-bold">Returned: {chk.returnDate}</span>}
@@ -634,17 +650,17 @@ export const DocumentDetailPage: React.FC<DocumentDetailPageProps> = ({
         {activeTab === 'audit' && (
           <div className="space-y-3 text-xs">
             {docAuditLogs.length === 0 ? (
-              <p className="text-xs text-slate-400 italic py-4">No audit logs for this item.</p>
+              <p className="text-xs text-zinc-400 italic py-4">No audit logs for this item.</p>
             ) : (
               <div className="space-y-2">
                 {docAuditLogs.map(aud => (
-                  <div key={aud.id} className="p-3 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-slate-200 dark:border-slate-800 space-y-1">
+                  <div key={aud.id} className="p-3 bg-zinc-50 dark:bg-zinc-800/40 rounded-xl border border-zinc-200 dark:border-zinc-800 space-y-1">
                     <div className="flex items-center justify-between">
-                      <span className="font-mono font-bold text-indigo-600 dark:text-indigo-400">{aud.action}</span>
-                      <span className="font-mono text-[10px] text-slate-400">{new Date(aud.timestamp).toLocaleString()}</span>
+                      <span className="font-mono font-bold text-teal-600 dark:text-teal-400">{aud.action}</span>
+                      <span className="font-mono text-[10px] text-zinc-400">{new Date(aud.timestamp).toLocaleString()}</span>
                     </div>
-                    <p className="text-slate-800 dark:text-slate-200">{aud.details}</p>
-                    <p className="text-[10px] text-slate-400">User: {aud.userName} ({aud.userRole})</p>
+                    <p className="text-zinc-800 dark:text-zinc-200">{aud.details}</p>
+                    <p className="text-[10px] text-zinc-400">User: {aud.userName} ({aud.userRole})</p>
                   </div>
                 ))}
               </div>
@@ -671,16 +687,16 @@ export const DocumentDetailPage: React.FC<DocumentDetailPageProps> = ({
 
       {/* Relocate Storage Modal */}
       {showMoveModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-3 sm:p-4 animate-in fade-in duration-200">
-          <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800 max-w-md w-full max-h-[90vh] flex flex-col overflow-hidden my-auto text-xs">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 flex-shrink-0">
-              <h3 className="font-bold text-slate-900 dark:text-slate-100 text-sm">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-900/60 backdrop-blur-sm p-3 sm:p-4 animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-zinc-900 rounded-3xl shadow-2xl border border-zinc-200 dark:border-zinc-800 max-w-md w-full max-h-[90vh] flex flex-col overflow-hidden my-auto text-xs">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-100 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-800/50 flex-shrink-0">
+              <h3 className="font-bold text-zinc-900 dark:text-zinc-100 text-sm">
                 Relocate Physical Document Position
               </h3>
               <button
                 type="button"
                 onClick={() => setShowMoveModal(false)}
-                className="text-slate-400 hover:text-slate-600 p-1"
+                className="text-zinc-400 hover:text-zinc-600 p-1"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -690,7 +706,7 @@ export const DocumentDetailPage: React.FC<DocumentDetailPageProps> = ({
               <div className="p-6 space-y-3 overflow-y-auto flex-1">
                 <div>
                   <div className="flex items-center justify-between mb-1">
-                    <label className="block font-semibold text-slate-700 dark:text-slate-300">
+                    <label className="block font-semibold text-zinc-700 dark:text-zinc-300">
                       Select Destination Storage Node *
                     </label>
                     <button
@@ -698,8 +714,8 @@ export const DocumentDetailPage: React.FC<DocumentDetailPageProps> = ({
                       onClick={() => { setShowDestScanner(v => !v); setDestScanError(''); }}
                       className={`inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-bold rounded-lg border transition-colors ${
                         showDestScanner
-                          ? 'text-white bg-indigo-600 border-indigo-600 hover:bg-indigo-700'
-                          : 'text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/60 border-indigo-200 dark:border-indigo-800 hover:bg-indigo-100 dark:hover:bg-indigo-900/60'
+                          ? 'text-white bg-teal-600 border-teal-600 hover:bg-teal-700'
+                          : 'text-teal-700 dark:text-teal-300 bg-teal-50 dark:bg-teal-950/60 border-teal-200 dark:border-teal-800 hover:bg-teal-100 dark:hover:bg-teal-900/60'
                       }`}
                     >
                       <ScanLine className="w-3.5 h-3.5" />
@@ -708,19 +724,20 @@ export const DocumentDetailPage: React.FC<DocumentDetailPageProps> = ({
                   </div>
 
                   {showDestScanner && (
-                    <div className="mb-2 p-2 bg-slate-900 rounded-xl border border-slate-700">
+                    <div className="mb-2 p-2 bg-zinc-900 rounded-xl border border-zinc-700">
                       <QrScannerView
                         onDecode={processDestScannedCode}
-                        className="w-full h-auto rounded-lg bg-slate-950"
+                        onError={(message) => setDestScanError(`Camera unavailable: ${message}`)}
+                        className="w-full h-auto rounded-lg bg-zinc-950"
                       />
-                      <p className="text-[10px] text-slate-300 mt-1.5 text-center">
+                      <p className="text-[10px] text-zinc-300 mt-1.5 text-center">
                         Scan the QR tag of the destination storage location
                       </p>
-                      <p className="text-[10px] text-slate-400 mt-1 text-center">
+                      <p className="text-[10px] text-zinc-400 mt-1 text-center">
                         {SCANNER_TAG_HINT}
                       </p>
                       {destScanError && (
-                        <p className="text-[10px] text-red-400 font-semibold mt-1 text-center flex items-center justify-center gap-1">
+                        <p className="text-[10px] text-rose-400 font-semibold mt-1 text-center flex items-center justify-center gap-1">
                           <AlertTriangle className="w-3 h-3" /> {destScanError}
                         </p>
                       )}
@@ -730,7 +747,7 @@ export const DocumentDetailPage: React.FC<DocumentDetailPageProps> = ({
                   <select
                     value={targetLocationId}
                     onChange={(e) => setTargetLocationId(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl outline-none font-medium"
+                    className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-xl outline-none font-medium"
                   >
                     {locations.map(loc => (
                       <option key={loc.id} value={loc.id}>
@@ -741,7 +758,7 @@ export const DocumentDetailPage: React.FC<DocumentDetailPageProps> = ({
                   {(() => {
                     const destLoc = locations.find(l => l.id === targetLocationId);
                     return destLoc?.latitude != null && destLoc.longitude != null ? (
-                      <div className="flex items-center gap-1 mt-1.5 text-[10px] font-mono text-slate-500 dark:text-slate-400">
+                      <div className="flex items-center gap-1 mt-1.5 text-[10px] font-mono text-zinc-500 dark:text-zinc-400">
                         <MapPin className="w-3 h-3 text-emerald-600" />
                         GPS: {destLoc.latitude.toFixed(5)}, {destLoc.longitude.toFixed(5)}
                       </div>
@@ -750,7 +767,7 @@ export const DocumentDetailPage: React.FC<DocumentDetailPageProps> = ({
                 </div>
 
                 <div>
-                  <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  <label className="block font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
                     Reason for Transfer
                   </label>
                   <input
@@ -758,22 +775,22 @@ export const DocumentDetailPage: React.FC<DocumentDetailPageProps> = ({
                     value={moveReason}
                     onChange={(e) => setMoveReason(e.target.value)}
                     placeholder="e.g. Re-archiving, shelf consolidation, vault transfer"
-                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl outline-none"
+                    className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-xl outline-none"
                   />
                 </div>
               </div>
 
-              <div className="px-6 py-4 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-100 dark:border-slate-800 flex justify-end gap-2 flex-shrink-0">
+              <div className="px-6 py-4 bg-zinc-50 dark:bg-zinc-800/50 border-t border-zinc-100 dark:border-zinc-800 flex justify-end gap-2 flex-shrink-0">
                 <button
                   type="button"
                   onClick={() => setShowMoveModal(false)}
-                  className="px-4 py-2 text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 rounded-xl font-medium"
+                  className="px-4 py-2 text-zinc-600 dark:text-zinc-300 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 rounded-xl font-medium"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl font-semibold shadow-md shadow-indigo-600/20"
+                  className="px-4 py-2 text-white bg-teal-600 hover:bg-teal-700 rounded-xl font-semibold shadow-md shadow-teal-600/20"
                 >
                   Confirm Transfer
                 </button>
@@ -785,16 +802,16 @@ export const DocumentDetailPage: React.FC<DocumentDetailPageProps> = ({
 
       {/* Borrowing Request Modal */}
       {showBorrowModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-3 sm:p-4 animate-in fade-in duration-200">
-          <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800 max-w-md w-full max-h-[90vh] flex flex-col overflow-hidden my-auto text-xs">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 flex-shrink-0">
-              <h3 className="font-bold text-slate-900 dark:text-slate-100 text-sm">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-900/60 backdrop-blur-sm p-3 sm:p-4 animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-zinc-900 rounded-3xl shadow-2xl border border-zinc-200 dark:border-zinc-800 max-w-md w-full max-h-[90vh] flex flex-col overflow-hidden my-auto text-xs">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-100 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-800/50 flex-shrink-0">
+              <h3 className="font-bold text-zinc-900 dark:text-zinc-100 text-sm">
                 Request Document Borrowing / Check-Out
               </h3>
               <button
                 type="button"
                 onClick={() => setShowBorrowModal(false)}
-                className="text-slate-400 hover:text-slate-600 p-1"
+                className="text-zinc-400 hover:text-zinc-600 p-1"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -803,7 +820,7 @@ export const DocumentDetailPage: React.FC<DocumentDetailPageProps> = ({
             <form onSubmit={handleBorrowSubmit} className="flex-1 flex flex-col min-h-0">
               <div className="p-6 space-y-3 overflow-y-auto flex-1">
                 <div>
-                  <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  <label className="block font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
                     Purpose / Official Usage Reason *
                   </label>
                   <textarea
@@ -812,12 +829,12 @@ export const DocumentDetailPage: React.FC<DocumentDetailPageProps> = ({
                     onChange={(e) => setBorrowPurpose(e.target.value)}
                     rows={3}
                     placeholder="State official reason (e.g. Audit, Court Presentation, Site Survey)..."
-                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl outline-none resize-none"
+                    className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-xl outline-none resize-none"
                   />
                 </div>
 
                 <div>
-                  <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  <label className="block font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
                     Target Return Date *
                   </label>
                   <input
@@ -825,22 +842,22 @@ export const DocumentDetailPage: React.FC<DocumentDetailPageProps> = ({
                     required
                     value={borrowDueDate}
                     onChange={(e) => setBorrowDueDate(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl outline-none"
+                    className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-xl outline-none"
                   />
                 </div>
               </div>
 
-              <div className="px-6 py-4 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-100 dark:border-slate-800 flex justify-end gap-2 flex-shrink-0">
+              <div className="px-6 py-4 bg-zinc-50 dark:bg-zinc-800/50 border-t border-zinc-100 dark:border-zinc-800 flex justify-end gap-2 flex-shrink-0">
                 <button
                   type="button"
                   onClick={() => setShowBorrowModal(false)}
-                  className="px-4 py-2 text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 rounded-xl font-medium"
+                  className="px-4 py-2 text-zinc-600 dark:text-zinc-300 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 rounded-xl font-medium"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl font-semibold shadow-md shadow-indigo-600/20"
+                  className="px-4 py-2 text-white bg-teal-600 hover:bg-teal-700 rounded-xl font-semibold shadow-md shadow-teal-600/20"
                 >
                   Submit Request
                 </button>
@@ -852,16 +869,16 @@ export const DocumentDetailPage: React.FC<DocumentDetailPageProps> = ({
 
       {/* Return Processing Modal */}
       {showReturnModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-3 sm:p-4 animate-in fade-in duration-200">
-          <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800 max-w-md w-full max-h-[90vh] flex flex-col overflow-hidden my-auto text-xs">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 flex-shrink-0">
-              <h3 className="font-bold text-slate-900 dark:text-slate-100 text-sm">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-900/60 backdrop-blur-sm p-3 sm:p-4 animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-zinc-900 rounded-3xl shadow-2xl border border-zinc-200 dark:border-zinc-800 max-w-md w-full max-h-[90vh] flex flex-col overflow-hidden my-auto text-xs">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-100 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-800/50 flex-shrink-0">
+              <h3 className="font-bold text-zinc-900 dark:text-zinc-100 text-sm">
                 Check In & Process Document Return
               </h3>
               <button
                 type="button"
                 onClick={() => setShowReturnModal(false)}
-                className="text-slate-400 hover:text-slate-600 p-1"
+                className="text-zinc-400 hover:text-zinc-600 p-1"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -870,13 +887,13 @@ export const DocumentDetailPage: React.FC<DocumentDetailPageProps> = ({
             <form onSubmit={handleReturnSubmit} className="flex-1 flex flex-col min-h-0">
               <div className="p-6 space-y-3 overflow-y-auto flex-1">
                 <div>
-                  <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  <label className="block font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
                     Inspected Return Physical Condition *
                   </label>
                   <select
                     value={returnCondition}
                     onChange={(e) => setReturnCondition(e.target.value as DocumentCondition)}
-                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl outline-none font-semibold"
+                    className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-xl outline-none font-semibold"
                   >
                     <option value="EXCELLENT">Excellent (Undamaged)</option>
                     <option value="GOOD">Good</option>
@@ -886,13 +903,13 @@ export const DocumentDetailPage: React.FC<DocumentDetailPageProps> = ({
                 </div>
 
                 <div>
-                  <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  <label className="block font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
                     Target Home Storage Return Node *
                   </label>
                   <select
                     value={returnLocationId}
                     onChange={(e) => setReturnLocationId(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl outline-none font-medium"
+                    className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-xl outline-none font-medium"
                   >
                     {locations.map(loc => (
                       <option key={loc.id} value={loc.id}>
@@ -903,11 +920,11 @@ export const DocumentDetailPage: React.FC<DocumentDetailPageProps> = ({
                 </div>
               </div>
 
-              <div className="px-6 py-4 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-100 dark:border-slate-800 flex justify-end gap-2 flex-shrink-0">
+              <div className="px-6 py-4 bg-zinc-50 dark:bg-zinc-800/50 border-t border-zinc-100 dark:border-zinc-800 flex justify-end gap-2 flex-shrink-0">
                 <button
                   type="button"
                   onClick={() => setShowReturnModal(false)}
-                  className="px-4 py-2 text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 rounded-xl font-medium"
+                  className="px-4 py-2 text-zinc-600 dark:text-zinc-300 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 rounded-xl font-medium"
                 >
                   Cancel
                 </button>

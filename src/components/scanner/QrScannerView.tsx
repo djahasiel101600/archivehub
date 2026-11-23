@@ -10,6 +10,8 @@ import {
 interface QrScannerViewProps {
   /** Called with the decoded tag value. Fires continuously while mounted. */
   onDecode: (code: string) => void;
+  /** Called when the camera session cannot start (permission denied, no device, etc.). */
+  onError?: (message: string) => void;
   /**
    * Swallow repeat decodes of the identical code within this window (ms),
    * keeping continuous-scan flows quiet while the same tag stays in frame.
@@ -41,6 +43,7 @@ function ensureWasmConfigured(): void {
  */
 export const QrScannerView: React.FC<QrScannerViewProps> = ({
   onDecode,
+  onError,
   dedupeMs = 1500,
   regionFraction = SCANNER_REGION_FRACTION,
   className
@@ -48,10 +51,12 @@ export const QrScannerView: React.FC<QrScannerViewProps> = ({
   const videoRef = useRef<HTMLVideoElement>(null);
   // Refs keep the scanner callbacks fresh without re-creating the camera session
   const onDecodeRef = useRef(onDecode);
+  const onErrorRef = useRef(onError);
   const dedupeMsRef = useRef(dedupeMs);
   const regionFractionRef = useRef(regionFraction);
 
   useEffect(() => { onDecodeRef.current = onDecode; }, [onDecode]);
+  useEffect(() => { onErrorRef.current = onError; }, [onError]);
   useEffect(() => { dedupeMsRef.current = dedupeMs; }, [dedupeMs]);
   useEffect(() => { regionFractionRef.current = regionFraction; }, [regionFraction]);
 
@@ -103,7 +108,9 @@ export const QrScannerView: React.FC<QrScannerViewProps> = ({
       scanner.setInversionMode('both');
     }).catch((err) => {
       if (!cancelled) {
-        console.warn('[QrScannerView] Camera failed to start:', err?.message || err);
+        const message = err?.message || String(err) || 'Camera failed to start.';
+        console.warn('[QrScannerView] Camera failed to start:', message);
+        onErrorRef.current?.(message);
       }
     });
 

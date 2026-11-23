@@ -119,19 +119,19 @@ export const DocumentPhotosEditor: React.FC<DocumentPhotosEditorProps> = ({ phot
     <section className="space-y-4" aria-label="Document cover photos">
       <div className="flex items-center justify-between gap-2">
         <div>
-          <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100">Document photos</h2>
-          <p className="text-xs text-slate-500">The first photo is used as the cover image.</p>
+          <h2 className="section-title">Document photos</h2>
+          <p className="meta">The first photo is used as the cover image.</p>
         </div>
-        <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+        <span className="chip rounded-full bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
           {photos.length}/{MAX_DOCUMENT_PHOTOS}
         </span>
       </div>
 
-      <div className="flex aspect-[4/3] items-center justify-center overflow-hidden rounded-2xl border border-slate-200 bg-slate-100 dark:border-slate-700 dark:bg-slate-800">
+      <div className="flex aspect-[4/3] items-center justify-center overflow-hidden rounded-xl border border-zinc-200 bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-800">
         {selectedPhoto ? (
           <img src={selectedPhoto.url} alt={selectedPhoto.fileName || 'Document cover preview'} className="h-full w-full object-contain" />
         ) : (
-          <div className="p-6 text-center text-slate-400">
+          <div className="p-6 text-center text-zinc-400">
             <ImagePlus className="mx-auto mb-2 h-10 w-10" />
             <p className="text-sm font-medium">Your captured photos will appear here</p>
           </div>
@@ -147,14 +147,14 @@ export const DocumentPhotosEditor: React.FC<DocumentPhotosEditorProps> = ({ phot
                 onClick={() => setSelectedPhotoId(photo.id)}
                 aria-label={`Preview photo ${index + 1}${index === 0 ? ', cover photo' : ''}`}
                 aria-pressed={selectedPhoto?.id === photo.id}
-                className={`aspect-square w-full overflow-hidden rounded-xl border-2 ${selectedPhoto?.id === photo.id ? 'border-indigo-500' : 'border-transparent'}`}
+                className={`aspect-square w-full overflow-hidden rounded-lg border-2 ${selectedPhoto?.id === photo.id ? 'border-teal-500' : 'border-transparent'}`}
               >
                 <img src={photo.url} alt={photo.fileName || `Document photo ${index + 1}`} className="h-full w-full object-cover" />
               </button>
               {index === 0 ? (
-                <span className="absolute left-1 top-1 rounded bg-indigo-600 px-1.5 py-0.5 text-[9px] font-bold text-white">COVER</span>
+                <span className="absolute left-1 top-1 rounded bg-teal-600 px-1.5 py-0.5 text-[9px] font-bold text-white">COVER</span>
               ) : (
-                <button type="button" onClick={() => setAsCover(photo.id)} title="Set as cover photo" aria-label={`Set photo ${index + 1} as cover`} className="absolute left-1 top-1 rounded-full bg-white/90 p-1 text-slate-700 shadow hover:text-indigo-600">
+                <button type="button" onClick={() => setAsCover(photo.id)} title="Set as cover photo" aria-label={`Set photo ${index + 1} as cover`} className="absolute left-1 top-1 rounded-full bg-white/90 p-1 text-zinc-700 shadow hover:text-teal-600">
                   <Star className="h-3 w-3" />
                 </button>
               )}
@@ -167,19 +167,19 @@ export const DocumentPhotosEditor: React.FC<DocumentPhotosEditorProps> = ({ phot
       )}
 
       <div className="grid grid-cols-2 gap-2">
-        <button type="button" onClick={() => cameraInputRef.current?.click()} disabled={disabled || remainingSlots <= 0 || isProcessing} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50">
-          <Camera className="h-4 w-4" /> Take photo
+        <button type="button" onClick={() => cameraInputRef.current?.click()} disabled={disabled || remainingSlots <= 0 || isProcessing} className="btn btn-primary min-h-11">
+          <Camera className="h-4 w-4" aria-hidden="true" /> Take photo
         </button>
-        <button type="button" onClick={() => galleryInputRef.current?.click()} disabled={disabled || remainingSlots <= 0 || isProcessing} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800">
-          <ImagePlus className="h-4 w-4" /> Choose images
+        <button type="button" onClick={() => galleryInputRef.current?.click()} disabled={disabled || remainingSlots <= 0 || isProcessing} className="btn btn-secondary min-h-11">
+          <ImagePlus className="h-4 w-4" aria-hidden="true" /> Choose images
         </button>
       </div>
       <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" onChange={event => void handleFiles(event.target.files)} className="hidden" />
       <input ref={galleryInputRef} type="file" accept="image/*" multiple onChange={event => void handleFiles(event.target.files)} className="hidden" />
 
-      {isProcessing && <p role="status" className="text-xs font-medium text-indigo-600">Preparing images...</p>}
+      {isProcessing && <p role="status" className="text-xs font-medium text-teal-600">Preparing images...</p>}
       {error && <p role="alert" className="text-xs font-medium text-rose-600">{error}</p>}
-      {remainingSlots === 0 && <p className="text-xs text-slate-500">Maximum of five photos reached.</p>}
+      {remainingSlots === 0 && <p className="text-xs text-zinc-500">Maximum of five photos reached.</p>}
     </section>
   );
 };

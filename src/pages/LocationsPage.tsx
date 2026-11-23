@@ -250,7 +250,7 @@ export const LocationsPage: React.FC<LocationsPageProps> = ({
       case 'SHELF': return <Columns className="w-4 h-4 text-orange-600 dark:text-orange-400" />;
       case 'BOX': return <Box className="w-4 h-4 text-blue-600 dark:text-blue-400" />;
       case 'FOLDER': return <Folder className="w-4 h-4 text-purple-600 dark:text-purple-400" />;
-      default: return <MapPin className="w-4 h-4 text-slate-600 dark:text-slate-400" />;
+      default: return <MapPin className="w-4 h-4 text-zinc-600 dark:text-zinc-400" />;
     }
   };
 
@@ -276,10 +276,10 @@ export const LocationsPage: React.FC<LocationsPageProps> = ({
             setMobileView('details');
           }}
           style={{ paddingLeft: `${depth * 1.25 + 0.5}rem` }}
-          className={`flex items-center justify-between pr-3 py-2.5 rounded-xl text-xs font-medium cursor-pointer transition-all ${
+          className={`flex items-center justify-between pr-3 py-2.5 rounded-lg text-xs font-medium cursor-pointer transition-colors ${
             isSelected
-              ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
-              : 'hover:bg-slate-100 text-slate-800 dark:text-slate-200 dark:hover:bg-slate-800'
+              ? 'bg-teal-600 text-white'
+              : 'hover:bg-zinc-100 text-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-800'
           }`}
         >
           <div className="flex items-center gap-2 overflow-hidden">
@@ -287,7 +287,7 @@ export const LocationsPage: React.FC<LocationsPageProps> = ({
               <button
                 type="button"
                 onClick={(e) => toggleExpand(loc.id, e)}
-                className={`p-0.5 rounded hover:bg-black/10 dark:hover:bg-white/10 ${isSelected ? 'text-white' : 'text-slate-400'}`}
+                className={`p-0.5 rounded hover:bg-black/10 dark:hover:bg-white/10 ${isSelected ? 'text-white' : 'text-zinc-400'}`}
               >
                 {isExpanded ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
               </button>
@@ -297,7 +297,7 @@ export const LocationsPage: React.FC<LocationsPageProps> = ({
 
             {renderIcon(loc.type)}
             <span className="font-semibold truncate max-w-[180px]">{loc.name}</span>
-            <span className={`text-[10px] font-mono uppercase opacity-70 ${isSelected ? 'text-white' : 'text-slate-400'}`}>
+            <span className={`text-[10px] font-mono uppercase opacity-70 ${isSelected ? 'text-white' : 'text-zinc-400'}`}>
               [{loc.code}]
             </span>
           </div>
@@ -305,7 +305,7 @@ export const LocationsPage: React.FC<LocationsPageProps> = ({
           <div className="flex items-center gap-2 flex-shrink-0">
             {loc.capacity && (
               <span className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded ${
-                isSelected ? 'bg-indigo-700 text-white' : 'bg-slate-200/80 text-slate-600 dark:bg-slate-700 dark:text-slate-300'
+                isSelected ? 'bg-teal-700 text-white' : 'bg-zinc-200/80 text-zinc-600 dark:bg-zinc-700 dark:text-zinc-300'
               }`}>
                 Cap: {loc.capacity}
               </span>
@@ -337,7 +337,7 @@ export const LocationsPage: React.FC<LocationsPageProps> = ({
               setCreateParentId(selectedLocationId);
               setShowCreateModal(true);
             }}
-            className="inline-flex min-h-11 items-center gap-2 px-4 py-2 bg-indigo-600 text-white text-sm font-semibold rounded-xl hover:bg-indigo-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 transition-colors"
+            className="btn btn-primary"
           >
             <Plus className="w-4 h-4" aria-hidden="true" />
             Add location
@@ -346,14 +346,14 @@ export const LocationsPage: React.FC<LocationsPageProps> = ({
       />
 
       {/* Mobile View Toggle Switcher (< lg) */}
-      <div className="flex lg:hidden bg-slate-100 dark:bg-slate-800/90 p-1 rounded-2xl border border-slate-200 dark:border-slate-700/80 shadow-xs">
+      <div className="flex lg:hidden bg-zinc-100 dark:bg-zinc-800/90 p-1 rounded-lg border border-zinc-200 dark:border-zinc-700/80">
         <button
           type="button"
           onClick={() => setMobileView('tree')}
           className={`flex-1 py-2.5 text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-1.5 min-h-[42px] ${
             mobileView === 'tree'
-              ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-sm'
-              : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
+              ? 'bg-white dark:bg-zinc-900 text-teal-600 dark:text-teal-400 shadow-sm'
+              : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200'
           }`}
         >
           <Network className="w-4 h-4" />
@@ -364,8 +364,8 @@ export const LocationsPage: React.FC<LocationsPageProps> = ({
           onClick={() => setMobileView('details')}
           className={`flex-1 py-2.5 text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-1.5 min-h-[42px] ${
             mobileView === 'details'
-              ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-sm'
-              : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
+              ? 'bg-white dark:bg-zinc-900 text-teal-600 dark:text-teal-400 shadow-sm'
+              : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200'
           }`}
         >
           <Building2 className="w-4 h-4" />
@@ -377,33 +377,34 @@ export const LocationsPage: React.FC<LocationsPageProps> = ({
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         
         {/* Left Tree Explorer Column (5 cols) */}
-        <div className={`lg:col-span-5 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-4 sm:p-5 shadow-sm space-y-4 max-h-[80vh] flex flex-col ${
+        <div className={`lg:col-span-5 card p-4 sm:p-5 space-y-4 max-h-[80vh] flex flex-col ${
           mobileView === 'tree' ? 'flex' : 'hidden lg:flex'
         }`}>
           
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-bold uppercase text-slate-500 tracking-wider">
-                Hierarchy Tree
+              <span className="section-title">
+                Hierarchy tree
               </span>
-              <span className="text-[10px] font-mono bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded text-slate-600 dark:text-slate-400">
-                {locations.length} Nodes
+              <span className="chip bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400">
+                {locations.length} nodes
               </span>
             </div>
 
             <div className="relative">
-              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <Search className="w-3.5 h-3.5 text-zinc-400 absolute left-3 top-1/2 -tranzinc-y-1/2" />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Filter locations (Name, Code)..."
-                className="w-full pl-9 pr-3 py-2 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none"
+                placeholder="Filter locations (name, code)..."
+                aria-label="Filter locations"
+                className="input pl-9"
               />
             </div>
           </div>
 
-          <div className="flex-1 overflow-y-auto pr-1 space-y-1 divide-y divide-slate-100 dark:divide-slate-800/40">
+          <div className="flex-1 overflow-y-auto pr-1 space-y-1 divide-y divide-zinc-100 dark:divide-zinc-800/40">
             {rootLocations.map(root => renderTreeNode(root, 0))}
           </div>
 
@@ -418,66 +419,57 @@ export const LocationsPage: React.FC<LocationsPageProps> = ({
             <button
               type="button"
               onClick={() => setMobileView('tree')}
-              className="inline-flex items-center gap-1.5 px-3 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-semibold mb-2 transition-colors min-h-[40px]"
+              className="btn btn-secondary btn-sm mb-2"
             >
-              <ArrowLeft className="w-4 h-4" />
-              <span>Back to Storage Tree</span>
+              <ArrowLeft className="w-4 h-4" aria-hidden="true" />
+              <span>Back to storage tree</span>
             </button>
           </div>
 
           {selectedLoc ? (
-            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-4 sm:p-6 shadow-sm space-y-6">
+            <div className="card p-4 sm:p-6 space-y-6">
               
               {/* Storage Unit Picture Hero Card */}
-              <div className="relative rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-800 shadow-sm group">
-                <div className="h-48 sm:h-56 w-full relative bg-slate-900">
+              <div className="relative rounded-xl overflow-hidden border border-zinc-200 dark:border-zinc-800 group">
+                <div className="h-48 sm:h-56 w-full relative bg-zinc-900">
                   <img
                     src={getLocationImage(selectedLoc)}
                     alt={selectedLoc.name}
                     referrerPolicy="no-referrer"
-                    className="w-full h-full object-cover opacity-90 group-hover:scale-105 transition-transform duration-500"
+                    className="w-full h-full object-cover opacity-90"
                   />
-                  <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-slate-950/40 to-transparent" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-zinc-950/90 via-zinc-950/40 to-transparent" />
                   
                   {/* Photo Badges Over Image */}
                   <div className="absolute top-3 left-3 flex items-center gap-2">
-                    <span className="px-2.5 py-1 text-[10px] font-mono font-extrabold uppercase bg-indigo-600/90 backdrop-blur-md text-white rounded-lg shadow-md border border-indigo-400/30">
+                    <span className="chip bg-teal-600/90 text-white font-mono uppercase">
                       {selectedLoc.type}
                     </span>
-                    <span className="px-2.5 py-1 text-[10px] font-mono font-bold bg-slate-900/80 backdrop-blur-md text-slate-200 rounded-lg border border-slate-700">
-                      CODE: {selectedLoc.code}
+                    <span className="chip bg-zinc-900/80 text-zinc-200 font-mono">
+                      {selectedLoc.code}
                     </span>
                   </div>
 
                   <div className="absolute top-3 right-3 flex items-center gap-2">
                     <button
                       type="button"
-                      onClick={() => handleOpenEditModal(selectedLoc)}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-indigo-600/90 hover:bg-indigo-600 backdrop-blur-md text-white rounded-xl border border-indigo-400/30 shadow-lg transition-all"
-                    >
-                      <Edit className="w-3.5 h-3.5" />
-                      Edit Details
-                    </button>
-
-                    <button
-                      type="button"
                       onClick={() => {
                         setPhotoInputUrl(selectedLoc.imageUrl || '');
                         setEditingPhotoModal(true);
                       }}
-                      className="absolute top-3 right-3 sm:static inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-slate-900/80 hover:bg-slate-900 backdrop-blur-md text-white rounded-xl border border-slate-700 shadow-lg transition-all"
+                      className="btn btn-xs bg-zinc-900/80 hover:bg-zinc-900 text-white border border-zinc-700"
                     >
-                      <Camera className="w-3.5 h-3.5 text-indigo-400" />
-                      Change Photo
+                      <Camera className="w-3.5 h-3.5 text-teal-400" aria-hidden="true" />
+                      Change photo
                     </button>
                   </div>
 
                   <div className="absolute bottom-4 left-4 right-4 text-white">
-                    <h2 className="text-xl sm:text-2xl font-black drop-shadow-md">
+                    <h2 className="text-xl sm:text-2xl font-semibold tracking-tight drop-shadow-md">
                       {selectedLoc.name}
                     </h2>
                     {selectedLoc.description && (
-                      <p className="text-xs text-slate-200/90 mt-1 line-clamp-2 drop-shadow">
+                      <p className="text-xs text-zinc-200/90 mt-1 line-clamp-2 drop-shadow">
                         {selectedLoc.description}
                       </p>
                     )}
@@ -486,15 +478,15 @@ export const LocationsPage: React.FC<LocationsPageProps> = ({
               </div>
 
               {/* Action Buttons Bar */}
-              <div className="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-slate-100 dark:border-slate-800">
+              <div className="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-zinc-100 dark:border-zinc-800">
                 <div className="flex items-center gap-2">
-                  <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
-                    Max Capacity: <strong className="text-slate-800 dark:text-slate-200">{selectedLoc.capacity || 'N/A'} items</strong>
+                  <span className="text-xs font-semibold text-zinc-500 dark:text-zinc-400">
+                    Max Capacity: <strong className="text-zinc-800 dark:text-zinc-200">{selectedLoc.capacity || 'N/A'} items</strong>
                   </span>
                   {selectedLoc.latitude != null && selectedLoc.longitude != null && (
-                    <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 inline-flex items-center gap-1">
+                    <span className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 inline-flex items-center gap-1">
                       <MapPin className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-                      <strong className="text-slate-800 dark:text-slate-200 font-mono">
+                      <strong className="text-zinc-800 dark:text-zinc-200 font-mono">
                         {selectedLoc.latitude.toFixed(5)}, {selectedLoc.longitude.toFixed(5)}
                       </strong>
                     </span>
@@ -505,36 +497,37 @@ export const LocationsPage: React.FC<LocationsPageProps> = ({
                   <button
                     type="button"
                     onClick={() => handleOpenEditModal(selectedLoc)}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 dark:hover:bg-indigo-900/80 rounded-xl border border-indigo-200 dark:border-indigo-800/80 transition-colors"
+                    className="btn btn-secondary btn-sm"
                   >
-                    <Edit className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
-                    Edit Storage Details
+                    <Edit className="w-4 h-4" aria-hidden="true" />
+                    Edit details
                   </button>
 
                   <button
                     type="button"
                     onClick={() => setQrModalItem(selectedLoc)}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-xl border border-slate-200 dark:border-slate-700 transition-colors"
+                    className="btn btn-secondary btn-sm"
                   >
-                    <QrCode className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
-                    Print Tag / Barcode
+                    <QrCode className="w-4 h-4" aria-hidden="true" />
+                    Print tag / barcode
                   </button>
 
                   <button
                     type="button"
                     onClick={() => setDeletingLocItem(selectedLoc)}
-                    className="p-2 text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-xl transition-colors"
+                    className="btn btn-danger-outline btn-icon btn-sm"
                     title="Delete location node"
+                    aria-label="Delete location node"
                   >
-                    <Trash2 className="w-4 h-4" />
+                    <Trash2 className="w-4 h-4" aria-hidden="true" />
                   </button>
                 </div>
               </div>
 
               {/* Full Hierarchy Breadcrumb Path */}
               <div>
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">
-                  Complete Physical Location Path:
+                <span className="meta block mb-1">
+                  Complete physical location path
                 </span>
                 <LocationPathBreadcrumbs
                   locationId={selectedLoc.id}
@@ -548,9 +541,9 @@ export const LocationsPage: React.FC<LocationsPageProps> = ({
                 return (
                   <div className="space-y-3 pt-2">
                     <div className="flex items-center justify-between">
-                      <h4 className="font-bold text-slate-900 dark:text-slate-100 text-xs uppercase tracking-wider flex items-center gap-2">
-                        <ImageIcon className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
-                        Direct Storage Sub-Units ({childUnits.length})
+                      <h4 className="section-title flex items-center gap-2">
+                        <ImageIcon className="w-4 h-4 text-teal-600 dark:text-teal-400" aria-hidden="true" />
+                        Direct sub-units ({childUnits.length})
                       </h4>
                       <button
                         type="button"
@@ -558,14 +551,14 @@ export const LocationsPage: React.FC<LocationsPageProps> = ({
                           setCreateParentId(selectedLoc.id);
                           setShowCreateModal(true);
                         }}
-                        className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline font-semibold flex items-center gap-1"
+                        className="btn btn-ghost btn-xs text-teal-600 dark:text-teal-400"
                       >
-                        <Plus className="w-3.5 h-3.5" /> Add Sub-Unit
+                        <Plus className="w-3.5 h-3.5" aria-hidden="true" /> Add sub-unit
                       </button>
                     </div>
 
                     {childUnits.length === 0 ? (
-                      <p className="text-xs text-slate-400 italic bg-slate-50 dark:bg-slate-800 p-4 rounded-xl text-center border border-slate-200/60 dark:border-slate-800">
+                      <p className="empty-state border border-dashed border-zinc-300 dark:border-zinc-700 rounded-lg">
                         No child storage sub-units under this container.
                       </p>
                     ) : (
@@ -574,27 +567,27 @@ export const LocationsPage: React.FC<LocationsPageProps> = ({
                           <div
                             key={child.id}
                             onClick={() => setSelectedLocationId(child.id)}
-                            className="p-2.5 bg-slate-50 hover:bg-indigo-50/70 dark:bg-slate-800 dark:hover:bg-slate-700/80 rounded-2xl border border-slate-200/80 dark:border-slate-700 cursor-pointer transition-all flex items-center justify-between gap-3 group shadow-2xs"
+                            className="p-2.5 bg-zinc-50 hover:bg-teal-50/70 dark:bg-zinc-800 dark:hover:bg-zinc-700/80 rounded-lg border border-zinc-200 dark:border-zinc-700 cursor-pointer transition-colors flex items-center justify-between gap-3 group"
                           >
                             <div className="flex items-center gap-3 truncate">
                               <img
                                 src={getLocationImage(child)}
                                 alt={child.name}
                                 referrerPolicy="no-referrer"
-                                className="w-12 h-12 object-cover rounded-xl border border-slate-200 dark:border-slate-700 flex-shrink-0 group-hover:scale-105 transition-transform cursor-zoom-in"
+                                className="w-12 h-12 object-cover rounded-lg border border-zinc-200 dark:border-zinc-700 flex-shrink-0 cursor-zoom-in"
                                 onMouseEnter={(e) => showImagePreview(e, getLocationImage(child), `${child.code} — ${child.name}`)}
                                 onMouseLeave={hideImagePreview}
                                 onClick={hideImagePreview}
                               />
                               <div className="truncate">
-                                <span className="block font-bold text-xs text-slate-900 dark:text-slate-100 truncate group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
+                                <span className="block font-bold text-xs text-zinc-900 dark:text-zinc-100 truncate group-hover:text-teal-600 dark:group-hover:text-teal-400 transition-colors">
                                   {child.name}
                                 </span>
                                 <div className="flex items-center gap-1.5 mt-0.5">
-                                  <span className="text-[10px] font-mono font-semibold px-1.5 py-0.2 rounded bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300">
+                                  <span className="text-[10px] font-mono font-semibold px-1.5 py-0.2 rounded bg-zinc-200 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300">
                                     {child.type}
                                   </span>
-                                  <span className="text-[10px] font-mono text-slate-400">
+                                  <span className="text-[10px] font-mono text-zinc-400">
                                     {child.code}
                                   </span>
                                 </div>
@@ -607,12 +600,13 @@ export const LocationsPage: React.FC<LocationsPageProps> = ({
                                   e.stopPropagation();
                                   handleOpenEditModal(child);
                                 }}
-                                className="p-1.5 text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-200/80 dark:hover:bg-slate-700 rounded-lg transition-colors"
+                                className="btn btn-ghost btn-icon btn-xs"
                                 title="Edit sub-unit details"
+                                aria-label={`Edit sub-unit ${child.name}`}
                               >
-                                <Edit className="w-3.5 h-3.5" />
+                                <Edit className="w-3.5 h-3.5" aria-hidden="true" />
                               </button>
-                              <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-indigo-600 transition-colors" />
+                              <ChevronRight className="w-4 h-4 text-zinc-400 group-hover:text-teal-600 transition-colors" />
                             </div>
                           </div>
                         ))}
@@ -623,22 +617,20 @@ export const LocationsPage: React.FC<LocationsPageProps> = ({
               })()}
 
               {/* Contained Physical Documents Section */}
-              <div className="space-y-3 pt-4 border-t border-slate-100 dark:border-slate-800">
+              <div className="space-y-3 pt-4 border-t border-zinc-100 dark:border-zinc-800">
                 <div className="flex items-center justify-between">
-                  <h4 className="font-bold text-slate-900 dark:text-slate-100 text-xs uppercase tracking-wider">
-                    Contained Records & Documents ({selectedDocs.length})
+                  <h4 className="section-title">
+                    Contained records & documents ({selectedDocs.length})
                   </h4>
-                  <span className="text-xs text-slate-400">
+                  <span className="meta">
                     Calculated for node & all sub-containers
                   </span>
                 </div>
 
                 {selectedDocs.length === 0 ? (
-                  <div className="p-6 text-center bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-dashed border-slate-300 dark:border-slate-700">
-                    <FileText className="w-8 h-8 text-slate-300 mx-auto mb-2" />
-                    <p className="text-xs font-semibold text-slate-600 dark:text-slate-300">
-                      No physical documents currently assigned to this storage container.
-                    </p>
+                  <div className="empty-state border border-dashed border-zinc-300 dark:border-zinc-700 rounded-lg">
+                    <FileText className="w-6 h-6 text-zinc-300 dark:text-zinc-600" aria-hidden="true" />
+                    <p>No physical documents currently assigned to this storage container.</p>
                   </div>
                 ) : (
                   <div className="space-y-2 max-h-80 overflow-y-auto">
@@ -646,24 +638,24 @@ export const LocationsPage: React.FC<LocationsPageProps> = ({
                       <div
                         key={doc.id}
                         onClick={() => onSelectDocument(doc.id)}
-                        className="p-3 bg-slate-50 hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-700/80 rounded-xl border border-slate-200/80 dark:border-slate-700 cursor-pointer transition-colors flex items-center justify-between gap-3"
+                        className="p-3 bg-zinc-50 hover:bg-zinc-100 dark:bg-zinc-800 dark:hover:bg-zinc-700/80 rounded-lg border border-zinc-200 dark:border-zinc-700 cursor-pointer transition-colors flex items-center justify-between gap-3"
                       >
                         <div className="flex items-center gap-2.5 truncate">
-                          <FileText className="w-4 h-4 text-indigo-600 dark:text-indigo-400 flex-shrink-0" />
+                          <FileText className="w-4 h-4 text-teal-600 dark:text-teal-400 flex-shrink-0" />
                           <div className="truncate">
                             <div className="flex items-center gap-2">
-                              <span className="font-mono text-xs font-bold text-indigo-600 dark:text-indigo-400">
+                              <span className="font-mono text-xs font-bold text-teal-600 dark:text-teal-400">
                                 #{doc.documentNumber}
                               </span>
                               <StatusBadge type="status" value={doc.status} size="sm" />
                             </div>
-                            <p className="text-xs font-medium text-slate-800 dark:text-slate-200 truncate mt-0.5">
+                            <p className="text-xs font-medium text-zinc-800 dark:text-zinc-200 truncate mt-0.5">
                               {doc.title}
                             </p>
                           </div>
                         </div>
 
-                        <ArrowRight className="w-4 h-4 text-slate-400 flex-shrink-0" />
+                        <ArrowRight className="w-4 h-4 text-zinc-400 flex-shrink-0" />
                       </div>
                     ))}
                   </div>
@@ -672,9 +664,9 @@ export const LocationsPage: React.FC<LocationsPageProps> = ({
 
             </div>
           ) : (
-            <div className="p-12 text-center bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800">
-              <Building2 className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-              <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">
+            <div className="card empty-state py-12">
+              <Building2 className="w-10 h-10 text-zinc-300 dark:text-zinc-600" aria-hidden="true" />
+              <p className="font-medium text-zinc-700 dark:text-zinc-300">
                 Select a physical location from the tree hierarchy to inspect its details.
               </p>
             </div>
@@ -685,34 +677,35 @@ export const LocationsPage: React.FC<LocationsPageProps> = ({
 
       {/* Create New Storage Location Modal */}
       {showCreateModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-3 sm:p-4 animate-in fade-in duration-200">
-          <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800 max-w-lg w-full max-h-[90vh] flex flex-col overflow-hidden my-auto">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 flex-shrink-0">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-900/60 backdrop-blur-sm p-3 sm:p-4 animate-in fade-in duration-200">
+          <div className="card max-w-lg w-full max-h-[90vh] flex flex-col overflow-hidden my-auto" role="dialog" aria-modal="true">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-100 dark:border-zinc-800 flex-shrink-0">
               <div className="flex items-center gap-2">
-                <PlusCircle className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
-                <h3 className="font-bold text-slate-900 dark:text-slate-100">
-                  Add New Storage Container / Unit
+                <PlusCircle className="w-5 h-5 text-teal-600 dark:text-teal-400" />
+                <h3 className="section-title">
+                  Add new storage container / unit
                 </h3>
               </div>
               <button
                 type="button"
                 onClick={() => setShowCreateModal(false)}
-                className="text-slate-400 hover:text-slate-600 p-1"
+                className="btn btn-ghost btn-icon btn-sm"
+                aria-label="Close dialog"
               >
-                <X className="w-5 h-5" />
+                <X className="w-4 h-4" aria-hidden="true" />
               </button>
             </div>
 
             <form onSubmit={handleCreateSubmit} className="flex-1 flex flex-col min-h-0">
               <div className="p-6 space-y-4 overflow-y-auto flex-1 text-xs">
               <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                <label className="label">
                   Parent Storage Unit (Parent Hierarchy)
                 </label>
                 <select
                   value={createParentId || ''}
                   onChange={(e) => setCreateParentId(e.target.value || null)}
-                  className="w-full px-3 py-2 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl outline-none"
+                  className="input"
                 >
                   <option value="">[ROOT LEVEL BUILDING / WAREHOUSE]</option>
                   {locations.map(loc => (
@@ -725,13 +718,13 @@ export const LocationsPage: React.FC<LocationsPageProps> = ({
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  <label className="label">
                     Container Level / Type *
                   </label>
                   <select
                     value={newLocType}
                     onChange={(e) => setNewLocType(e.target.value as LocationType)}
-                    className="w-full px-3 py-2 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl outline-none font-semibold"
+                    className="input font-semibold"
                   >
                     <option value="BUILDING">Building</option>
                     <option value="FLOOR">Floor</option>
@@ -747,7 +740,7 @@ export const LocationsPage: React.FC<LocationsPageProps> = ({
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  <label className="label">
                     Storage Code (Optional)
                   </label>
                   <input
@@ -755,13 +748,13 @@ export const LocationsPage: React.FC<LocationsPageProps> = ({
                     value={newLocCode}
                     onChange={(e) => setNewLocCode(e.target.value)}
                     placeholder="e.g. CAB-04, BOX-020"
-                    className="w-full px-3 py-2 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl outline-none font-mono"
+                    className="input font-mono"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                <label className="label">
                   Container Name *
                 </label>
                 <input
@@ -770,12 +763,12 @@ export const LocationsPage: React.FC<LocationsPageProps> = ({
                   value={newLocName}
                   onChange={(e) => setNewLocName(e.target.value)}
                   placeholder="e.g. Fireproof Cabinet C-04, Box B-020"
-                  className="w-full px-3 py-2 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl outline-none"
+                  className="input"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                <label className="label">
                   Maximum Holding Capacity
                 </label>
                 <input
@@ -783,12 +776,12 @@ export const LocationsPage: React.FC<LocationsPageProps> = ({
                   min={1}
                   value={newLocCapacity}
                   onChange={(e) => setNewLocCapacity(Number(e.target.value))}
-                  className="w-full px-3 py-2 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl outline-none"
+                  className="input"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                <label className="label">
                   GPS Coordinates (Optional)
                 </label>
                 <div className="flex items-center gap-2">
@@ -798,7 +791,7 @@ export const LocationsPage: React.FC<LocationsPageProps> = ({
                     value={newLocLatitude}
                     onChange={(e) => setNewLocLatitude(e.target.value)}
                     placeholder="Latitude"
-                    className="w-full px-3 py-2 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl outline-none font-mono"
+                    className="input font-mono"
                   />
                   <input
                     type="number"
@@ -806,14 +799,14 @@ export const LocationsPage: React.FC<LocationsPageProps> = ({
                     value={newLocLongitude}
                     onChange={(e) => setNewLocLongitude(e.target.value)}
                     placeholder="Longitude"
-                    className="w-full px-3 py-2 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl outline-none font-mono"
+                    className="input font-mono"
                   />
                   <button
                     type="button"
                     onClick={() => captureGps('create')}
                     disabled={capturingGps !== null}
                     title="Capture current GPS position"
-                    className="flex-shrink-0 inline-flex items-center gap-1 px-2.5 py-2 text-xs font-semibold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/60 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 disabled:opacity-50 rounded-xl border border-emerald-200 dark:border-emerald-800 transition-colors"
+                    className="btn btn-secondary btn-sm shrink-0"
                   >
                     {capturingGps === 'create' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <LocateFixed className="w-3.5 h-3.5" />}
                     GPS
@@ -822,7 +815,7 @@ export const LocationsPage: React.FC<LocationsPageProps> = ({
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                <label className="label">
                   Description / Storage Notes
                 </label>
                 <textarea
@@ -830,7 +823,7 @@ export const LocationsPage: React.FC<LocationsPageProps> = ({
                   onChange={(e) => setNewLocDesc(e.target.value)}
                   rows={2}
                   placeholder="Additional storage specifications or handling notes..."
-                  className="w-full px-3 py-2 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl outline-none resize-none"
+                  className="input resize-none"
                 />
               </div>
 
@@ -848,17 +841,17 @@ export const LocationsPage: React.FC<LocationsPageProps> = ({
 
               </div>
 
-              <div className="px-6 py-4 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-100 dark:border-slate-800 flex justify-end gap-2.5 flex-shrink-0">
+              <div className="px-6 py-4 bg-zinc-50 dark:bg-zinc-800/50 border-t border-zinc-100 dark:border-zinc-800 flex justify-end gap-2.5 flex-shrink-0">
                 <button
                   type="button"
                   onClick={() => setShowCreateModal(false)}
-                  className="px-4 py-2 text-xs text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-xl font-medium"
+                  className="btn btn-secondary"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 text-xs text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl font-semibold shadow-md shadow-indigo-600/20"
+                  className="btn btn-primary"
                 >
                   Create Storage Node
                 </button>
@@ -870,26 +863,27 @@ export const LocationsPage: React.FC<LocationsPageProps> = ({
 
       {/* Edit Storage Photo Modal */}
       {editingPhotoModal && selectedLoc && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-3 sm:p-4 animate-in fade-in duration-200">
-          <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800 max-w-md w-full max-h-[90vh] flex flex-col overflow-hidden my-auto">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 flex-shrink-0">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-900/60 backdrop-blur-sm p-3 sm:p-4 animate-in fade-in duration-200">
+          <div className="card max-w-md w-full max-h-[90vh] flex flex-col overflow-hidden my-auto" role="dialog" aria-modal="true">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-100 dark:border-zinc-800 flex-shrink-0">
               <div className="flex items-center gap-2">
-                <Camera className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
-                <h3 className="font-bold text-slate-900 dark:text-slate-100 text-sm">
-                  Update Storage Location Picture
+                <Camera className="w-5 h-5 text-teal-600 dark:text-teal-400" />
+                <h3 className="section-title">
+                  Update storage location photo
                 </h3>
               </div>
               <button
                 type="button"
                 onClick={() => setEditingPhotoModal(false)}
-                className="text-slate-400 hover:text-slate-600 p-1"
+                className="btn btn-ghost btn-icon btn-sm"
+                aria-label="Close dialog"
               >
-                <X className="w-5 h-5" />
+                <X className="w-4 h-4" aria-hidden="true" />
               </button>
             </div>
 
             <div className="p-6 space-y-4 overflow-y-auto flex-1 text-xs">
-              <p className="text-xs text-slate-500 dark:text-slate-400">
+              <p className="text-xs text-zinc-500 dark:text-zinc-400">
                 Upload or link a photo for <strong>{selectedLoc.name}</strong> to help personnel physically identify this vault, cabinet, or box.
               </p>
 
@@ -906,11 +900,11 @@ export const LocationsPage: React.FC<LocationsPageProps> = ({
               />
             </div>
 
-            <div className="px-6 py-4 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-100 dark:border-slate-800 flex justify-end gap-2 flex-shrink-0">
+            <div className="px-6 py-4 bg-zinc-50 dark:bg-zinc-800/50 border-t border-zinc-100 dark:border-zinc-800 flex justify-end gap-2 flex-shrink-0">
               <button
                 type="button"
                 onClick={() => setEditingPhotoModal(false)}
-                className="px-4 py-2 text-xs text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 rounded-xl font-medium"
+                className="btn btn-secondary"
               >
                 Cancel
               </button>
@@ -920,7 +914,7 @@ export const LocationsPage: React.FC<LocationsPageProps> = ({
                   updateLocation(selectedLoc.id, { imageUrl: photoInputUrl.trim() || undefined });
                   setEditingPhotoModal(false);
                 }}
-                className="px-5 py-2 text-xs text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl font-semibold shadow-md shadow-indigo-600/20"
+                className="btn btn-primary"
               >
                 Save Photo
               </button>
@@ -946,16 +940,16 @@ export const LocationsPage: React.FC<LocationsPageProps> = ({
 
       {/* Edit Storage Node Details Modal */}
       {showEditModal && editingLocation && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-3 sm:p-4 animate-in fade-in duration-200">
-          <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800 max-w-lg w-full max-h-[90vh] flex flex-col overflow-hidden my-auto">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 flex-shrink-0">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-900/60 backdrop-blur-sm p-3 sm:p-4 animate-in fade-in duration-200">
+          <div className="card max-w-lg w-full max-h-[90vh] flex flex-col overflow-hidden my-auto" role="dialog" aria-modal="true">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-100 dark:border-zinc-800 flex-shrink-0">
               <div className="flex items-center gap-2">
-                <Edit className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+                <Edit className="w-5 h-5 text-teal-600 dark:text-teal-400" />
                 <div>
-                  <h3 className="font-bold text-slate-900 dark:text-slate-100 text-sm">
-                    Edit Storage Unit Details
+                  <h3 className="section-title">
+                    Edit storage unit details
                   </h3>
-                  <p className="text-[10px] text-slate-500 dark:text-slate-400">
+                  <p className="meta">
                     Update storage name, classification, parent location, or capacity
                   </p>
                 </div>
@@ -963,22 +957,23 @@ export const LocationsPage: React.FC<LocationsPageProps> = ({
               <button
                 type="button"
                 onClick={() => setShowEditModal(false)}
-                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1"
+                className="btn btn-ghost btn-icon btn-sm"
+                aria-label="Close dialog"
               >
-                <X className="w-5 h-5" />
+                <X className="w-4 h-4" aria-hidden="true" />
               </button>
             </div>
 
             <form onSubmit={handleEditSubmit} className="flex-1 flex flex-col min-h-0">
               <div className="p-6 space-y-4 overflow-y-auto flex-1 text-xs">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  <label className="label">
                     Parent Storage Unit (Location Hierarchy)
                   </label>
                   <select
                     value={editParentId || ''}
                     onChange={(e) => setEditParentId(e.target.value ? e.target.value : null)}
-                    className="w-full px-3 py-2 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl outline-none font-medium text-slate-900 dark:text-slate-100"
+                    className="input font-medium"
                   >
                     <option value="">[None / Root Level Facility]</option>
                     {getValidParentOptions(editingLocation.id, locations).map(loc => (
@@ -991,13 +986,13 @@ export const LocationsPage: React.FC<LocationsPageProps> = ({
 
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                    <label className="label">
                       Container Type / Classification *
                     </label>
                     <select
                       value={editType}
                       onChange={(e) => setEditType(e.target.value as LocationType)}
-                      className="w-full px-3 py-2 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl outline-none font-semibold text-slate-900 dark:text-slate-100"
+                      className="input font-semibold"
                     >
                       <option value="BUILDING">Building</option>
                       <option value="FLOOR">Floor</option>
@@ -1013,7 +1008,7 @@ export const LocationsPage: React.FC<LocationsPageProps> = ({
                   </div>
 
                   <div>
-                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                    <label className="label">
                       Storage Code *
                     </label>
                     <input
@@ -1022,13 +1017,13 @@ export const LocationsPage: React.FC<LocationsPageProps> = ({
                       value={editCode || ''}
                       onChange={(e) => setEditCode(e.target.value)}
                       placeholder="e.g. CAB-04, BOX-020"
-                      className="w-full px-3 py-2 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl outline-none font-mono uppercase font-bold text-indigo-600 dark:text-indigo-400"
+                      className="input font-mono uppercase font-bold text-teal-600 dark:text-teal-400"
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  <label className="label">
                     Physical Storage Name *
                   </label>
                   <input
@@ -1037,12 +1032,12 @@ export const LocationsPage: React.FC<LocationsPageProps> = ({
                     value={editName || ''}
                     onChange={(e) => setEditName(e.target.value)}
                     placeholder="e.g. Main Vault Room 01, Cabinet C-03"
-                    className="w-full px-3 py-2 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl outline-none font-medium text-slate-900 dark:text-slate-100"
+                    className="input font-medium"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  <label className="label">
                     Max Holding Capacity
                   </label>
                   <input
@@ -1050,12 +1045,12 @@ export const LocationsPage: React.FC<LocationsPageProps> = ({
                     min={1}
                     value={editCapacity ?? ''}
                     onChange={(e) => setEditCapacity(Number(e.target.value))}
-                    className="w-full px-3 py-2 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl outline-none font-bold text-slate-900 dark:text-slate-100"
+                    className="input font-bold"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  <label className="label">
                     GPS Coordinates (Optional)
                   </label>
                   <div className="flex items-center gap-2">
@@ -1065,7 +1060,7 @@ export const LocationsPage: React.FC<LocationsPageProps> = ({
                       value={editLatitude}
                       onChange={(e) => setEditLatitude(e.target.value)}
                       placeholder="Latitude"
-                      className="w-full px-3 py-2 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl outline-none font-mono"
+                      className="input font-mono"
                     />
                     <input
                       type="number"
@@ -1073,14 +1068,14 @@ export const LocationsPage: React.FC<LocationsPageProps> = ({
                       value={editLongitude}
                       onChange={(e) => setEditLongitude(e.target.value)}
                       placeholder="Longitude"
-                      className="w-full px-3 py-2 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl outline-none font-mono"
+                      className="input font-mono"
                     />
                     <button
                       type="button"
                       onClick={() => captureGps('edit')}
                       disabled={capturingGps !== null}
                       title="Capture current GPS position"
-                      className="flex-shrink-0 inline-flex items-center gap-1 px-2.5 py-2 text-xs font-semibold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/60 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 disabled:opacity-50 rounded-xl border border-emerald-200 dark:border-emerald-800 transition-colors"
+                      className="btn btn-secondary btn-sm shrink-0"
                     >
                       {capturingGps === 'edit' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <LocateFixed className="w-3.5 h-3.5" />}
                       GPS
@@ -1089,7 +1084,7 @@ export const LocationsPage: React.FC<LocationsPageProps> = ({
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  <label className="label">
                     Description / Storage Notes
                   </label>
                   <textarea
@@ -1097,7 +1092,7 @@ export const LocationsPage: React.FC<LocationsPageProps> = ({
                     onChange={(e) => setEditDescription(e.target.value)}
                     rows={2}
                     placeholder="Storage room conditions, physical security keys, handling instructions..."
-                    className="w-full px-3 py-2 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl outline-none resize-none"
+                    className="input resize-none"
                   />
                 </div>
 
@@ -1114,17 +1109,17 @@ export const LocationsPage: React.FC<LocationsPageProps> = ({
                 />
               </div>
 
-              <div className="px-6 py-4 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-100 dark:border-slate-800 flex justify-end gap-2.5 flex-shrink-0">
+              <div className="px-6 py-4 bg-zinc-50 dark:bg-zinc-800/50 border-t border-zinc-100 dark:border-zinc-800 flex justify-end gap-2.5 flex-shrink-0">
                 <button
                   type="button"
                   onClick={() => setShowEditModal(false)}
-                  className="px-4 py-2 text-xs text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-xl font-medium"
+                  className="btn btn-secondary"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 text-xs text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl font-semibold shadow-md shadow-indigo-600/20"
+                  className="btn btn-primary"
                 >
                   Save Changes
                 </button>
@@ -1156,14 +1151,14 @@ export const LocationsPage: React.FC<LocationsPageProps> = ({
           className="fixed z-[100] pointer-events-none"
           style={{ left: imagePreview.x, top: imagePreview.y, width: PREVIEW_WIDTH }}
         >
-          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-2xl overflow-hidden">
+          <div className="card rounded-xl shadow-lg overflow-hidden">
             <img
               src={imagePreview.src}
               alt={imagePreview.title}
-              className="w-full max-h-64 object-contain bg-slate-50 dark:bg-slate-800"
+              className="w-full max-h-64 object-contain bg-zinc-50 dark:bg-zinc-800"
               referrerPolicy="no-referrer"
             />
-            <div className="px-3 py-2 text-xs font-semibold text-slate-600 dark:text-slate-300 border-t border-slate-100 dark:border-slate-800 truncate">
+            <div className="px-3 py-2 text-xs font-semibold text-zinc-600 dark:text-zinc-300 border-t border-zinc-100 dark:border-zinc-800 truncate">
               {imagePreview.title}
             </div>
           </div>

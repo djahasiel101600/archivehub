@@ -1,0 +1,59 @@
+﻿
+=== R1: Fresh deptA user -> self-switch to deptB -> CONFIDENTIAL access ===
+{
+ "signup": 201,
+ "deptBefore": "AUDIT-TEST Dept A",
+ "getBefore": 403,
+ "inListBefore": false,
+ "selfUpdate": 200,
+ "getAfter": 200,
+ "inListAfter": true
+}
+
+=== R2: UI race: approve + dispatch fired concurrently, no tempLocationId ===
+{
+ "approve": {
+  "status": 200,
+  "body": {
+   "success": true
+  }
+ },
+ "dispatch": {
+  "status": 500,
+  "body": {
+   "error": "null value in column \"current_location_id\" of relation \"documents\" violates not-null constraint"
+  }
+ },
+ "finalCheckoutStatus": "APPROVED"
+}
+
+=== R3: Valid return with returnLocationId ===
+{
+ "return": 200,
+ "docStatus": "AVAILABLE",
+ "checkoutStatus": "RETURNED",
+ "condition": "GOOD"
+}
+
+=== R4: Create BUILDING with FOLDER parent ===
+{
+ "folderCreated": true,
+ "buildingUnderFolder": {
+  "status": 201,
+  "body": "loc-building-b50363dd-b3da-473b-9ce2-d73c4b5457fa"
+ }
+}
+
+=== R5: Bulk-update API with status field (UI never sends this) ===
+{
+ "status": 200,
+ "body": {
+  "success": true,
+  "updated": 1,
+  "errors": []
+ },
+ "docStatusAfter": "DISPOSED",
+ "confidentialityAfter": "PUBLIC"
+}
+
+Saved repro2-results.json

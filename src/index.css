@@ -1,5 +1,115 @@
 @import "tailwindcss";
 
+/* ==========================================================================
+   ArchiveHub design system
+   --------------------------------------------------------------------------
+   Direction: calm, minimalist enterprise SaaS.
+   - Primary action color: teal-700 (single accent for primary actions).
+   - Semantic colors only for meaning: emerald = ok/available,
+     amber = pending/attention, rose = overdue/destructive, sky = info.
+   - Surfaces: white cards on zinc-50; hairline borders instead of shadows.
+   - Radii: rounded-lg for controls, rounded-xl for cards. No gradients.
+   - Control heights: 36px base (.btn/.input), 32px sm, 28px xs.
+   Shared classes below are the canonical look for buttons, inputs, cards,
+   tables and badges. Prefer them over ad-hoc utility combinations.
+   ========================================================================== */
+
+/* Base button registered as a utility so variants can @apply it. */
+@utility btn {
+  @apply inline-flex items-center justify-center gap-1.5 h-9 px-3.5 rounded-lg
+    text-sm font-medium whitespace-nowrap select-none
+    transition-colors duration-150
+    disabled:opacity-50 disabled:pointer-events-none;
+}
+
+@layer components {
+  /* --- Buttons ---------------------------------------------------------- */
+  .btn-primary {
+    @apply btn bg-teal-700 text-white hover:bg-teal-800 active:bg-teal-900;
+  }
+  .btn-secondary {
+    @apply btn bg-white text-zinc-700 border border-zinc-300 hover:bg-zinc-50 active:bg-zinc-100
+      dark:bg-zinc-900 dark:text-zinc-200 dark:border-zinc-700 dark:hover:bg-zinc-800;
+  }
+  .btn-ghost {
+    @apply btn text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900
+      dark:text-zinc-300 dark:hover:bg-zinc-800 dark:hover:text-zinc-100;
+  }
+  .btn-danger {
+    @apply btn bg-rose-600 text-white hover:bg-rose-700 active:bg-rose-800;
+  }
+  .btn-danger-outline {
+    @apply btn bg-white text-rose-600 border border-rose-200 hover:bg-rose-50
+      dark:bg-zinc-900 dark:text-rose-400 dark:border-rose-900 dark:hover:bg-rose-950/40;
+  }
+  .btn-sm {
+    @apply h-8 px-3 text-xs;
+  }
+  .btn-xs {
+    @apply h-7 px-2.5 text-xs;
+  }
+  .btn-icon {
+    @apply w-9 px-0;
+  }
+  .btn-icon.btn-sm {
+    @apply w-8;
+  }
+  .btn-icon.btn-xs {
+    @apply w-7;
+  }
+
+  /* --- Forms ------------------------------------------------------------ */
+  .input {
+    @apply h-9 w-full rounded-lg border border-zinc-300 bg-white px-3 text-sm text-zinc-900
+      placeholder:text-zinc-400
+      focus:border-teal-600 focus:ring-2 focus:ring-teal-600/20 focus:outline-none
+      disabled:bg-zinc-50 disabled:text-zinc-400
+      dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:placeholder:text-zinc-500
+      dark:focus:border-teal-500 dark:disabled:bg-zinc-800;
+  }
+  textarea.input {
+    @apply h-auto py-2;
+  }
+  .label {
+    @apply block text-xs font-medium text-zinc-600 mb-1 dark:text-zinc-400;
+  }
+  .field-hint {
+    @apply mt-1 text-[11px] text-zinc-400 dark:text-zinc-500;
+  }
+
+  /* --- Surfaces & layout ------------------------------------------------ */
+  .card {
+    @apply bg-white border border-zinc-200 rounded-xl dark:bg-zinc-900 dark:border-zinc-800;
+  }
+  .toolbar {
+    /* card properties inlined: Tailwind 4 cannot @apply component-layer classes */
+    @apply bg-white border border-zinc-200 rounded-xl dark:bg-zinc-900 dark:border-zinc-800
+      p-3 flex flex-wrap items-center gap-2;
+  }
+  .section-title {
+    @apply text-sm font-semibold text-zinc-900 dark:text-zinc-100;
+  }
+  .meta {
+    @apply text-xs text-zinc-500 dark:text-zinc-400;
+  }
+  .empty-state {
+    @apply flex flex-col items-center justify-center gap-2 text-center py-10 px-4 text-sm text-zinc-500 dark:text-zinc-400;
+  }
+
+  /* --- Tables ----------------------------------------------------------- */
+  .th {
+    @apply px-3 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400;
+  }
+  .td {
+    @apply px-3 py-2.5 text-sm text-zinc-700 align-middle dark:text-zinc-300;
+  }
+
+  /* --- Badges / chips ---------------------------------------------------- */
+  .chip {
+    @apply inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] font-medium leading-4;
+  }
+}
+
 /* @agicash/qr-scanner injects scan-region / code-outline overlays into the
    scanner container. They must never intercept pointer events — otherwise
    camera guide boxes can swallow clicks meant for modal buttons around them. */
@@ -10,7 +120,7 @@
 }
 
 :focus-visible {
-  outline: 2px solid #4f46e5;
+  outline: 2px solid #0f766e;
   outline-offset: 2px;
 }
 

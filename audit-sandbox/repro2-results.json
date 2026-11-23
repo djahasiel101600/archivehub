@@ -1,0 +1,69 @@
+[
+  {
+    "id": "R1",
+    "name": "Fresh deptA user -> self-switch to deptB -> CONFIDENTIAL access",
+    "detail": {
+      "signup": 201,
+      "deptBefore": "AUDIT-TEST Dept A",
+      "getBefore": 403,
+      "inListBefore": false,
+      "selfUpdate": 200,
+      "getAfter": 200,
+      "inListAfter": true
+    }
+  },
+  {
+    "id": "R2",
+    "name": "UI race: approve + dispatch fired concurrently, no tempLocationId",
+    "detail": {
+      "approve": {
+        "status": 200,
+        "body": {
+          "success": true
+        }
+      },
+      "dispatch": {
+        "status": 500,
+        "body": {
+          "error": "null value in column \"current_location_id\" of relation \"documents\" violates not-null constraint"
+        }
+      },
+      "finalCheckoutStatus": "APPROVED"
+    }
+  },
+  {
+    "id": "R3",
+    "name": "Valid return with returnLocationId",
+    "detail": {
+      "return": 200,
+      "docStatus": "AVAILABLE",
+      "checkoutStatus": "RETURNED",
+      "condition": "GOOD"
+    }
+  },
+  {
+    "id": "R4",
+    "name": "Create BUILDING with FOLDER parent",
+    "detail": {
+      "folderCreated": true,
+      "buildingUnderFolder": {
+        "status": 201,
+        "body": "loc-building-b50363dd-b3da-473b-9ce2-d73c4b5457fa"
+      }
+    }
+  },
+  {
+    "id": "R5",
+    "name": "Bulk-update API with status field (UI never sends this)",
+    "detail": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "updated": 1,
+        "errors": []
+      },
+      "docStatusAfter": "DISPOSED",
+      "confidentialityAfter": "PUBLIC"
+    }
+  }
+]

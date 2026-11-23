@@ -5,17 +5,84 @@ import { createServer as createViteServer } from "vite";
 
 dotenv.config();
 
-import { checkDatabaseHealth, pgPool } from "./src/db/index.js";
+import { checkDatabaseHealth } from "./src/db/index.js";
 import { runMigrations } from "./src/db/migrate.js";
 import { seedDatabase } from "./src/db/seed.js";
 import * as repo from "./src/db/repository.js";
-import { sanitizeUser, signAuthToken, verifyPassword, hashPassword } from "./src/auth/session.js";
+import { sanitizeUser, signAuthToken, verifyPassword, hashPassword, SESSION_COOKIE_MAX_AGE } from "./src/auth/session.js";
+import type { AuthUser } from "./src/auth/session.js";
 import { apiGuard } from "./src/auth/apiGuard.js";
-import { saveDigitalCopy, resolveDigitalCopy, decodeBase64Payload } from "./src/files/digitalCopies.js";
+import { saveDigitalCopy, resolveDigitalCopy, decodeBase64Payload, validateDigitalCopy } from "./src/files/digitalCopies.js";
+import { resolveDocumentPhoto } from "./src/files/documentPhotos.js";
+import { calculateLocationPath } from "./src/utils/locationUtils.js";
+import type { DocumentItem } from "./src/types.js";
+
+// --- Security helpers -------------------------------------------------------
+
+const RECORDS_WRITE_ROLES = ["ADMIN", "RECORDS_ADMIN", "RECORDS_OFFICER"];
+
+/**
+ * Confidentiality policy:
+ *  - RESTRICTED: records staff + auditors only
+ *  - CONFIDENTIAL: records staff + auditors + the owning department
+ *  - INTERNAL / PUBLIC: any authenticated user
+ */
+function canViewDocument(user: AuthUser, doc: Pick<DocumentItem, "confidentiality" | "departmentId">): boolean {
+  if (doc.confidentiality === "RESTRICTED") {
+    return RECORDS_WRITE_ROLES.includes(user.role) || user.role === "AUDITOR";
+  }
+  if (doc.confidentiality === "CONFIDENTIAL") {
+    return RECORDS_WRITE_ROLES.includes(user.role) || user.role === "AUDITOR" || user.departmentId === doc.departmentId;
+  }
+  return true;
+}
+
+// Simple in-memory sliding-window rate limiter for credential endpoints.
+const authAttempts = new Map<string, { count: number; resetAt: number }>();
+function authRateLimited(key: string, maxAttempts: number): boolean {
+  const now = Date.now();
+  const entry = authAttempts.get(key);
+  if (!entry || now > entry.resetAt) {
+    authAttempts.set(key, { count: 1, resetAt: now + 15 * 60 * 1000 });
+    return false;
+  }
+  entry.count += 1;
+  return entry.count > maxAttempts;
+}
 
 async function startServer() {
   const app = express();
   const PORT = 3031;
+
+  // Baseline security headers on every response.
+  app.use((_req, res, next) => {
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    res.setHeader("X-Frame-Options", "DENY");
+    res.setHeader("Referrer-Policy", "same-origin");
+    res.setHeader("Permissions-Policy", "camera=(self), microphone=()");
+    if (process.env.NODE_ENV === "production") {
+      res.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
+    }
+    next();
+  });
+
+  // CSRF defense-in-depth for cookie-authenticated mutations: browsers always
+  // send Origin/Referer, and it must match this host. Bearer-token clients are
+  // exempt (tokens are not auto-attached by the browser).
+  app.use((req, res, next) => {
+    if (!["POST", "PUT", "PATCH", "DELETE"].includes(req.method)) return next();
+    if (req.headers.authorization?.startsWith("Bearer ")) return next();
+    const source = req.headers.origin || req.headers.referer;
+    if (!source) return next();
+    try {
+      if (new URL(source).host !== req.headers.host) {
+        return res.status(403).json({ error: "Cross-origin request blocked." });
+      }
+    } catch {
+      return res.status(403).json({ error: "Invalid request origin." });
+    }
+    next();
+  });
 
   app.use(apiGuard);
 
@@ -41,10 +108,6 @@ async function startServer() {
         res.status(401).json({ success: false, error: "Authentication required." });
         return;
       }
-      const database = await checkDatabaseHealth();
-      if (!database.connected) {
-        return res.status(503).json({ success: false, error: `Database unavailable: ${database.message}` });
-      }
       if (!fileData) {
         res.status(400).json({ success: false, error: "fileData payload is required." });
         return;
@@ -57,6 +120,11 @@ async function startServer() {
       const buffer = decodeBase64Payload(fileData);
       if (buffer.length === 0) {
         res.status(400).json({ success: false, error: "Uploaded file is empty." });
+        return;
+      }
+      const validationError = validateDigitalCopy(fileType || "application/octet-stream", buffer.length);
+      if (validationError) {
+        res.status(400).json({ success: false, error: validationError });
         return;
       }
       const stored = saveDigitalCopy(req.params.id, fileName || "scan.bin", buffer);
@@ -82,6 +150,10 @@ async function startServer() {
         res.status(404).json({ success: false, error: "No digital copy attached to this document." });
         return;
       }
+      if (!req.authUser || !canViewDocument(req.authUser, doc)) {
+        res.status(403).json({ success: false, error: "You do not have permission to download this digital copy." });
+        return;
+      }
       const absolute = resolveDigitalCopy(doc.digitalFilePath);
       if (!absolute) {
         res.status(404).json({ success: false, error: "Digital copy file not found on server storage." });
@@ -91,6 +163,30 @@ async function startServer() {
       res.sendFile(absolute);
     } catch (err: any) {
       res.status(500).json({ error: err?.message || "Download failed." });
+    }
+  });
+
+  // Stored document photo serving (photos are offloaded from the JSONB row to
+  // disk; the record only keeps metadata + this serving URL).
+  app.get("/api/documents/:id/photos/:photoId", async (req, res) => {
+    try {
+      const doc = await repo.getDocumentById(req.params.id);
+      if (!doc) {
+        res.status(404).json({ error: "Document not found." });
+        return;
+      }
+      if (!req.authUser || !canViewDocument(req.authUser, doc)) {
+        res.status(403).json({ error: "You do not have permission to view this photo." });
+        return;
+      }
+      const absolute = resolveDocumentPhoto(req.params.id, req.params.photoId);
+      if (!absolute) {
+        res.status(404).json({ error: "Photo not found." });
+        return;
+      }
+      res.sendFile(absolute);
+    } catch (err: any) {
+      res.status(500).json({ error: err?.message || "Photo load failed." });
     }
   });
 
@@ -342,22 +438,28 @@ async function startServer() {
   app.post("/api/auth/login", async (req, res) => {
     try {
       const { email, password } = req.body;
-      if (!email)
+      if (!email || !password)
         return res
           .status(400)
-          .json({ success: false, message: "Email address is required." });
+          .json({ success: false, message: "Email and password are required." });
 
-      const user = await repo.getUserByEmail(email);
-      if (!user) {
-        return res
-          .status(404)
-          .json({
-            success: false,
-            message: "No account found with this email address.",
-          });
+      const rateKey = `${req.ip}:${String(email).toLowerCase()}`;
+      if (authRateLimited(rateKey, 10)) {
+        return res.status(429).json({
+          success: false,
+          message: "Too many sign-in attempts. Please wait 15 minutes and try again.",
+        });
       }
 
-      // Check Administrator Approval Status
+      const user = await repo.getUserByEmail(String(email).trim().toLowerCase());
+      // Uniform error for unknown account AND wrong password: no enumeration.
+      if (!user || !(await verifyPassword(password, user.password))) {
+        return res
+          .status(401)
+          .json({ success: false, message: "Incorrect email or password." });
+      }
+
+      // Approval gates are only revealed after the credentials prove valid.
       if (user.approvalStatus === "PENDING_APPROVAL") {
         return res.status(403).json({
           success: false,
@@ -375,13 +477,7 @@ async function startServer() {
         });
       }
 
-      if (!user.password || !(await verifyPassword(password, user.password))) {
-        return res
-          .status(401)
-          .json({ success: false, message: "Incorrect email or password." });
-      }
-
-      const cookieAttributes = `Path=/; HttpOnly; SameSite=Strict; Max-Age=604800${process.env.NODE_ENV === "production" ? "; Secure" : ""}`;
+      const cookieAttributes = `Path=/; HttpOnly; SameSite=Strict; Max-Age=${SESSION_COOKIE_MAX_AGE}${process.env.NODE_ENV === "production" ? "; Secure" : ""}`;
       res.setHeader("Set-Cookie", `archivehub_session=${signAuthToken(user)}; ${cookieAttributes}`);
       res.json({ success: true, user: sanitizeUser(user) });
     } catch (err: any) {
@@ -389,25 +485,41 @@ async function startServer() {
     }
   });
 
+  app.post("/api/auth/logout", (_req, res) => {
+    const secure = process.env.NODE_ENV === "production" ? "; Secure" : "";
+    res.setHeader("Set-Cookie", `archivehub_session=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0${secure}`);
+    res.json({ success: true });
+  });
+
+  // Self-service registration may only request non-privileged roles; staff and
+  // admin accounts are provisioned by administrators.
+  const SIGNUP_ROLES: Array<"DEPT_USER" | "AUDITOR"> = ["DEPT_USER", "AUDITOR"];
+
   app.post("/api/auth/signup", async (req, res) => {
     try {
-      const userData = req.body;
-      if (!userData.email || !userData.fullName) {
+      const { email, fullName, password, role, departmentId, departmentName, title, avatarUrl } = req.body;
+      if (!email || !fullName) {
         return res
           .status(400)
           .json({
             success: false,
             message: "Email and full name are required.",
           });
-
-          app.post("/api/auth/logout", (_req, res) => {
-            const secure = process.env.NODE_ENV === "production" ? "; Secure" : "";
-            res.setHeader("Set-Cookie", `archivehub_session=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0${secure}`);
-            res.json({ success: true });
-          });
+      }
+      if (!password || String(password).length < 8) {
+        return res.status(400).json({
+          success: false,
+          message: "A password of at least 8 characters is required.",
+        });
+      }
+      if (authRateLimited(`signup:${req.ip}`, 10)) {
+        return res.status(429).json({
+          success: false,
+          message: "Too many registration attempts. Please try again later.",
+        });
       }
 
-      const existing = await repo.getUserByEmail(userData.email);
+      const existing = await repo.getUserByEmail(String(email).trim().toLowerCase());
       if (existing) {
         return res
           .status(400)
@@ -417,8 +529,16 @@ async function startServer() {
           });
       }
 
+      const requestedRole = SIGNUP_ROLES.includes(role) ? role : "DEPT_USER";
       const user = await repo.createUser({
-        ...userData,
+        email: String(email).trim().toLowerCase(),
+        fullName,
+        password,
+        role: requestedRole,
+        departmentId: departmentId || "",
+        departmentName: departmentName || "",
+        title: title || "",
+        avatarUrl: avatarUrl || undefined,
         approvalStatus: "PENDING_APPROVAL",
       });
 
@@ -445,6 +565,9 @@ async function startServer() {
       });
 
       if (newPassword) {
+        if (String(newPassword).length < 8) {
+          return res.status(400).json({ success: false, message: "New password must be at least 8 characters." });
+        }
         const user = await repo.getUserById(req.params.id);
         if (!user) {
           return res.status(404).json({ success: false, message: "User not found." });
@@ -583,7 +706,53 @@ async function startServer() {
   app.get("/api/documents", async (req, res) => {
     try {
       const docs = await repo.getDocuments();
-      res.json(docs);
+      const user = req.authUser!;
+      const visible = docs.filter(d => canViewDocument(user, d));
+      const limit = Number(req.query.limit);
+      if (Number.isFinite(limit) && limit > 0) {
+        const offset = Math.max(0, Number(req.query.offset) || 0);
+        res.json({ items: visible.slice(offset, offset + limit), total: visible.length });
+        return;
+      }
+      res.json(visible);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Server-side scan lookup: resolve a QR/barcode/document number without
+  // requiring the full dataset on the client.
+  app.get("/api/lookup", async (req, res) => {
+    try {
+      const code = String(req.query.code || "").trim();
+      if (!code) {
+        res.status(400).json({ error: "code query parameter is required." });
+        return;
+      }
+      const user = req.authUser!;
+      const docs = await repo.getDocuments();
+      const doc = docs.find(d => d.qrCode === code || d.barcode === code || d.documentNumber === code);
+      if (doc) {
+        if (!canViewDocument(user, doc)) {
+          res.status(403).json({ error: "You do not have permission to view this record." });
+          return;
+        }
+        res.json({ type: "document", item: doc });
+        return;
+      }
+      const bundles = await repo.getBundles();
+      const bundle = bundles.find(b => b.qrCode === code || b.barcode === code || b.bundleNumber === code);
+      if (bundle) {
+        res.json({ type: "bundle", item: bundle });
+        return;
+      }
+      const locations = await repo.getLocations();
+      const location = locations.find(l => l.qrCode === code || l.barcode === code || l.code === code);
+      if (location) {
+        res.json({ type: "location", item: location });
+        return;
+      }
+      res.status(404).json({ error: "No record matches this code." });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }
@@ -601,9 +770,28 @@ async function startServer() {
     }
   });
 
+  // Single-record fetch (detail pages, scanner remote lookup fallback).
+  // Registered after the fixed /next-number path so it does not shadow it.
+  app.get("/api/documents/:id", async (req, res) => {
+    try {
+      const doc = await repo.getDocumentById(req.params.id);
+      if (!doc) {
+        res.status(404).json({ error: "Document not found." });
+        return;
+      }
+      if (!req.authUser || !canViewDocument(req.authUser, doc)) {
+        res.status(403).json({ error: "You do not have permission to view this record." });
+        return;
+      }
+      res.json(doc);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
   app.post("/api/documents", async (req, res) => {
     try {
-      const { docData, homePath } = req.body;
+      const { docData } = req.body;
       if (!req.authUser) {
         return res.status(401).json({ error: "Authentication required." });
       }
@@ -616,11 +804,11 @@ async function startServer() {
       if (docData.photos !== undefined && (!Array.isArray(docData.photos) || docData.photos.length > 5)) {
         return res.status(400).json({ error: "A document can have at most five photos." });
       }
-      const database = await checkDatabaseHealth();
-      if (!database.connected) {
-        return res.status(503).json({ error: `Database unavailable: ${database.message}` });
-      }
-      const newDoc = await repo.createDocument(docData, req.authUser, homePath || "");
+      // Location paths are computed server-side from the live hierarchy so the
+      // stored trail cannot be spoofed or go stale via client payloads.
+      const locations = await repo.getLocations();
+      const homePath = calculateLocationPath(locations, docData.homeLocationId);
+      const newDoc = await repo.createDocument(docData, req.authUser, homePath);
       res.status(201).json(newDoc);
     } catch (err: any) {
       res.status(500).json({ error: err.message });
@@ -635,10 +823,6 @@ async function startServer() {
       }
       if (updates?.photos !== undefined && (!Array.isArray(updates.photos) || updates.photos.length > 5)) {
         return res.status(400).json({ error: "A document can have at most five photos." });
-      }
-      const database = await checkDatabaseHealth();
-      if (!database.connected) {
-        return res.status(503).json({ error: `Database unavailable: ${database.message}` });
       }
       const existing = await repo.getDocumentById(req.params.id);
       if (!existing) return res.status(404).json({ error: "Document not found." });
@@ -656,8 +840,10 @@ async function startServer() {
 
   app.delete("/api/documents/:id", async (req, res) => {
     try {
-      const { user } = req.body;
-      const success = await repo.deleteDocument(req.params.id, user);
+      if (!req.authUser) {
+        return res.status(401).json({ error: "Authentication required." });
+      }
+      const success = await repo.deleteDocument(req.params.id, req.authUser);
       if (!success) {
         return res
           .status(400)
@@ -674,12 +860,22 @@ async function startServer() {
 
   app.post("/api/documents/:id/move", async (req, res) => {
     try {
-      const { toLocationId, reason, user, fromPath, toPath } = req.body;
+      if (!req.authUser) {
+        return res.status(401).json({ error: "Authentication required." });
+      }
+      const { toLocationId, reason } = req.body;
+      const doc = await repo.getDocumentById(req.params.id);
+      if (!doc) {
+        return res.status(404).json({ error: "Document not found." });
+      }
+      const locations = await repo.getLocations();
+      const fromPath = calculateLocationPath(locations, doc.currentLocationId);
+      const toPath = calculateLocationPath(locations, toLocationId);
       await repo.moveDocument(
         req.params.id,
         toLocationId,
         reason,
-        user,
+        req.authUser,
         fromPath,
         toPath,
       );
@@ -689,55 +885,46 @@ async function startServer() {
     }
   });
 
-  // Batch Relocate — move multiple documents at once
+  // Batch Relocate — one transaction, set-based SQL
   app.post("/api/documents/batch-move", async (req, res) => {
     try {
-      const { documentIds, toLocationId, reason, user, fromPaths, toPath } = req.body;
+      if (!req.authUser) {
+        return res.status(401).json({ error: "Authentication required." });
+      }
+      const { documentIds, toLocationId, reason } = req.body;
       if (!Array.isArray(documentIds) || documentIds.length === 0) {
         res.status(400).json({ error: 'documentIds array is required' });
         return;
       }
-      const errors: string[] = [];
+      const locations = await repo.getLocations();
+      const docs = await repo.getDocuments();
+      const fromPaths: Record<string, string> = {};
       for (const docId of documentIds) {
-        try {
-          await repo.moveDocument(
-            docId,
-            toLocationId,
-            reason || 'Batch Relocation Transfer',
-            user,
-            fromPaths?.[docId] || 'Unknown',
-            toPath || 'Unknown',
-          );
-        } catch (e: any) {
-          errors.push(`${docId}: ${e.message}`);
-        }
+        const doc = docs.find(d => d.id === docId);
+        fromPaths[docId] = calculateLocationPath(locations, doc?.currentLocationId ?? null);
       }
-      res.json({ success: true, moved: documentIds.length - errors.length, errors });
+      const toPath = calculateLocationPath(locations, toLocationId);
+      const result = await repo.batchMoveDocuments(documentIds, toLocationId, reason, req.authUser, fromPaths, toPath);
+      res.json({ success: true, moved: result.moved, errors: [] });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }
   });
 
   // Bulk Update — apply the same metadata change (security, condition,
-  // department, ...) to many documents at once
+  // department, ...) to many documents in one transaction
   app.post("/api/documents/bulk-update", async (req, res) => {
     try {
-      const { documentIds, updates, user } = req.body;
+      if (!req.authUser) {
+        return res.status(401).json({ error: "Authentication required." });
+      }
+      const { documentIds, updates } = req.body;
       if (!Array.isArray(documentIds) || documentIds.length === 0 || !updates || Object.keys(updates).length === 0) {
         res.status(400).json({ error: 'documentIds array and a non-empty updates object are required' });
         return;
       }
-      let updated = 0;
-      const errors: string[] = [];
-      for (const docId of documentIds) {
-        try {
-          await repo.updateDocument(docId, updates, user);
-          updated++;
-        } catch (e: any) {
-          errors.push(`${docId}: ${e.message}`);
-        }
-      }
-      res.json({ success: errors.length === 0, updated, errors });
+      const result = await repo.bulkUpdateDocuments(documentIds, updates, req.authUser);
+      res.json({ success: true, updated: result.updated, errors: [] });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }
@@ -746,8 +933,10 @@ async function startServer() {
   // QR Code Claim — mark a document's QR code as claimed (scanned)
   app.post("/api/documents/:id/qr-claim", async (req, res) => {
     try {
-      const { user } = req.body;
-      const result = await repo.claimDocumentQr(req.params.id, user);
+      if (!req.authUser) {
+        return res.status(401).json({ error: "Authentication required." });
+      }
+      const result = await repo.claimDocumentQr(req.params.id, req.authUser);
       if (!result.success) {
         return res.status(400).json({ success: false, message: result.message });
       }
@@ -760,8 +949,10 @@ async function startServer() {
   // QR Code Unclaim — reset a document's QR code claim status
   app.post("/api/documents/:id/qr-unclaim", async (req, res) => {
     try {
-      const { user } = req.body;
-      const result = await repo.unclaimDocumentQr(req.params.id, user);
+      if (!req.authUser) {
+        return res.status(401).json({ error: "Authentication required." });
+      }
+      const result = await repo.unclaimDocumentQr(req.params.id, req.authUser);
       if (!result.success) {
         return res.status(400).json({ success: false, message: result.message });
       }
@@ -771,34 +962,19 @@ async function startServer() {
     }
   });
 
-  // Bulk Delete — remove many documents at once (checked-out records are skipped)
+  // Bulk Delete — one transaction; checked-out records are skipped
   app.post("/api/documents/bulk-delete", async (req, res) => {
     try {
-      const { documentIds, user } = req.body;
+      if (!req.authUser) {
+        return res.status(401).json({ error: "Authentication required." });
+      }
+      const { documentIds } = req.body;
       if (!Array.isArray(documentIds) || documentIds.length === 0) {
         res.status(400).json({ error: 'documentIds array is required' });
         return;
       }
-      let deleted = 0;
-      const skipped: { id: string; reason: string }[] = [];
-      for (const docId of documentIds) {
-        const doc = await repo.getDocumentById(docId);
-        if (!doc) {
-          skipped.push({ id: docId, reason: 'record not found' });
-          continue;
-        }
-        if (doc.status === 'CHECKED_OUT') {
-          skipped.push({ id: docId, reason: `#${doc.documentNumber} is currently checked out` });
-          continue;
-        }
-        const ok = await repo.deleteDocument(docId, user);
-        if (ok) {
-          deleted++;
-        } else {
-          skipped.push({ id: docId, reason: 'delete failed' });
-        }
-      }
-      res.json({ success: skipped.length === 0, deleted, skipped });
+      const result = await repo.bulkDeleteDocuments(documentIds, req.authUser);
+      res.json({ success: result.skipped.length === 0, deleted: result.deleted, skipped: result.skipped });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }
@@ -816,12 +992,18 @@ async function startServer() {
 
   app.post("/api/checkouts/request", async (req, res) => {
     try {
-      const { documentId, purpose, dueDate, user } = req.body;
+      if (!req.authUser) {
+        return res.status(401).json({ error: "Authentication required." });
+      }
+      const { documentId, purpose, dueDate } = req.body;
+      if (!documentId || !purpose || !dueDate) {
+        return res.status(400).json({ error: "documentId, purpose and dueDate are required." });
+      }
       const chk = await repo.requestCheckout(
         documentId,
         purpose,
         dueDate,
-        user,
+        req.authUser,
       );
       res.status(201).json(chk);
     } catch (err: any) {
@@ -831,8 +1013,10 @@ async function startServer() {
 
   app.post("/api/checkouts/:id/approve", async (req, res) => {
     try {
-      const { user } = req.body;
-      await repo.approveCheckout(req.params.id, user);
+      if (!req.authUser) {
+        return res.status(401).json({ error: "Authentication required." });
+      }
+      await repo.approveCheckout(req.params.id, req.authUser);
       res.json({ success: true });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
@@ -841,8 +1025,11 @@ async function startServer() {
 
   app.post("/api/checkouts/:id/reject", async (req, res) => {
     try {
-      const { reason, user } = req.body;
-      await repo.rejectCheckout(req.params.id, reason, user);
+      if (!req.authUser) {
+        return res.status(401).json({ error: "Authentication required." });
+      }
+      const { reason } = req.body;
+      await repo.rejectCheckout(req.params.id, reason, req.authUser);
       res.json({ success: true });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
@@ -851,11 +1038,22 @@ async function startServer() {
 
   app.post("/api/checkouts/:id/dispatch", async (req, res) => {
     try {
-      const { tempLocationId, user, fromPath, toPath } = req.body;
+      if (!req.authUser) {
+        return res.status(401).json({ error: "Authentication required." });
+      }
+      const { tempLocationId } = req.body;
+      const checkout = (await repo.getCheckouts()).find(c => c.id === req.params.id);
+      if (!checkout) {
+        return res.status(404).json({ error: "Checkout not found." });
+      }
+      const doc = await repo.getDocumentById(checkout.documentId);
+      const locations = await repo.getLocations();
+      const fromPath = calculateLocationPath(locations, doc?.currentLocationId ?? null);
+      const toPath = calculateLocationPath(locations, tempLocationId);
       await repo.processCheckoutDispatch(
         req.params.id,
         tempLocationId,
-        user,
+        req.authUser,
         fromPath,
         toPath,
       );
@@ -867,14 +1065,24 @@ async function startServer() {
 
   app.post("/api/checkouts/:id/return", async (req, res) => {
     try {
-      const { conditionIn, returnLocationId, notes, user, fromPath, toPath } =
-        req.body;
+      if (!req.authUser) {
+        return res.status(401).json({ error: "Authentication required." });
+      }
+      const { conditionIn, returnLocationId, notes } = req.body;
+      const checkout = (await repo.getCheckouts()).find(c => c.id === req.params.id);
+      if (!checkout) {
+        return res.status(404).json({ error: "Checkout record not found." });
+      }
+      const doc = await repo.getDocumentById(checkout.documentId);
+      const locations = await repo.getLocations();
+      const fromPath = calculateLocationPath(locations, doc?.currentLocationId ?? null);
+      const toPath = calculateLocationPath(locations, returnLocationId);
       await repo.processCheckInReturn(
         req.params.id,
         conditionIn,
         returnLocationId,
         notes,
-        user,
+        req.authUser,
         fromPath,
         toPath,
       );
@@ -904,20 +1112,11 @@ async function startServer() {
     }
   });
 
-  // Audit Logs
+  // Audit Logs (read-only API; entries are written server-side per operation)
   app.get("/api/audit-logs", async (req, res) => {
     try {
       const logs = await repo.getAuditLogs();
       res.json(logs);
-    } catch (err: any) {
-      res.status(500).json({ error: err.message });
-    }
-  });
-
-  app.post("/api/audit-logs", async (req, res) => {
-    try {
-      const log = await repo.createAuditLog(req.body);
-      res.status(201).json(log);
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }
@@ -972,8 +1171,8 @@ async function startServer() {
 
   app.post("/api/bundles", async (req, res) => {
     try {
-      const { bundleData, user } = req.body;
-      const newBundle = await repo.createBundle(bundleData || req.body, user);
+      const { bundleData } = req.body;
+      const newBundle = await repo.createBundle(bundleData || req.body, req.authUser);
       res.status(201).json(newBundle);
     } catch (err: any) {
       res.status(500).json({ error: err.message });
@@ -982,8 +1181,8 @@ async function startServer() {
 
   app.put("/api/bundles/:id", async (req, res) => {
     try {
-      const { updates, user } = req.body;
-      await repo.updateBundle(req.params.id, updates || req.body, user);
+      const { updates } = req.body;
+      await repo.updateBundle(req.params.id, updates || req.body, req.authUser);
       res.json({ success: true });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
@@ -992,8 +1191,7 @@ async function startServer() {
 
   app.delete("/api/bundles/:id", async (req, res) => {
     try {
-      const { user } = req.body;
-      await repo.deleteBundle(req.params.id, user);
+      await repo.deleteBundle(req.params.id, req.authUser);
       res.json({ success: true });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
@@ -1002,8 +1200,8 @@ async function startServer() {
 
   app.post("/api/bundles/:id/add-documents", async (req, res) => {
     try {
-      const { documentIds, user } = req.body;
-      await repo.addDocumentsToBundle(req.params.id, documentIds, user);
+      const { documentIds } = req.body;
+      await repo.addDocumentsToBundle(req.params.id, documentIds, req.authUser);
       res.json({ success: true });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
@@ -1012,8 +1210,8 @@ async function startServer() {
 
   app.post("/api/bundles/:id/remove-document", async (req, res) => {
     try {
-      const { documentId, user } = req.body;
-      await repo.removeDocumentFromBundle(req.params.id, documentId, user);
+      const { documentId } = req.body;
+      await repo.removeDocumentFromBundle(req.params.id, documentId, req.authUser);
       res.json({ success: true });
     } catch (err: any) {
       res.status(500).json({ error: err.message });

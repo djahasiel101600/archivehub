@@ -55,6 +55,36 @@ interface DocumentsPageProps {
   onClearTrigger?: () => void;
 }
 
+// E7/T-04: remember the operator's last-used intake context (same pattern as
+// the photo-capture presets) instead of silently defaulting to array index 0.
+const QUICK_REG_PRESET_STORAGE_KEY = 'archivehub_quick_register_presets';
+
+interface QuickRegisterPresets {
+  departmentId: string;
+  documentTypeId: string;
+  homeLocationId: string;
+}
+
+function getQuickRegisterPresets(): QuickRegisterPresets {
+  try {
+    const saved = localStorage.getItem(QUICK_REG_PRESET_STORAGE_KEY);
+    if (saved) {
+      const parsed: unknown = JSON.parse(saved);
+      if (parsed && typeof parsed === 'object') {
+        const values = parsed as Record<string, unknown>;
+        return {
+          departmentId: typeof values.departmentId === 'string' ? values.departmentId : '',
+          documentTypeId: typeof values.documentTypeId === 'string' ? values.documentTypeId : '',
+          homeLocationId: typeof values.homeLocationId === 'string' ? values.homeLocationId : '',
+        };
+      }
+    }
+  } catch {
+    // Presets are a convenience only — fall back to explicit selection.
+  }
+  return { departmentId: '', documentTypeId: '', homeLocationId: '' };
+}
+
 export const DocumentsPage: React.FC<DocumentsPageProps> = ({
   onSelectDocument,
   openRegisterModalDirectly,
@@ -85,6 +115,7 @@ export const DocumentsPage: React.FC<DocumentsPageProps> = ({
   const [selectedQrClaim, setSelectedQrClaim] = useState<'ALL' | 'CLAIMED' | 'UNCLAIMED'>('ALL');
   const [filterDateFrom, setFilterDateFrom] = useState('');
   const [filterDateTo, setFilterDateTo] = useState('');
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
 
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
@@ -119,15 +150,24 @@ export const DocumentsPage: React.FC<DocumentsPageProps> = ({
   const [regDocNumber, setRegDocNumber] = useState('');
   const [regRefNumber, setRegRefNumber] = useState('');
   const [regTitle, setRegTitle] = useState('');
-  const [regDeptId, setRegDeptId] = useState(departments[0]?.id || '');
+  const [rememberedPresets] = useState(getQuickRegisterPresets);
+  const [regDeptId, setRegDeptId] = useState(rememberedPresets.departmentId);
   
   // Filter available document types based on selected Owning Department
   const availableDocTypesForDept = documentTypes.filter(
     dt => !dt.departmentId || dt.departmentId === 'ALL' || dt.departmentId === regDeptId
   );
 
-  const [regTypeId, setRegTypeId] = useState(availableDocTypesForDept[0]?.id || documentTypes[0]?.id || '');
-  const [regHomeLocationId, setRegHomeLocationId] = useState(locations[0]?.id || '');
+  const [regTypeId, setRegTypeId] = useState(rememberedPresets.documentTypeId);
+  const [regHomeLocationId, setRegHomeLocationId] = useState(rememberedPresets.homeLocationId);
+
+  // Continuous intake (E7/T-01): "Save & register next" keeps the modal open,
+  // clears only per-record fields and refocuses the title for the next record.
+  const [sessionCount, setSessionCount] = useState(0);
+  const [lastSavedNumber, setLastSavedNumber] = useState('');
+  const submitModeRef = useRef<'next' | 'close'>('next');
+  const regTitleRef = useRef<HTMLInputElement>(null);
+  const regFormBodyRef = useRef<HTMLDivElement>(null);
 
   // Live preview of the auto-generated number ({DEPT_CODE}-{TYPE_CODE}-{NNNN})
   // shown while the Document Number field is left blank
@@ -142,7 +182,7 @@ export const DocumentsPage: React.FC<DocumentsPageProps> = ({
       if (!cancelled) setAutoNumberPreview(num || '');
     });
     return () => { cancelled = true; };
-  }, [showRegisterModal, regDeptId, regTypeId, regDocNumber, getNextDocumentNumber]);
+  }, [showRegisterModal, regDeptId, regTypeId, regDocNumber, getNextDocumentNumber, sessionCount]);
   const [regSubject, setRegSubject] = useState('');
   const [regDescription, setRegDescription] = useState('');
   const [regConfidentiality, setRegConfidentiality] = useState<ConfidentialityLevel>('CONFIDENTIAL');
@@ -152,28 +192,56 @@ export const DocumentsPage: React.FC<DocumentsPageProps> = ({
   const [regDigitalFileName, setRegDigitalFileName] = useState('');
   const [regCustomValues, setRegCustomValues] = useState<Record<string, string | number>>({});
 
-  // When regDeptId changes, only load Document Types tied to this Owning Department
+  // When regDeptId changes, keep the selected type only if it is still valid
+  // for the new department — otherwise clear it for an explicit choice (T-04).
   const handleDeptChange = (newDeptId: string) => {
     setRegDeptId(newDeptId);
-    const validTypes = documentTypes.filter(
-      dt => !dt.departmentId || dt.departmentId === 'ALL' || dt.departmentId === newDeptId
+    const typeStillValid = documentTypes.some(
+      dt => dt.id === regTypeId && (!dt.departmentId || dt.departmentId === 'ALL' || dt.departmentId === newDeptId)
     );
-    if (validTypes.length > 0) {
-      handleTypeChange(validTypes[0].id);
-    } else {
+    if (!typeStillValid) {
       setRegTypeId('');
       setRegCustomValues({});
     }
   };
 
+  // Drop a selected/remembered type only when it becomes invalid — never
+  // silently auto-fill an empty selection.
   useEffect(() => {
-    const validTypes = documentTypes.filter(
-      dt => !dt.departmentId || dt.departmentId === 'ALL' || dt.departmentId === regDeptId
+    if (!regTypeId) return;
+    const stillValid = documentTypes.some(
+      dt => dt.id === regTypeId && (!dt.departmentId || dt.departmentId === 'ALL' || dt.departmentId === regDeptId)
     );
-    if (validTypes.length > 0 && (!regTypeId || !validTypes.some(dt => dt.id === regTypeId))) {
-      handleTypeChange(validTypes[0].id);
+    if (!stillValid) {
+      setRegTypeId('');
+      setRegCustomValues({});
     }
-  }, [documentTypes, regDeptId]);
+  }, [documentTypes, regDeptId, regTypeId]);
+
+  // Clear remembered values that no longer exist once entities load.
+  useEffect(() => {
+    if (departments.length) setRegDeptId(cur => (cur && !departments.some(d => d.id === cur)) ? '' : cur);
+    if (documentTypes.length) setRegTypeId(cur => (cur && !documentTypes.some(dt => dt.id === cur)) ? '' : cur);
+    if (locations.length) setRegHomeLocationId(cur => (cur && !locations.some(l => l.id === cur)) ? '' : cur);
+  }, [departments, documentTypes, locations]);
+
+  // Persist the last-used intake context once all three choices are valid.
+  useEffect(() => {
+    if (
+      !departments.some(d => d.id === regDeptId) ||
+      !documentTypes.some(dt => dt.id === regTypeId) ||
+      !locations.some(l => l.id === regHomeLocationId)
+    ) return;
+    try {
+      localStorage.setItem(QUICK_REG_PRESET_STORAGE_KEY, JSON.stringify({
+        departmentId: regDeptId,
+        documentTypeId: regTypeId,
+        homeLocationId: regHomeLocationId,
+      }));
+    } catch {
+      // Presets are a convenience only — ignore storage failures.
+    }
+  }, [regDeptId, regTypeId, regHomeLocationId, departments, documentTypes, locations]);
 
   // Reset custom field values when document type changes
   const handleTypeChange = (newTypeId: string) => {
@@ -188,9 +256,24 @@ export const DocumentsPage: React.FC<DocumentsPageProps> = ({
     setRegCustomValues(initialValues);
   };
 
+  // Sequential reference numbers instead of random suffixes (M-17 mitigation):
+  // max existing REF-#### suffix + 1, zero-padded.
+  const nextReferenceNumber = (): string => {
+    let max = 0;
+    for (const d of documents) {
+      const match = d.referenceNumber?.match(/^REF-(\d+)$/);
+      if (match) {
+        const n = parseInt(match[1], 10);
+        if (n > max) max = n;
+      }
+    }
+    return `REF-${String(max + 1).padStart(4, '0')}`;
+  };
+
   const handleRegisterSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (isRegistering || !regTitle.trim() || !regHomeLocationId || !regTypeId) return;
+    if (isRegistering || !regTitle.trim() || !regDeptId || !regHomeLocationId || !regTypeId) return;
+    const mode = submitModeRef.current;
     setIsRegistering(true);
 
     const selectedDocType = documentTypes.find(dt => dt.id === regTypeId);
@@ -207,9 +290,9 @@ export const DocumentsPage: React.FC<DocumentsPageProps> = ({
     const endDate = endDateObj.toISOString().split('T')[0];
 
     try {
-      await addDocument({
+      const newDoc = await addDocument({
         documentNumber: docNum,
-        referenceNumber: regRefNumber.trim() || `REF-${Math.floor(1000 + Math.random() * 9000)}`,
+        referenceNumber: regRefNumber.trim() || nextReferenceNumber(),
         title: regTitle.trim(),
         documentTypeId: regTypeId,
         documentTypeName: selectedDocType?.name || 'General Record',
@@ -231,9 +314,12 @@ export const DocumentsPage: React.FC<DocumentsPageProps> = ({
         digitalFileSize: regHasDigitalCopy ? '2.4 MB' : undefined,
         digitalFileType: regHasDigitalCopy ? 'PDF' : undefined,
         digitalFileVersion: regHasDigitalCopy ? 1 : undefined,
+        photos: [],
         customFieldValues: regCustomValues
       });
 
+      // Clear per-record fields only; dept/type/location/classification stay
+      // as the operator's intake context for the next record.
       setRegDocNumber('');
       setRegRefNumber('');
       setRegTitle('');
@@ -241,12 +327,20 @@ export const DocumentsPage: React.FC<DocumentsPageProps> = ({
       setRegDescription('');
       setRegHasDigitalCopy(false);
       setRegDigitalFileName('');
-      setRegCustomValues({});
-      setShowRegisterModal(false);
+      handleTypeChange(regTypeId);
+      if (mode === 'close') {
+        setShowRegisterModal(false);
+      } else {
+        setLastSavedNumber(newDoc.documentNumber);
+        setSessionCount(count => count + 1);
+        regFormBodyRef.current?.scrollTo({ top: 0 });
+        requestAnimationFrame(() => regTitleRef.current?.focus());
+      }
     } catch {
       // Keep the form open so the user can correct the issue or retry the save.
     } finally {
       setIsRegistering(false);
+      submitModeRef.current = 'next';
     }
   };
 
@@ -278,7 +372,7 @@ export const DocumentsPage: React.FC<DocumentsPageProps> = ({
       const match = 
         doc.documentNumber.toLowerCase().includes(q) ||
         doc.title.toLowerCase().includes(q) ||
-        doc.referenceNumber.toLowerCase().includes(q) ||
+        (doc.referenceNumber || '').toLowerCase().includes(q) ||
         (doc.subject && doc.subject.toLowerCase().includes(q)) ||
         doc.departmentName.toLowerCase().includes(q) ||
         (doc.bundleNumber && doc.bundleNumber.toLowerCase().includes(q)) ||
@@ -372,6 +466,30 @@ export const DocumentsPage: React.FC<DocumentsPageProps> = ({
 
   const selectedDocuments = documents.filter(d => selectedDocIds.includes(d.id));
 
+  // Drafts worklist: captures saved before metadata was completed. They are
+  // real registry records (with reserved numbers/barcodes) awaiting finish-up.
+  const draftCount = documents.filter(d => d.status === 'DRAFT').length;
+
+  // Filter activity summary drives the "More filters" badge and reset action.
+  const advancedFilterCount = [
+    selectedBundleFilter !== 'ALL',
+    selectedConf !== 'ALL',
+    selectedQrClaim !== 'ALL',
+    Boolean(filterDateFrom || filterDateTo)
+  ].filter(Boolean).length;
+  const anyFilterActive = globalSearchQuery.trim() !== '' || selectedDept !== 'ALL' || selectedType !== 'ALL' || selectedStatus !== 'ALL' || advancedFilterCount > 0;
+  const resetFilters = () => {
+    setGlobalSearchQuery('');
+    setSelectedDept('ALL');
+    setSelectedType('ALL');
+    setSelectedStatus('ALL');
+    setSelectedConf('ALL');
+    setSelectedBundleFilter('ALL');
+    setSelectedQrClaim('ALL');
+    setFilterDateFrom('');
+    setFilterDateTo('');
+  };
+
   if (showCaptureWorkspace) {
     return (
       <DocumentCapturePage
@@ -395,135 +513,193 @@ export const DocumentsPage: React.FC<DocumentsPageProps> = ({
           <div className="flex flex-wrap gap-2">
           <button
             type="button"
-            onClick={() => setShowCaptureWorkspace(true)}
-            className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
-          >
-            <Camera className="h-4 w-4" aria-hidden="true" />
-            Capture cover
-          </button>
-          <button
-            type="button"
             onClick={() => setShowRegisterModal(true)}
-            className="inline-flex min-h-11 items-center gap-2 px-4 py-2 bg-indigo-600 text-white text-sm font-semibold rounded-xl hover:bg-indigo-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 transition-colors"
+            className="btn-primary"
           >
             <Plus className="w-4 h-4" aria-hidden="true" />
             Register document
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowCaptureWorkspace(true)}
+            className="btn-secondary"
+          >
+            <Camera className="h-4 w-4" aria-hidden="true" />
+            Capture cover
           </button>
           </div>
         }
       />
 
-      {/* Filter Control Toolbar */}
-      <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-3">
-        
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3 text-xs">
-          
+      {/* Drafts worklist — incomplete captures waiting to be finalized */}
+      {draftCount > 0 && selectedStatus !== 'DRAFT' && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 dark:border-amber-800/60 dark:bg-amber-950/40">
+          <div className="flex items-center gap-2.5">
+            <Clock className="h-4 w-4 text-amber-600 dark:text-amber-400" aria-hidden="true" />
+            <p className="text-xs font-medium text-amber-900 dark:text-amber-200">
+              {draftCount} draft record{draftCount === 1 ? '' : 's'} awaiting completion — captured covers with unfinished metadata.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setSelectedStatus('DRAFT')}
+            className="btn btn-sm bg-amber-600 text-white hover:bg-amber-700"
+          >
+            <Edit className="h-3.5 w-3.5" aria-hidden="true" />
+            Review drafts
+          </button>
+        </div>
+      )}
+
+      {selectedStatus === 'DRAFT' && (
+        <div className="flex items-center gap-2.5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 dark:border-amber-800/60 dark:bg-amber-950/40">
+          <Clock className="h-4 w-4 text-amber-600 dark:text-amber-400" aria-hidden="true" />
+          <p className="text-xs font-medium text-amber-900 dark:text-amber-200">
+            Showing draft records only. Open a record to complete its metadata and finalize it into the registry.
+          </p>
+        </div>
+      )}
+
+      {/* Filter Control Toolbar — primary filters always visible, the rest
+          collapse behind "More filters" to keep the archive scannable. */}
+      <div className="card p-3 sm:p-4 space-y-3">
+
+        <div className="flex flex-col lg:flex-row gap-2 text-xs">
+
           {/* Keyword Search */}
-          <div className="relative col-span-1 sm:col-span-2 lg:col-span-1">
-            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+          <div className="relative flex-1 min-w-0 lg:min-w-[220px]">
+            <Search className="w-3.5 h-3.5 text-zinc-400 absolute left-3 top-1/2 -tranzinc-y-1/2 pointer-events-none" aria-hidden="true" />
             <input
               type="text"
               value={globalSearchQuery}
               onChange={(e) => setGlobalSearchQuery(e.target.value)}
-              placeholder="Search Doc #, Title, Ref..."
-              className="w-full pl-9 pr-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none"
+              placeholder="Search doc #, title, reference…"
+              aria-label="Search documents"
+              className="input pl-9"
             />
           </div>
 
           {/* Department Filter */}
-          <div>
-            <select
-              value={selectedDept}
-              onChange={(e) => setSelectedDept(e.target.value)}
-              className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none font-medium"
-            >
-              <option value="ALL">All Departments</option>
-              {departments.map(d => (
-                <option key={d.id} value={d.id}>{d.name}</option>
-              ))}
-            </select>
-          </div>
+          <select
+            value={selectedDept}
+            onChange={(e) => setSelectedDept(e.target.value)}
+            aria-label="Filter by department"
+            className="input lg:w-44"
+          >
+            <option value="ALL">All Departments</option>
+            {departments.map(d => (
+              <option key={d.id} value={d.id}>{d.name}</option>
+            ))}
+          </select>
 
           {/* Document Type Filter */}
-          <div>
-            <select
-              value={selectedType}
-              onChange={(e) => setSelectedType(e.target.value)}
-              className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none font-medium"
-            >
-              <option value="ALL">All Document Types</option>
-              {documentTypes.map(dt => (
-                <option key={dt.id} value={dt.id}>{dt.name}</option>
-              ))}
-            </select>
-          </div>
+          <select
+            value={selectedType}
+            onChange={(e) => setSelectedType(e.target.value)}
+            aria-label="Filter by document type"
+            className="input lg:w-44"
+          >
+            <option value="ALL">All Document Types</option>
+            {documentTypes.map(dt => (
+              <option key={dt.id} value={dt.id}>{dt.name}</option>
+            ))}
+          </select>
 
           {/* Status Filter */}
-          <div>
-            <select
-              value={selectedStatus}
-              onChange={(e) => setSelectedStatus(e.target.value)}
-              className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none font-medium"
-            >
-              <option value="ALL">All Statuses</option>
-              <option value="AVAILABLE">Available</option>
-              <option value="CHECKED_OUT">Checked Out</option>
-              <option value="REQUESTED">Requested</option>
-              <option value="ARCHIVED">Archived</option>
-            </select>
-          </div>
+          <select
+            value={selectedStatus}
+            onChange={(e) => setSelectedStatus(e.target.value)}
+            aria-label="Filter by status"
+            className="input lg:w-40"
+          >
+            <option value="ALL">All Statuses</option>
+            <option value="DRAFT">Draft (incomplete)</option>
+            <option value="AVAILABLE">Available</option>
+            <option value="CHECKED_OUT">Checked Out</option>
+            <option value="REQUESTED">Requested</option>
+            <option value="ARCHIVED">Archived</option>
+          </select>
 
-          {/* Bundle / Dossier Filter */}
-          <div>
-            <select
-              value={selectedBundleFilter}
-              onChange={(e) => setSelectedBundleFilter(e.target.value)}
-              className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none font-medium text-amber-700 dark:text-amber-400 font-semibold"
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => setShowAdvancedFilters(prev => !prev)}
+              aria-expanded={showAdvancedFilters || advancedFilterCount > 0}
+              className={`btn-secondary btn-sm ${advancedFilterCount > 0 ? 'border-teal-300 text-teal-700 dark:border-teal-700 dark:text-teal-300' : ''}`}
             >
-              <option value="ALL">All Bundles & Single Items</option>
-              <option value="BUNDLED">📦 Only Bundled Records</option>
-              <option value="UNBUNDLED">📄 Only Unbundled Records</option>
-              {bundles.map(b => (
-                <option key={b.id} value={b.id}>
-                  Dossier: {b.bundleNumber} ({b.title.slice(0, 20)}...)
-                </option>
-              ))}
-            </select>
+              <SlidersHorizontal className="w-3.5 h-3.5" aria-hidden="true" />
+              More filters
+              {advancedFilterCount > 0 && (
+                <span className="chip bg-teal-100 text-teal-700 dark:bg-teal-950 dark:text-teal-300">{advancedFilterCount}</span>
+              )}
+            </button>
+            {anyFilterActive && (
+              <button
+                type="button"
+                onClick={resetFilters}
+                className="btn-ghost btn-sm"
+                title="Clear all filters"
+              >
+                <X className="w-3.5 h-3.5" aria-hidden="true" />
+                Reset
+              </button>
+            )}
           </div>
+        </div>
 
-          {/* Confidentiality Filter */}
-          <div>
-            <select
-              value={selectedConf}
-              onChange={(e) => setSelectedConf(e.target.value)}
-              className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none font-medium"
-            >
-              <option value="ALL">All Confidentiality</option>
-              <option value="PUBLIC">Public</option>
-              <option value="INTERNAL">Internal</option>
-              <option value="CONFIDENTIAL">Confidential</option>
-              <option value="RESTRICTED">Restricted</option>
-            </select>
-          </div>
+        {/* Advanced filters */}
+        {(showAdvancedFilters || advancedFilterCount > 0) && (
+          <div className="space-y-3 pt-3 border-t border-zinc-100 dark:border-zinc-800 text-xs">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
 
-          {/* QR Claim Filter */}
-          <div>
-            <select
-              value={selectedQrClaim}
-              onChange={(e) => setSelectedQrClaim(e.target.value as 'ALL' | 'CLAIMED' | 'UNCLAIMED')}
-              className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none font-medium"
-            >
-              <option value="ALL">All Documents</option>
-              <option value="CLAIMED">📸 QR Claimed (Scanned)</option>
-              <option value="UNCLAIMED">📷 QR Unclaimed (Not yet scanned)</option>
-            </select>
-          </div>
+              {/* Bundle / Dossier Filter */}
+              <select
+                value={selectedBundleFilter}
+                onChange={(e) => setSelectedBundleFilter(e.target.value)}
+                aria-label="Filter by bundle"
+                className="input"
+              >
+                <option value="ALL">All Bundles & Single Items</option>
+                <option value="BUNDLED">Only Bundled Records</option>
+                <option value="UNBUNDLED">Only Unbundled Records</option>
+                {bundles.map(b => (
+                  <option key={b.id} value={b.id}>
+                    Dossier: {b.bundleNumber} ({b.title.slice(0, 20)}...)
+                  </option>
+                ))}
+              </select>
 
-          {/* Date Registered Filter */}
-          <div className="col-span-1 sm:col-span-2 lg:col-span-6">
-            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2.5 pt-2 border-t border-slate-100 dark:border-slate-800">
-              <span className="flex items-center gap-1.5 text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider whitespace-nowrap">
-                <Calendar className="w-3.5 h-3.5" />
+              {/* Confidentiality Filter */}
+              <select
+                value={selectedConf}
+                onChange={(e) => setSelectedConf(e.target.value)}
+                aria-label="Filter by confidentiality"
+                className="input"
+              >
+                <option value="ALL">All Confidentiality</option>
+                <option value="PUBLIC">Public</option>
+                <option value="INTERNAL">Internal</option>
+                <option value="CONFIDENTIAL">Confidential</option>
+                <option value="RESTRICTED">Restricted</option>
+              </select>
+
+              {/* QR Claim Filter */}
+              <select
+                value={selectedQrClaim}
+                onChange={(e) => setSelectedQrClaim(e.target.value as 'ALL' | 'CLAIMED' | 'UNCLAIMED')}
+                aria-label="Filter by QR claim status"
+                className="input"
+              >
+                <option value="ALL">All Documents (QR)</option>
+                <option value="CLAIMED">QR Claimed (Scanned)</option>
+                <option value="UNCLAIMED">QR Unclaimed (Not yet scanned)</option>
+              </select>
+            </div>
+
+            {/* Date Registered Filter */}
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2.5">
+              <span className="flex items-center gap-1.5 text-[11px] font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wide whitespace-nowrap">
+                <Calendar className="w-3.5 h-3.5" aria-hidden="true" />
                 Date Registered:
               </span>
               <div className="flex items-center gap-1 flex-wrap">
@@ -544,10 +720,11 @@ export const DocumentsPage: React.FC<DocumentsPageProps> = ({
                         key={p.label}
                         type="button"
                         onClick={() => { setFilterDateFrom(p.from); setFilterDateTo(p.to); }}
-                        className={`px-2.5 py-1 rounded-lg text-[10px] font-bold border transition-all ${
+                        aria-pressed={active}
+                        className={`px-2.5 py-1 rounded-lg text-[10px] font-semibold border transition-colors ${
                           active
-                            ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
-                            : 'bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:border-indigo-300 dark:hover:border-indigo-700'
+                            ? 'bg-teal-600 text-white border-teal-600'
+                            : 'bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 border-zinc-200 dark:border-zinc-700 hover:border-teal-300 dark:hover:border-teal-700'
                         }`}
                       >
                         {p.label}
@@ -556,27 +733,30 @@ export const DocumentsPage: React.FC<DocumentsPageProps> = ({
                   });
                 })()}
               </div>
-              <div className="flex items-center gap-1.5 ml-auto">
+              <div className="flex items-center gap-1.5 sm:ml-auto">
                 <input
                   type="date"
                   value={filterDateFrom}
                   onChange={(e) => setFilterDateFrom(e.target.value)}
-                  className="px-2 py-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-[11px] outline-none"
+                  className="input h-8 w-auto px-2 text-[11px]"
+                  aria-label="Registered from date"
                   title="From date"
                 />
-                <span className="text-[10px] text-slate-400 font-bold">→</span>
+                <span className="text-[10px] text-zinc-400 font-bold">→</span>
                 <input
                   type="date"
                   value={filterDateTo}
                   onChange={(e) => setFilterDateTo(e.target.value)}
-                  className="px-2 py-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-[11px] outline-none"
+                  className="input h-8 w-auto px-2 text-[11px]"
+                  aria-label="Registered to date"
                   title="To date"
                 />
                 {(filterDateFrom || filterDateTo) && (
                   <button
                     type="button"
                     onClick={() => { setFilterDateFrom(''); setFilterDateTo(''); }}
-                    className="p-1 text-slate-400 hover:text-rose-500 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/50 transition-colors"
+                    className="p-1 text-zinc-400 hover:text-rose-500 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/50 transition-colors"
+                    aria-label="Clear date filter"
                     title="Clear date filter"
                   >
                     <X className="w-3.5 h-3.5" />
@@ -585,17 +765,16 @@ export const DocumentsPage: React.FC<DocumentsPageProps> = ({
               </div>
             </div>
           </div>
-
-        </div>
+        )}
 
         {/* Results Bar & View Toggle */}
-        <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-800 text-xs text-slate-500">
+        <div className="flex items-center justify-between pt-2 border-t border-zinc-100 dark:border-zinc-800 text-xs text-zinc-500">
           <div className="flex items-center gap-3">
             <span>
-              Showing <strong className="text-slate-900 dark:text-slate-100">{rangeStart}–{rangeEnd}</strong> of <strong className="text-slate-900 dark:text-slate-100">{filteredDocs.length}</strong> filtered records ({documents.length} total)
+              Showing <strong className="text-zinc-900 dark:text-zinc-100">{rangeStart}–{rangeEnd}</strong> of <strong className="text-zinc-900 dark:text-zinc-100">{filteredDocs.length}</strong> filtered records ({documents.length} total)
             </span>
             {selectedDocIds.length > 0 && (
-              <span className="text-indigo-600 dark:text-indigo-400 font-bold bg-indigo-50 dark:bg-indigo-950/80 px-2 py-0.5 rounded-lg border border-indigo-200 dark:border-indigo-800">
+              <span className="text-teal-600 dark:text-teal-400 font-bold bg-teal-50 dark:bg-teal-950/80 px-2 py-0.5 rounded-lg border border-teal-200 dark:border-teal-800">
                 {selectedDocIds.length} item(s) selected
               </span>
             )}
@@ -603,7 +782,7 @@ export const DocumentsPage: React.FC<DocumentsPageProps> = ({
               <button
                 type="button"
                 onClick={handleSelectAllFiltered}
-                className="text-indigo-600 dark:text-indigo-400 font-semibold hover:underline"
+                className="text-teal-600 dark:text-teal-400 font-semibold hover:underline"
               >
                 Select all {filteredDocs.length} filtered
               </button>
@@ -618,8 +797,8 @@ export const DocumentsPage: React.FC<DocumentsPageProps> = ({
                 title={frozenCol ? 'Unlock Title & Subject column' : 'Lock Title & Subject column'}
                 className={`p-1.5 rounded-lg border flex items-center gap-1 text-[10px] font-semibold transition-all ${
                   frozenCol
-                    ? 'bg-indigo-50 border-indigo-200 text-indigo-600 dark:bg-indigo-950 dark:border-indigo-800 dark:text-indigo-400'
-                    : 'border-slate-200 text-slate-400 hover:text-slate-600 dark:border-slate-700'
+                    ? 'bg-teal-50 border-teal-200 text-teal-600 dark:bg-teal-950 dark:border-teal-800 dark:text-teal-400'
+                    : 'border-zinc-200 text-zinc-400 hover:text-zinc-600 dark:border-zinc-700'
                 }`}
               >
                 {frozenCol ? <Lock className="w-3.5 h-3.5" /> : <Unlock className="w-3.5 h-3.5" />}
@@ -631,8 +810,8 @@ export const DocumentsPage: React.FC<DocumentsPageProps> = ({
               onClick={() => setViewMode('table')}
               className={`p-1.5 rounded-lg border ${
                 viewMode === 'table'
-                  ? 'bg-indigo-50 border-indigo-200 text-indigo-600 dark:bg-indigo-950 dark:border-indigo-800 dark:text-indigo-400'
-                  : 'border-slate-200 text-slate-400 hover:text-slate-600 dark:border-slate-700'
+                  ? 'bg-teal-50 border-teal-200 text-teal-600 dark:bg-teal-950 dark:border-teal-800 dark:text-teal-400'
+                  : 'border-zinc-200 text-zinc-400 hover:text-zinc-600 dark:border-zinc-700'
               }`}
             >
               <List className="w-4 h-4" />
@@ -642,8 +821,8 @@ export const DocumentsPage: React.FC<DocumentsPageProps> = ({
               onClick={() => setViewMode('grid')}
               className={`p-1.5 rounded-lg border ${
                 viewMode === 'grid'
-                  ? 'bg-indigo-50 border-indigo-200 text-indigo-600 dark:bg-indigo-950 dark:border-indigo-800 dark:text-indigo-400'
-                  : 'border-slate-200 text-slate-400 hover:text-slate-600 dark:border-slate-700'
+                  ? 'bg-teal-50 border-teal-200 text-teal-600 dark:bg-teal-950 dark:border-teal-800 dark:text-teal-400'
+                  : 'border-zinc-200 text-zinc-400 hover:text-zinc-600 dark:border-zinc-700'
               }`}
             >
               <LayoutGrid className="w-4 h-4" />
@@ -653,81 +832,71 @@ export const DocumentsPage: React.FC<DocumentsPageProps> = ({
 
       </div>
 
-      {/* BULK ACTIONS BANNER (Appears when 1 or more documents are selected) */}
+      {/* BULK ACTIONS BAR — stays visible while scrolling the results so
+          batch operations are always one click away. */}
       {selectedDocIds.length > 0 && (
-        <div className="bg-gradient-to-r from-indigo-900 via-slate-900 to-indigo-950 text-white p-3.5 sm:p-4 rounded-2xl shadow-lg border border-indigo-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 animate-in slide-in-from-top-2 duration-200">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-xl bg-indigo-500 text-white flex items-center justify-center font-bold text-xs shadow-sm">
+        <div className="sticky top-16 z-20 card border-teal-200 dark:border-teal-800 bg-teal-50/95 dark:bg-teal-950/70 backdrop-blur-sm p-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 animate-in slide-in-from-top-2 duration-200">
+          <div className="flex items-center gap-2.5">
+            <span className="chip bg-teal-600 text-white px-2 py-1 text-xs font-semibold">
               {selectedDocIds.length}
-            </div>
-            <div>
-              <div className="font-bold text-xs sm:text-sm text-white flex items-center gap-2">
-                <span>{selectedDocIds.length} Physical Record(s) Selected for Bulk Operations</span>
-              </div>
-              <p className="text-[11px] text-indigo-200">
-                Batch tag printing, dossier grouping, bulk metadata updates or bulk deletion
-              </p>
-            </div>
+            </span>
+            <span className="text-xs font-medium text-zinc-800 dark:text-zinc-200">
+              record{selectedDocIds.length === 1 ? '' : 's'} selected
+            </span>
           </div>
 
-          <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto justify-end">
-            {/* Action 1: Print Document Tags all at once */}
+          <div className="flex items-center gap-1.5 flex-wrap w-full sm:w-auto justify-end">
             <button
               type="button"
               onClick={() => setShowBulkPrintModal(true)}
-              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-indigo-500 hover:bg-indigo-600 text-white text-xs font-bold rounded-xl shadow-md transition-all"
+              className="btn-primary btn-sm"
             >
-              <Printer className="w-3.5 h-3.5" />
-              <span>Print Document Tags ({selectedDocIds.length})</span>
+              <Printer className="w-3.5 h-3.5" aria-hidden="true" />
+              Print Tags
             </button>
 
-            {/* Action 2: Bundle / Group selected items */}
             <button
               type="button"
               onClick={() => setShowBundleModal(true)}
-              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold rounded-xl shadow-md transition-all"
+              className="btn-secondary btn-sm"
             >
-              <Layers className="w-3.5 h-3.5" />
-              <span>Bundle / Group Selected</span>
+              <Layers className="w-3.5 h-3.5" aria-hidden="true" />
+              Bundle
             </button>
 
-            {/* Action 3: Bulk update Security & Condition */}
             <button
               type="button"
               onClick={() => setBulkUpdateMode('security')}
-              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-sky-500 hover:bg-sky-600 text-white text-xs font-bold rounded-xl shadow-md transition-all"
+              className="btn-secondary btn-sm"
             >
-              <ShieldCheck className="w-3.5 h-3.5" />
-              <span>Security & Condition</span>
+              <ShieldCheck className="w-3.5 h-3.5" aria-hidden="true" />
+              Security & Condition
             </button>
 
-            {/* Action 4: Bulk change Department */}
             <button
               type="button"
               onClick={() => setBulkUpdateMode('department')}
-              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-violet-500 hover:bg-violet-600 text-white text-xs font-bold rounded-xl shadow-md transition-all"
+              className="btn-secondary btn-sm"
             >
-              <Building2 className="w-3.5 h-3.5" />
-              <span>Change Department</span>
+              <Building2 className="w-3.5 h-3.5" aria-hidden="true" />
+              Department
             </button>
 
-            {/* Action 5: Bulk Delete */}
             <button
               type="button"
               onClick={() => setShowBulkDeleteConfirm(true)}
-              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl shadow-md transition-all"
+              className="btn-danger-outline btn-sm"
             >
-              <Trash2 className="w-3.5 h-3.5" />
-              <span>Delete ({selectedDocIds.length})</span>
+              <Trash2 className="w-3.5 h-3.5" aria-hidden="true" />
+              Delete
             </button>
 
-            {/* Clear Selection */}
             <button
               type="button"
               onClick={() => setSelectedDocIds([])}
-              className="px-2.5 py-1.5 text-slate-300 hover:text-white hover:bg-white/10 rounded-xl text-xs font-medium transition-colors"
+              className="btn-ghost btn-sm"
             >
-              Deselect All
+              Deselect all
             </button>
           </div>
         </div>
@@ -735,37 +904,55 @@ export const DocumentsPage: React.FC<DocumentsPageProps> = ({
 
       {/* Main Table / Grid Results View */}
       <div ref={resultsTopRef} className="scroll-mt-24">
-      {viewMode === 'table' ? (
-        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
+      {paginatedDocs.length === 0 ? (
+        <div className="card empty-state">
+          <FileText className="w-8 h-8 text-zinc-300 dark:text-zinc-600" aria-hidden="true" />
+          <p className="font-medium text-zinc-700 dark:text-zinc-300">
+            {documents.length === 0 ? 'No records in the archive yet' : 'No records match your filters'}
+          </p>
+          <p className="text-xs">
+            {documents.length === 0
+              ? 'Register a document or capture a cover to get started.'
+              : 'Try a different search term or clear the active filters.'}
+          </p>
+          {anyFilterActive && (
+            <button type="button" onClick={resetFilters} className="btn-secondary btn-sm mt-1">
+              <X className="w-3.5 h-3.5" aria-hidden="true" />
+              Reset filters
+            </button>
+          )}
+        </div>
+      ) : viewMode === 'table' ? (
+        <div className="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 overflow-hidden shadow-sm">
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs border-collapse">
-              <thead className="bg-slate-100 dark:bg-slate-800/80 border-b border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 uppercase font-mono font-bold tracking-wider">
+              <thead className="bg-zinc-50 dark:bg-zinc-800/60 border-b border-zinc-200 dark:border-zinc-700 text-zinc-500 dark:text-zinc-400 uppercase text-[10px] font-semibold tracking-wide">
                 <tr>
                   {/* Select All Checkbox */}
-                  <th className={`px-3 py-3.5 w-10 text-center border-r border-slate-200/80 dark:border-slate-800/80 ${frozenCol ? 'sticky left-0 z-30 bg-slate-100 dark:bg-slate-800/80' : ''}`}>
+                  <th className={`px-3 py-3.5 w-10 text-center border-r border-zinc-200/80 dark:border-zinc-800/80 ${frozenCol ? 'sticky left-0 z-30 bg-zinc-50 dark:bg-zinc-800/60' : ''}`}>
                     <input
                       type="checkbox"
                       checked={paginatedDocs.length > 0 && paginatedDocs.every(d => selectedDocIds.includes(d.id))}
                       onChange={handleToggleSelectPage}
-                      className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                      className="w-4 h-4 rounded text-teal-600 focus:ring-teal-500 cursor-pointer"
                       title="Select / Deselect Current Page"
                     />
                   </th>
                   {/* Column 1: Title & Subject */}
-                  <th className={`border-r border-slate-200/80 dark:border-slate-800/80 min-w-[240px] max-w-[320px] px-4 py-3.5 ${frozenCol ? 'sticky left-[40px] z-20 bg-slate-100 dark:bg-slate-800/80 shadow-[4px_0_8px_-4px_rgba(0,0,0,0.12)]' : ''}`}>
+                  <th className={`border-r border-zinc-200/80 dark:border-zinc-800/80 min-w-[240px] max-w-[320px] px-4 py-3.5 ${frozenCol ? 'sticky left-[40px] z-20 bg-zinc-50 dark:bg-zinc-800/60 shadow-[4px_0_8px_-4px_rgba(0,0,0,0.12)]' : ''}`}>
                     Title & Subject
                   </th>
-                  <th className="px-4 py-3.5 min-w-[170px] whitespace-nowrap border-r border-slate-200/80 dark:border-slate-800/80">Doc & Ref #</th>
-                  <th className="px-4 py-3.5 min-w-[160px] whitespace-nowrap border-r border-slate-200/80 dark:border-slate-800/80">Department</th>
-                  <th className="px-4 py-3.5 min-w-[190px] whitespace-nowrap border-r border-slate-200/80 dark:border-slate-800/80">Security & Condition</th>
-                  <th className="px-4 py-3.5 min-w-[140px] whitespace-nowrap border-r border-slate-200/80 dark:border-slate-800/80">Circulation Status</th>
-                  <th className="px-4 py-3.5 min-w-[260px] whitespace-nowrap border-r border-slate-200/80 dark:border-slate-800/80">Home Storage Location</th>
-                  <th className="px-4 py-3.5 min-w-[260px] whitespace-nowrap border-r border-slate-200/80 dark:border-slate-800/80">Current Physical Position</th>
+                  <th className="px-4 py-3.5 min-w-[170px] whitespace-nowrap border-r border-zinc-200/80 dark:border-zinc-800/80">Doc & Ref #</th>
+                  <th className="px-4 py-3.5 min-w-[160px] whitespace-nowrap border-r border-zinc-200/80 dark:border-zinc-800/80">Department</th>
+                  <th className="px-4 py-3.5 min-w-[190px] whitespace-nowrap border-r border-zinc-200/80 dark:border-zinc-800/80">Security & Condition</th>
+                  <th className="px-4 py-3.5 min-w-[140px] whitespace-nowrap border-r border-zinc-200/80 dark:border-zinc-800/80">Circulation Status</th>
+                  <th className="px-4 py-3.5 min-w-[260px] whitespace-nowrap border-r border-zinc-200/80 dark:border-zinc-800/80">Home Storage Location</th>
+                  <th className="px-4 py-3.5 min-w-[260px] whitespace-nowrap border-r border-zinc-200/80 dark:border-zinc-800/80">Current Physical Position</th>
                   <th className="px-4 py-3.5 min-w-[100px] text-right whitespace-nowrap">Actions</th>
                 <th className="px-4 py-3.5 min-w-[130px] whitespace-nowrap">QR Claim</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-200/80 dark:divide-slate-800 font-medium">
+              <tbody className="divide-y divide-zinc-200/80 dark:divide-zinc-800 font-medium">
                 {paginatedDocs.map(doc => {
                   const isCheckedOut = doc.status === 'CHECKED_OUT';
                   const isSelected = selectedDocIds.includes(doc.id);
@@ -777,37 +964,37 @@ export const DocumentsPage: React.FC<DocumentsPageProps> = ({
                       onClick={() => onSelectDocument(doc.id)}
                       className={`group cursor-pointer transition-colors ${
                         isSelected 
-                          ? 'bg-indigo-50/70 dark:bg-indigo-950/40' 
-                          : 'hover:bg-slate-50/80 dark:hover:bg-slate-800/50'
+                          ? 'bg-teal-50/70 dark:bg-teal-950/40' 
+                          : 'hover:bg-zinc-50/80 dark:hover:bg-zinc-800/50'
                       }`}
                     >
                       {/* Selection Checkbox */}
                       <td 
-                        className={`px-3 py-3 w-10 text-center border-r border-slate-200/60 dark:border-slate-800/60 ${frozenCol ? `sticky left-0 z-30 ${isSelected ? 'bg-indigo-50/90 dark:bg-indigo-950/60' : 'bg-white dark:bg-slate-900 group-hover:bg-slate-50/90 dark:group-hover:bg-slate-800/60'}` : ''}`}
+                        className={`px-3 py-3 w-10 text-center border-r border-zinc-200/60 dark:border-zinc-800/60 ${frozenCol ? `sticky left-0 z-30 ${isSelected ? 'bg-teal-50/90 dark:bg-teal-950/60' : 'bg-white dark:bg-zinc-900 group-hover:bg-zinc-50/90 dark:group-hover:bg-zinc-800/60'}` : ''}`}
                         onClick={(e) => e.stopPropagation()}
                       >
                         <input
                           type="checkbox"
                           checked={isSelected}
                           onChange={(e) => handleToggleSelectDoc(doc.id, e as any)}
-                          className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                          className="w-4 h-4 rounded text-teal-600 focus:ring-teal-500 cursor-pointer"
                         />
                       </td>
 
                       {/* Column 1: Title & Subject */}
                       <td 
-                        className={`border-r border-slate-200/80 dark:border-slate-800/80 min-w-[240px] max-w-[320px] px-4 py-3 ${frozenCol ? `sticky left-[40px] z-20 shadow-[4px_0_8px_-4px_rgba(0,0,0,0.12)] ${isSelected ? 'bg-indigo-50/90 dark:bg-indigo-950/60' : 'bg-white dark:bg-slate-900 group-hover:bg-slate-50/90 dark:group-hover:bg-slate-800/60'}` : ''}`}
+                        className={`border-r border-zinc-200/80 dark:border-zinc-800/80 min-w-[240px] max-w-[320px] px-4 py-3 ${frozenCol ? `sticky left-[40px] z-20 shadow-[4px_0_8px_-4px_rgba(0,0,0,0.12)] ${isSelected ? 'bg-teal-50/90 dark:bg-teal-950/60' : 'bg-white dark:bg-zinc-900 group-hover:bg-zinc-50/90 dark:group-hover:bg-zinc-800/60'}` : ''}`}
                         title={doc.title || 'Untitled draft'}
                       >
                         <div className="flex items-start gap-2.5">
                           {doc.photos?.[0] && (
-                            <img src={doc.photos[0].url} alt="" className="h-12 w-10 shrink-0 rounded-md border border-slate-200 object-cover dark:border-slate-700" />
+                            <img src={doc.photos[0].url} alt="" className="h-12 w-10 shrink-0 rounded-md border border-zinc-200 object-cover dark:border-zinc-700" />
                           )}
                           <div className="min-w-0">
-                            <div className="font-bold text-slate-900 dark:text-slate-100 text-xs sm:text-sm line-clamp-2 leading-snug group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
+                            <div className="font-bold text-zinc-900 dark:text-zinc-100 text-xs sm:text-sm line-clamp-2 leading-snug group-hover:text-teal-600 dark:group-hover:text-teal-400 transition-colors">
                               {doc.title || 'Untitled draft'}
                             </div>
-                            {doc.status === 'DRAFT' && <span className="mt-1 inline-flex rounded bg-amber-100 px-1.5 py-0.5 text-[9px] font-bold uppercase text-amber-800 dark:bg-amber-950/60 dark:text-amber-300">Draft</span>}
+                            {doc.status === 'DRAFT' && <span className="mt-1 inline-block"><StatusBadge type="status" value="DRAFT" size="sm" /></span>}
                           </div>
                         </div>
                         
@@ -830,16 +1017,16 @@ export const DocumentsPage: React.FC<DocumentsPageProps> = ({
                             {Object.entries(doc.customFieldValues).map(([key, val]) => (
                               <span 
                                 key={key} 
-                                className="inline-flex items-center gap-1 text-[10px] font-semibold bg-indigo-50/80 dark:bg-indigo-950/80 text-indigo-700 dark:text-indigo-300 px-1.5 py-0.5 rounded border border-indigo-200/80 dark:border-indigo-800/60"
+                                className="inline-flex items-center gap-1 text-[10px] font-semibold bg-teal-50/80 dark:bg-teal-950/80 text-teal-700 dark:text-teal-300 px-1.5 py-0.5 rounded border border-teal-200/80 dark:border-teal-800/60"
                                 title={`${key}: ${val}`}
                               >
-                                <span className="text-slate-400 font-normal">{key}:</span> {val}
+                                <span className="text-zinc-400 font-normal">{key}:</span> {val}
                               </span>
                             ))}
                           </div>
                         )}
 
-                        <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 flex items-center gap-2 flex-wrap">
+                        <div className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-1 flex items-center gap-2 flex-wrap">
                           <span className="line-clamp-1 font-normal" title={doc.subject || doc.documentTypeName}>
                             {doc.subject || doc.documentTypeName}
                           </span>
@@ -853,29 +1040,29 @@ export const DocumentsPage: React.FC<DocumentsPageProps> = ({
                       </td>
 
                       {/* Column 2: Doc Number & Ref */}
-                      <td className="px-4 py-3 min-w-[170px] whitespace-nowrap border-r border-slate-200/60 dark:border-slate-800/60">
-                        <div className="font-mono font-bold text-indigo-600 dark:text-indigo-400 text-xs">
+                      <td className="px-4 py-3 min-w-[170px] whitespace-nowrap border-r border-zinc-200/60 dark:border-zinc-800/60">
+                        <div className="font-mono font-bold text-teal-600 dark:text-teal-400 text-xs">
                           #{doc.documentNumber}
                         </div>
                         {doc.referenceNumber && (
-                          <div className="text-[10px] font-mono text-slate-400 mt-0.5">
+                          <div className="text-[10px] font-mono text-zinc-400 mt-0.5">
                             Ref: {doc.referenceNumber}
                           </div>
                         )}
-                        <div className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">
+                        <div className="text-[10px] text-zinc-500 dark:text-zinc-400 font-medium">
                           {doc.documentTypeName}
                         </div>
                       </td>
 
                       {/* Column 3: Department */}
-                      <td className="px-4 py-3 min-w-[160px] whitespace-nowrap border-r border-slate-200/60 dark:border-slate-800/60">
-                        <span className="inline-block px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 font-semibold text-xs">
+                      <td className="px-4 py-3 min-w-[160px] whitespace-nowrap border-r border-zinc-200/60 dark:border-zinc-800/60">
+                        <span className="inline-block px-2.5 py-1 rounded-lg bg-zinc-100 dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 font-semibold text-xs">
                           {doc.departmentName}
                         </span>
                       </td>
 
                       {/* Column 4: Security & Condition */}
-                      <td className="px-4 py-3 min-w-[190px] whitespace-nowrap border-r border-slate-200/60 dark:border-slate-800/60">
+                      <td className="px-4 py-3 min-w-[190px] whitespace-nowrap border-r border-zinc-200/60 dark:border-zinc-800/60">
                         <div className="flex flex-col items-start gap-1">
                           <StatusBadge type="confidentiality" value={doc.confidentiality} size="sm" />
                           <StatusBadge type="condition" value={doc.condition} size="sm" />
@@ -883,17 +1070,17 @@ export const DocumentsPage: React.FC<DocumentsPageProps> = ({
                       </td>
 
                       {/* Column 5: Status */}
-                      <td className="px-4 py-3 min-w-[140px] whitespace-nowrap border-r border-slate-200/60 dark:border-slate-800/60">
+                      <td className="px-4 py-3 min-w-[140px] whitespace-nowrap border-r border-zinc-200/60 dark:border-zinc-800/60">
                         <StatusBadge type="status" value={doc.status} size="sm" />
                       </td>
 
                       {/* Column 6: Home Storage Location */}
-                      <td className="px-4 py-3 min-w-[260px] whitespace-nowrap border-r border-slate-200/60 dark:border-slate-800/60">
+                      <td className="px-4 py-3 min-w-[260px] whitespace-nowrap border-r border-zinc-200/60 dark:border-zinc-800/60">
                         <LocationPathBreadcrumbs locationId={doc.homeLocationId} badgeSize="sm" />
                       </td>
 
                       {/* Column 7: Current Physical Position */}
-                      <td className="px-4 py-3 min-w-[260px] whitespace-nowrap border-r border-slate-200/60 dark:border-slate-800/60">
+                      <td className="px-4 py-3 min-w-[260px] whitespace-nowrap border-r border-zinc-200/60 dark:border-zinc-800/60">
                         {isCheckedOut ? (
                           <span className="inline-flex items-center gap-1.5 font-semibold text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/80 px-2.5 py-1 rounded-lg border border-amber-200 dark:border-amber-800/80">
                             <ArrowRightLeft className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 flex-shrink-0" />
@@ -910,9 +1097,9 @@ export const DocumentsPage: React.FC<DocumentsPageProps> = ({
                           <button
                             type="button"
                             onClick={() => onSelectDocument(doc.id)}
-                            className="px-3 py-1.5 bg-indigo-50 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900 rounded-lg font-semibold text-xs transition-colors shadow-xs"
+                            className="btn-secondary btn-xs"
                           >
-                            Inspect →
+                            Open
                           </button>
                           <button
                             type="button"
@@ -920,7 +1107,7 @@ export const DocumentsPage: React.FC<DocumentsPageProps> = ({
                               e.stopPropagation();
                               setDocToEdit(doc);
                             }}
-                            className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950/50 rounded-lg transition-colors"
+                            className="p-1.5 text-zinc-400 hover:text-teal-600 hover:bg-teal-50 dark:hover:bg-teal-950/50 rounded-lg transition-colors"
                             title="Edit Document Record"
                           >
                             <Edit className="w-3.5 h-3.5" />
@@ -931,7 +1118,7 @@ export const DocumentsPage: React.FC<DocumentsPageProps> = ({
                               e.stopPropagation();
                               setDocToDelete({ id: doc.id, number: doc.documentNumber, title: doc.title });
                             }}
-                            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/50 rounded-lg transition-colors"
+                            className="p-1.5 text-zinc-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/50 rounded-lg transition-colors"
                             title="Delete Document Record"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
@@ -973,12 +1160,12 @@ export const DocumentsPage: React.FC<DocumentsPageProps> = ({
                 onClick={() => onSelectDocument(doc.id)}
                 className={`p-5 rounded-2xl border shadow-sm transition-all cursor-pointer space-y-3 relative ${
                   isSelected 
-                    ? 'border-indigo-500 bg-indigo-50/40 dark:bg-indigo-950/30 ring-2 ring-indigo-500/20'
-                    : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-indigo-300 dark:hover:border-indigo-700/80'
+                    ? 'border-teal-500 bg-teal-50/40 dark:bg-teal-950/30 ring-2 ring-teal-500/20'
+                    : 'bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 hover:border-teal-300 dark:hover:border-teal-700/80'
                 }`}
               >
                 {doc.photos?.[0] && (
-                  <img src={doc.photos[0].url} alt="" className="h-36 w-full rounded-xl bg-slate-100 object-cover dark:bg-slate-800" />
+                  <img src={doc.photos[0].url} alt="" className="h-36 w-full rounded-xl bg-zinc-100 object-cover dark:bg-zinc-800" />
                 )}
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex items-center gap-2">
@@ -987,14 +1174,14 @@ export const DocumentsPage: React.FC<DocumentsPageProps> = ({
                         type="checkbox"
                         checked={isSelected}
                         onChange={(e) => handleToggleSelectDoc(doc.id, e as any)}
-                        className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                        className="w-4 h-4 rounded text-teal-600 focus:ring-teal-500 cursor-pointer"
                       />
                     </div>
                     <div>
-                      <span className="font-mono text-xs font-bold text-indigo-600 dark:text-indigo-400">
+                      <span className="font-mono text-xs font-bold text-teal-600 dark:text-teal-400">
                         #{doc.documentNumber}
                       </span>
-                      <p className="text-[10px] text-slate-400 uppercase font-mono">{doc.documentTypeName}</p>
+                      <p className="text-[10px] text-zinc-400 uppercase font-mono">{doc.documentTypeName}</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-1.5">
@@ -1005,7 +1192,7 @@ export const DocumentsPage: React.FC<DocumentsPageProps> = ({
                         e.stopPropagation();
                         setDocToEdit(doc);
                       }}
-                      className="p-1 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950/50 rounded transition-colors"
+                      className="p-1 text-zinc-400 hover:text-teal-600 hover:bg-teal-50 dark:hover:bg-teal-950/50 rounded transition-colors"
                       title="Edit Document Record"
                     >
                       <Edit className="w-3.5 h-3.5" />
@@ -1016,7 +1203,7 @@ export const DocumentsPage: React.FC<DocumentsPageProps> = ({
                         e.stopPropagation();
                         setDocToDelete({ id: doc.id, number: doc.documentNumber, title: doc.title });
                       }}
-                      className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/50 rounded transition-colors"
+                      className="p-1 text-zinc-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/50 rounded transition-colors"
                       title="Delete Document Record"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
@@ -1034,28 +1221,28 @@ export const DocumentsPage: React.FC<DocumentsPageProps> = ({
                   </div>
                 )}
 
-                <h3 className="font-bold text-slate-900 dark:text-slate-100 text-sm line-clamp-2">
+                <h3 className="font-bold text-zinc-900 dark:text-zinc-100 text-sm line-clamp-2">
                   {doc.title || 'Untitled draft'}
                 </h3>
-                {doc.status === 'DRAFT' && <span className="inline-flex w-fit rounded bg-amber-100 px-1.5 py-0.5 text-[9px] font-bold uppercase text-amber-800 dark:bg-amber-950/60 dark:text-amber-300">Draft</span>}
+                {doc.status === 'DRAFT' && <StatusBadge type="status" value="DRAFT" size="sm" />}
 
                 {doc.customFieldValues && Object.keys(doc.customFieldValues).length > 0 && (
                   <div className="flex items-center gap-1.5 flex-wrap">
                     {Object.entries(doc.customFieldValues).map(([key, val]) => (
                       <span 
                         key={key} 
-                        className="inline-flex items-center gap-1 text-[10px] font-semibold bg-indigo-50/80 dark:bg-indigo-950/80 text-indigo-700 dark:text-indigo-300 px-1.5 py-0.5 rounded border border-indigo-200/80 dark:border-indigo-800/60"
+                        className="inline-flex items-center gap-1 text-[10px] font-semibold bg-teal-50/80 dark:bg-teal-950/80 text-teal-700 dark:text-teal-300 px-1.5 py-0.5 rounded border border-teal-200/80 dark:border-teal-800/60"
                       >
-                        <span className="text-slate-400 font-normal">{key}:</span> {val}
+                        <span className="text-zinc-400 font-normal">{key}:</span> {val}
                       </span>
                     ))}
                   </div>
                 )}
 
-                <div className="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-1.5 text-xs">
+                <div className="pt-2 border-t border-zinc-100 dark:border-zinc-800 space-y-1.5 text-xs">
                   <div className="flex items-center justify-between">
                     <div>
-                      <span className="text-[10px] uppercase font-bold text-slate-400 block">Home Archive Storage:</span>
+                      <span className="text-[10px] uppercase font-bold text-zinc-400 block">Home Archive Storage:</span>
                       <LocationPathBreadcrumbs locationId={doc.homeLocationId} badgeSize="sm" />
                     </div>
                     {/* QR Claim Status */}
@@ -1081,20 +1268,20 @@ export const DocumentsPage: React.FC<DocumentsPageProps> = ({
 
       {/* Pagination Controls */}
       {filteredDocs.length > 0 && (
-        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm px-4 py-3 flex flex-col sm:flex-row items-center justify-between gap-3">
-          <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+        <div className="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-sm px-4 py-3 flex flex-col sm:flex-row items-center justify-between gap-3">
+          <div className="flex items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400">
             <span className="font-semibold">Rows per page</span>
             <select
               value={pageSize}
               onChange={(e) => { setPageSize(Number(e.target.value)); setCurrentPage(1); }}
-              className="px-2 py-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg outline-none font-medium"
+              className="px-2 py-1 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg outline-none font-medium"
             >
               {[10, 25, 50, 100].map(n => (
                 <option key={n} value={n}>{n}</option>
               ))}
             </select>
             <span className="sm:ml-2">
-              Page <strong className="text-slate-900 dark:text-slate-100">{safePage}</strong> of {totalPages}
+              Page <strong className="text-zinc-900 dark:text-zinc-100">{safePage}</strong> of {totalPages}
             </span>
           </div>
 
@@ -1104,7 +1291,7 @@ export const DocumentsPage: React.FC<DocumentsPageProps> = ({
               onClick={() => goToPage(1)}
               disabled={safePage === 1}
               title="First page"
-              className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              className="p-1.5 rounded-lg border border-zinc-200 dark:border-zinc-700 text-zinc-500 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
             >
               <ChevronsLeft className="w-4 h-4" />
             </button>
@@ -1113,7 +1300,7 @@ export const DocumentsPage: React.FC<DocumentsPageProps> = ({
               onClick={() => goToPage(safePage - 1)}
               disabled={safePage === 1}
               title="Previous page"
-              className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              className="p-1.5 rounded-lg border border-zinc-200 dark:border-zinc-700 text-zinc-500 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
@@ -1126,14 +1313,14 @@ export const DocumentsPage: React.FC<DocumentsPageProps> = ({
                   onClick={() => goToPage(p)}
                   className={`min-w-[30px] px-2 py-1.5 rounded-lg text-xs font-bold border transition-all ${
                     p === safePage
-                      ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
-                      : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'
+                      ? 'bg-teal-600 text-white border-teal-600 shadow-sm'
+                      : 'border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800'
                   }`}
                 >
                   {p}
                 </button>
               ) : (
-                <span key={p} className="px-1 text-xs text-slate-400">…</span>
+                <span key={p} className="px-1 text-xs text-zinc-400">…</span>
               )
             ))}
 
@@ -1142,7 +1329,7 @@ export const DocumentsPage: React.FC<DocumentsPageProps> = ({
               onClick={() => goToPage(safePage + 1)}
               disabled={safePage === totalPages}
               title="Next page"
-              className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              className="p-1.5 rounded-lg border border-zinc-200 dark:border-zinc-700 text-zinc-500 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
             >
               <ChevronRight className="w-4 h-4" />
             </button>
@@ -1151,7 +1338,7 @@ export const DocumentsPage: React.FC<DocumentsPageProps> = ({
               onClick={() => goToPage(totalPages)}
               disabled={safePage === totalPages}
               title="Last page"
-              className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              className="p-1.5 rounded-lg border border-zinc-200 dark:border-zinc-700 text-zinc-500 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
             >
               <ChevronsRight className="w-4 h-4" />
             </button>
@@ -1161,31 +1348,43 @@ export const DocumentsPage: React.FC<DocumentsPageProps> = ({
 
       {/* Register New Physical Document Modal */}
       {showRegisterModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-3 sm:p-4 animate-in fade-in duration-200">
-          <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800 max-w-2xl w-full max-h-[90vh] flex flex-col overflow-hidden my-auto">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 flex-shrink-0">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-900/60 backdrop-blur-sm p-3 sm:p-4 animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-zinc-900 rounded-3xl shadow-2xl border border-zinc-200 dark:border-zinc-800 max-w-2xl w-full max-h-[90vh] flex flex-col overflow-hidden my-auto">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-100 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-800/50 flex-shrink-0">
               <div className="flex items-center gap-2">
-                <FilePlus className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
-                <h3 className="font-bold text-slate-900 dark:text-slate-100">
+                <FilePlus className="w-5 h-5 text-teal-600 dark:text-teal-400" />
+                <h3 className="font-bold text-zinc-900 dark:text-zinc-100">
                   Register New Physical Document
                 </h3>
+                {sessionCount > 0 && (
+                  <span className="chip bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60">
+                    {sessionCount} this session
+                  </span>
+                )}
               </div>
               <button
                 type="button"
                 onClick={() => setShowRegisterModal(false)}
                 disabled={isRegistering}
-                className="text-slate-400 hover:text-slate-600 p-1 disabled:opacity-50"
+                className="text-zinc-400 hover:text-zinc-600 p-1 disabled:opacity-50"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             <form onSubmit={handleRegisterSubmit} className="flex-1 flex flex-col min-h-0">
-              <div className="p-6 space-y-4 text-xs overflow-y-auto flex-1">
+              <div ref={regFormBodyRef} className="p-6 space-y-4 text-xs overflow-y-auto flex-1">
+
+              {lastSavedNumber && (
+                <div className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-medium text-emerald-800 dark:border-emerald-800/60 dark:bg-emerald-950/40 dark:text-emerald-300">
+                  <CheckCircle2 className="w-4 h-4 flex-shrink-0" aria-hidden="true" />
+                  Registered #{lastSavedNumber} — department, type and location kept. Enter the next record.
+                </div>
+              )}
               
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  <label className="block font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
                     Document Number (Optional - Auto-generated if blank)
                   </label>
                   <input
@@ -1193,17 +1392,17 @@ export const DocumentsPage: React.FC<DocumentsPageProps> = ({
                     value={regDocNumber}
                     onChange={(e) => setRegDocNumber(e.target.value)}
                     placeholder="e.g. ENG-ARCH-0001"
-                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl outline-none font-mono"
+                    className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-xl outline-none font-mono"
                   />
                   {!regDocNumber.trim() && autoNumberPreview && (
-                    <p className="text-[10px] text-slate-400 mt-1 font-mono">
-                      Auto-generate: <span className="font-bold text-indigo-500">{autoNumberPreview}</span>
+                    <p className="text-[10px] text-zinc-400 mt-1 font-mono">
+                      Auto-generate: <span className="font-bold text-teal-500">{autoNumberPreview}</span>
                     </p>
                   )}
                 </div>
 
                 <div>
-                  <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  <label className="block font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
                     Reference Number
                   </label>
                   <input
@@ -1211,36 +1410,39 @@ export const DocumentsPage: React.FC<DocumentsPageProps> = ({
                     value={regRefNumber}
                     onChange={(e) => setRegRefNumber(e.target.value)}
                     placeholder="e.g. REF-ENG-2026-001"
-                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl outline-none font-mono"
+                    className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-xl outline-none font-mono"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                <label className="block font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
                   Document Title *
                 </label>
                 <input
+                  ref={regTitleRef}
                   type="text"
                   required
                   value={regTitle}
                   onChange={(e) => setRegTitle(e.target.value)}
                   placeholder="Official title or title on cover binder..."
-                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl outline-none font-medium"
+                  className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-xl outline-none font-medium"
                 />
               </div>
 
               {/* Requirement 4: Owning Department tied to Document Type */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  <label className="block font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
                     Owning Department *
                   </label>
                   <select
+                    required
                     value={regDeptId}
                     onChange={(e) => handleDeptChange(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl outline-none font-semibold"
+                    className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-xl outline-none font-semibold"
                   >
+                    <option value="">Select department</option>
                     {departments.map(d => (
                       <option key={d.id} value={d.id}>{d.name}</option>
                     ))}
@@ -1248,9 +1450,9 @@ export const DocumentsPage: React.FC<DocumentsPageProps> = ({
                 </div>
 
                 <div>
-                  <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1 flex items-center justify-between">
+                  <label className="block font-semibold text-zinc-700 dark:text-zinc-300 mb-1 flex items-center justify-between">
                     <span>Document Type *</span>
-                    <span className="text-[10px] text-indigo-600 font-normal">
+                    <span className="text-[10px] text-teal-600 font-normal">
                       (Tied to Department)
                     </span>
                   </label>
@@ -1269,13 +1471,13 @@ export const DocumentsPage: React.FC<DocumentsPageProps> = ({
                 if (!selectedDocType?.customFields || selectedDocType.customFields.length === 0) return null;
 
                 return (
-                  <div className="p-4 bg-indigo-50/70 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800/80 rounded-2xl space-y-3">
+                  <div className="p-4 bg-teal-50/70 dark:bg-teal-950/40 border border-teal-200 dark:border-teal-800/80 rounded-2xl space-y-3">
                     <div className="flex items-center justify-between">
-                      <label className="block font-bold text-indigo-950 dark:text-indigo-200 uppercase tracking-wider text-[11px] flex items-center gap-1.5">
-                        <SlidersHorizontal className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+                      <label className="block font-bold text-teal-950 dark:text-teal-200 uppercase tracking-wider text-[11px] flex items-center gap-1.5">
+                        <SlidersHorizontal className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400" />
                         Custom Classification Fields for {selectedDocType.name}
                       </label>
-                      <span className="text-[10px] text-indigo-700 dark:text-indigo-300 font-medium">
+                      <span className="text-[10px] text-teal-700 dark:text-teal-300 font-medium">
                         Differentiates documents with identical titles
                       </span>
                     </div>
@@ -1283,7 +1485,7 @@ export const DocumentsPage: React.FC<DocumentsPageProps> = ({
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       {selectedDocType.customFields.map(field => (
                         <div key={field.id} className="space-y-1">
-                          <label className="block font-semibold text-slate-700 dark:text-slate-300 text-[11px]">
+                          <label className="block font-semibold text-zinc-700 dark:text-zinc-300 text-[11px]">
                             {field.label} {field.required && <span className="text-rose-500">*</span>}
                           </label>
 
@@ -1292,7 +1494,7 @@ export const DocumentsPage: React.FC<DocumentsPageProps> = ({
                               required={field.required}
                               value={String(regCustomValues[field.name] ?? '')}
                               onChange={(e) => setRegCustomValues(prev => ({ ...prev, [field.name]: e.target.value }))}
-                              className="w-full px-3 py-2 text-xs bg-white dark:bg-slate-900 border border-indigo-200 dark:border-indigo-800 rounded-xl outline-none font-medium"
+                              className="w-full px-3 py-2 text-xs bg-white dark:bg-zinc-900 border border-teal-200 dark:border-teal-800 rounded-xl outline-none font-medium"
                             >
                               <option value="">-- Select {field.label} --</option>
                               {field.options?.map(opt => (
@@ -1306,7 +1508,7 @@ export const DocumentsPage: React.FC<DocumentsPageProps> = ({
                               value={String(regCustomValues[field.name] ?? '')}
                               placeholder={field.placeholder || `Enter ${field.label}...`}
                               onChange={(e) => setRegCustomValues(prev => ({ ...prev, [field.name]: e.target.value }))}
-                              className="w-full px-3 py-2 text-xs bg-white dark:bg-slate-900 border border-indigo-200 dark:border-indigo-800 rounded-xl outline-none font-medium"
+                              className="w-full px-3 py-2 text-xs bg-white dark:bg-zinc-900 border border-teal-200 dark:border-teal-800 rounded-xl outline-none font-medium"
                             />
                           )}
                         </div>
@@ -1314,15 +1516,15 @@ export const DocumentsPage: React.FC<DocumentsPageProps> = ({
                     </div>
 
                     {/* Disambiguation Identifier Live Preview */}
-                    <div className="p-2.5 bg-white dark:bg-slate-900 rounded-xl border border-indigo-200 dark:border-indigo-800/80 text-[11px] text-slate-800 dark:text-slate-200 space-y-1">
-                      <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400 block">
+                    <div className="p-2.5 bg-white dark:bg-zinc-900 rounded-xl border border-teal-200 dark:border-teal-800/80 text-[11px] text-zinc-800 dark:text-zinc-200 space-y-1">
+                      <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-teal-600 dark:text-teal-400 block">
                         Unique Document Classification Preview:
                       </span>
                       <div className="flex items-center gap-1.5 flex-wrap font-semibold">
-                        <span className="text-indigo-900 dark:text-indigo-200">{regTitle || '[Document Title]'}</span>
+                        <span className="text-teal-900 dark:text-teal-200">{regTitle || '[Document Title]'}</span>
                         {Object.entries(regCustomValues).filter(([_, val]) => Boolean(val)).map(([key, val]) => (
-                          <span key={key} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-indigo-100 dark:bg-indigo-950 text-indigo-900 dark:text-indigo-200 border border-indigo-200 dark:border-indigo-800 text-[10px]">
-                            <span className="text-slate-500 font-normal">{key}:</span> {val}
+                          <span key={key} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-teal-100 dark:bg-teal-950 text-teal-900 dark:text-teal-200 border border-teal-200 dark:border-teal-800 text-[10px]">
+                            <span className="text-zinc-500 font-normal">{key}:</span> {val}
                           </span>
                         ))}
                       </div>
@@ -1332,19 +1534,20 @@ export const DocumentsPage: React.FC<DocumentsPageProps> = ({
               })()}
 
               {/* PRD MANDATE: Home Location Assignment */}
-              <div className="p-3 bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800/80 rounded-xl space-y-1.5">
-                <label className="block font-bold text-indigo-950 dark:text-indigo-200 uppercase tracking-wider text-[11px]">
+              <div className="p-3 bg-teal-50 dark:bg-teal-950/40 border border-teal-200 dark:border-teal-800/80 rounded-xl space-y-1.5">
+                <label className="block font-bold text-teal-950 dark:text-teal-200 uppercase tracking-wider text-[11px]">
                   📍 Assign Permanent Home Storage Location *
                 </label>
-                <p className="text-[11px] text-indigo-800 dark:text-indigo-300">
+                <p className="text-[11px] text-teal-800 dark:text-teal-300">
                   Select the exact folder, box, shelf, or cabinet where this physical document belongs in the archive vault.
                 </p>
                 <select
                   required
                   value={regHomeLocationId}
                   onChange={(e) => setRegHomeLocationId(e.target.value)}
-                  className="w-full px-3 py-2 text-xs bg-white dark:bg-slate-900 border border-indigo-300 dark:border-indigo-700 rounded-xl outline-none font-medium"
+                  className="w-full px-3 py-2 text-xs bg-white dark:bg-zinc-900 border border-teal-300 dark:border-teal-700 rounded-xl outline-none font-medium"
                 >
+                  <option value="">Select home location</option>
                   {locations.map(loc => (
                     <option key={loc.id} value={loc.id}>
                       [{loc.type}] {loc.name} ({calculatePath(loc.id)})
@@ -1355,13 +1558,13 @@ export const DocumentsPage: React.FC<DocumentsPageProps> = ({
 
               <div className="grid grid-cols-3 gap-3">
                 <div>
-                  <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  <label className="block font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
                     Confidentiality
                   </label>
                   <select
                     value={regConfidentiality}
                     onChange={(e) => setRegConfidentiality(e.target.value as ConfidentialityLevel)}
-                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl outline-none"
+                    className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-xl outline-none"
                   >
                     <option value="PUBLIC">Public</option>
                     <option value="INTERNAL">Internal</option>
@@ -1371,13 +1574,13 @@ export const DocumentsPage: React.FC<DocumentsPageProps> = ({
                 </div>
 
                 <div>
-                  <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  <label className="block font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
                     Physical Condition
                   </label>
                   <select
                     value={regCondition}
                     onChange={(e) => setRegCondition(e.target.value as DocumentCondition)}
-                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl outline-none"
+                    className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-xl outline-none"
                   >
                     <option value="EXCELLENT">Excellent</option>
                     <option value="GOOD">Good</option>
@@ -1387,20 +1590,20 @@ export const DocumentsPage: React.FC<DocumentsPageProps> = ({
                 </div>
 
                 <div>
-                  <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  <label className="block font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
                     Document Date
                   </label>
                   <input
                     type="date"
                     value={regDocDate}
                     onChange={(e) => setRegDocDate(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl outline-none"
+                    className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-xl outline-none"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                <label className="block font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
                   Subject / Summary Description
                 </label>
                 <textarea
@@ -1408,25 +1611,25 @@ export const DocumentsPage: React.FC<DocumentsPageProps> = ({
                   onChange={(e) => setRegDescription(e.target.value)}
                   rows={2}
                   placeholder="Summary of document scope and key stipulations..."
-                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl outline-none resize-none"
+                  className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-xl outline-none resize-none"
                 />
               </div>
 
               {/* Optional Digital Surrogate Copy Section */}
-              <div className="p-3 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-xl space-y-2">
-                <label className="flex items-center gap-2 cursor-pointer font-semibold text-xs text-slate-800 dark:text-slate-200">
+              <div className="p-3 bg-zinc-50 dark:bg-zinc-800/60 border border-zinc-200 dark:border-zinc-700 rounded-xl space-y-2">
+                <label className="flex items-center gap-2 cursor-pointer font-semibold text-xs text-zinc-800 dark:text-zinc-200">
                   <input
                     type="checkbox"
                     checked={regHasDigitalCopy}
                     onChange={(e) => setRegHasDigitalCopy(e.target.checked)}
-                    className="w-4 h-4 text-indigo-600 rounded focus:ring-indigo-500"
+                    className="w-4 h-4 text-teal-600 rounded focus:ring-teal-500"
                   />
                   <span>Attach Digitized Surrogate Scan Copy (PDF)</span>
                 </label>
 
                 {regHasDigitalCopy && (
-                  <div className="pt-2 border-t border-slate-200 dark:border-slate-700 space-y-2 animate-in fade-in">
-                    <label className="block text-[11px] font-medium text-slate-600 dark:text-slate-400">
+                  <div className="pt-2 border-t border-zinc-200 dark:border-zinc-700 space-y-2 animate-in fade-in">
+                    <label className="block text-[11px] font-medium text-zinc-600 dark:text-zinc-400">
                       Digitized PDF File Name
                     </label>
                     <input
@@ -1434,7 +1637,7 @@ export const DocumentsPage: React.FC<DocumentsPageProps> = ({
                       value={regDigitalFileName}
                       onChange={(e) => setRegDigitalFileName(e.target.value)}
                       placeholder="e.g. Contract_2026_Scan.pdf"
-                      className="w-full px-3 py-1.5 text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg outline-none font-mono"
+                      className="w-full px-3 py-1.5 text-xs bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-700 rounded-lg outline-none font-mono"
                     />
                   </div>
                 )}
@@ -1442,21 +1645,30 @@ export const DocumentsPage: React.FC<DocumentsPageProps> = ({
 
               </div>
 
-              <div className="px-6 py-4 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-100 dark:border-slate-800 flex justify-end gap-2.5 flex-shrink-0">
+              <div className="px-6 py-4 bg-zinc-50 dark:bg-zinc-800/50 border-t border-zinc-100 dark:border-zinc-800 flex justify-end gap-2.5 flex-shrink-0">
                 <button
                   type="button"
                   onClick={() => setShowRegisterModal(false)}
                   disabled={isRegistering}
-                  className="px-4 py-2 text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-xl font-medium"
+                  className="px-4 py-2 text-zinc-600 dark:text-zinc-300 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded-xl font-medium"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
+                  onClick={() => { submitModeRef.current = 'close'; }}
                   disabled={isRegistering}
-                  className="px-5 py-2 text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl font-semibold shadow-md shadow-indigo-600/20 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="px-4 py-2 text-zinc-700 dark:text-zinc-200 bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-700 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-xl font-medium disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  {isRegistering ? 'Saving...' : 'Register Record'}
+                  Save & close
+                </button>
+                <button
+                  type="submit"
+                  onClick={() => { submitModeRef.current = 'next'; }}
+                  disabled={isRegistering}
+                  className="px-5 py-2 text-white bg-teal-600 hover:bg-teal-700 rounded-xl font-semibold shadow-md shadow-teal-600/20 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {isRegistering ? 'Saving...' : 'Save & register next'}
                 </button>
               </div>
 

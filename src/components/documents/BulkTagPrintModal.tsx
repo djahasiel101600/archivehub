@@ -499,24 +499,24 @@ export const BulkTagPrintModal: React.FC<BulkTagPrintModalProps> = ({
     'grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4';
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 animate-in fade-in">
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-5xl w-full max-h-[94vh] flex flex-col overflow-hidden shadow-2xl">
+    <div className="fixed inset-0 z-50 bg-zinc-950/70 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 animate-in fade-in">
+      <div className="card max-w-5xl w-full max-h-[94vh] flex flex-col overflow-hidden my-auto" role="dialog" aria-modal="true">
         
         {/* Modal Header & Controls Toolbar */}
-        <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60 flex-shrink-0 space-y-3">
+        <div className="px-5 py-4 border-b border-zinc-100 dark:border-zinc-800 flex-shrink-0 space-y-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-xl bg-indigo-600 text-white flex items-center justify-center shadow-sm">
-                <Tag className="w-4 h-4" />
+              <div className="w-8 h-8 rounded-lg bg-teal-600 text-white flex items-center justify-center">
+                <Tag className="w-4 h-4" aria-hidden="true" />
               </div>
               <div>
-                <h3 className="font-extrabold text-slate-900 dark:text-slate-100 text-sm flex items-center gap-2">
+                <h3 className="section-title flex items-center gap-2">
                   <span>Bulk Print Document Tags & Physical Stickers</span>
-                  <span className="text-[10px] font-mono px-2 py-0.5 bg-indigo-100 text-indigo-800 dark:bg-indigo-950 dark:text-indigo-300 rounded-full font-bold">
+                  <span className="chip rounded-full font-mono bg-teal-100 text-teal-800 dark:bg-teal-950 dark:text-teal-300">
                     {documents.length} Labels • {columns} Columns
                   </span>
                 </h3>
-                <p className="text-[11px] text-slate-500">
+                <p className="meta">
                   Customizable layout density for standard sheets, multi-column labels, or thermal rolls
                 </p>
               </div>
@@ -528,36 +528,37 @@ export const BulkTagPrintModal: React.FC<BulkTagPrintModalProps> = ({
                 type="button"
                 disabled={isPrinting}
                 onClick={handlePrint}
-                className="inline-flex items-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-semibold text-xs rounded-xl shadow-md shadow-indigo-600/20 transition-all cursor-pointer"
+                className="btn btn-primary btn-sm"
               >
-                <Printer className="w-3.5 h-3.5" />
+                <Printer className="w-3.5 h-3.5" aria-hidden="true" />
                 <span>{isPrinting ? 'Opening Print...' : `Print All (${documents.length})`}</span>
               </button>
 
               <button
                 type="button"
                 onClick={onClose}
-                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1.5 rounded-lg"
+                className="btn btn-ghost btn-icon btn-sm"
+                aria-label="Close dialog"
               >
-                <X className="w-5 h-5" />
+                <X className="w-4 h-4" aria-hidden="true" />
               </button>
             </div>
           </div>
 
           {/* Configuration Controls Bar (Format + Columns + Page Size) */}
-          <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-slate-200/60 dark:border-slate-700/60">
+          <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-zinc-200/60 dark:border-zinc-700/60">
             
             {/* Tag Format Options */}
             <div className="flex items-center gap-2">
-              <span className="text-xs font-bold text-slate-600 dark:text-slate-400">Layout Format:</span>
-              <div className="flex items-center bg-slate-200/80 dark:bg-slate-700/80 p-0.5 rounded-xl text-xs font-semibold">
+              <span className="text-xs font-bold text-zinc-600 dark:text-zinc-400">Layout Format:</span>
+              <div className="flex items-center bg-zinc-200/80 dark:bg-zinc-700/80 p-0.5 rounded-xl text-xs font-semibold">
                 <button
                   type="button"
                   onClick={() => handleFormatChange('standard')}
                   className={`px-2.5 py-1 rounded-lg transition-all ${
                     tagFormat === 'standard'
-                      ? 'bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow-xs'
-                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                      ? 'bg-white dark:bg-zinc-800 text-teal-600 dark:text-teal-400 shadow-xs'
+                      : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900'
                   }`}
                 >
                   Standard Sticker
@@ -567,8 +568,8 @@ export const BulkTagPrintModal: React.FC<BulkTagPrintModalProps> = ({
                   onClick={() => handleFormatChange('compact')}
                   className={`px-2.5 py-1 rounded-lg transition-all ${
                     tagFormat === 'compact'
-                      ? 'bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow-xs'
-                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                      ? 'bg-white dark:bg-zinc-800 text-teal-600 dark:text-teal-400 shadow-xs'
+                      : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900'
                   }`}
                 >
                   Compact Label
@@ -578,8 +579,8 @@ export const BulkTagPrintModal: React.FC<BulkTagPrintModalProps> = ({
                   onClick={() => handleFormatChange('spine')}
                   className={`px-2.5 py-1 rounded-lg transition-all ${
                     tagFormat === 'spine'
-                      ? 'bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow-xs'
-                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                      ? 'bg-white dark:bg-zinc-800 text-teal-600 dark:text-teal-400 shadow-xs'
+                      : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900'
                   }`}
                 >
                   Binder Spine
@@ -589,11 +590,11 @@ export const BulkTagPrintModal: React.FC<BulkTagPrintModalProps> = ({
 
             {/* Column Selector: 1, 2, 3, or 4 Columns */}
             <div className="flex items-center gap-2">
-              <span className="text-xs font-bold text-slate-600 dark:text-slate-400 flex items-center gap-1">
-                <Columns className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+              <span className="text-xs font-bold text-zinc-600 dark:text-zinc-400 flex items-center gap-1">
+                <Columns className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400" />
                 Sheet Columns:
               </span>
-              <div className="flex items-center bg-slate-200/80 dark:bg-slate-700/80 p-0.5 rounded-xl text-xs font-semibold">
+              <div className="flex items-center bg-zinc-200/80 dark:bg-zinc-700/80 p-0.5 rounded-xl text-xs font-semibold">
                 {([1, 2, 3, 4] as const).map((colNum) => (
                   <button
                     key={colNum}
@@ -601,8 +602,8 @@ export const BulkTagPrintModal: React.FC<BulkTagPrintModalProps> = ({
                     onClick={() => setColumns(colNum)}
                     className={`px-2.5 py-1 rounded-lg transition-all ${
                       columns === colNum
-                        ? 'bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow-xs font-bold'
-                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                        ? 'bg-white dark:bg-zinc-800 text-teal-600 dark:text-teal-400 shadow-xs font-bold'
+                        : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900'
                     }`}
                   >
                     {colNum} {colNum === 1 ? 'Col' : 'Cols'}
@@ -613,11 +614,11 @@ export const BulkTagPrintModal: React.FC<BulkTagPrintModalProps> = ({
 
             {/* Paper Type */}
             <div className="hidden md:flex items-center gap-2">
-              <span className="text-xs font-bold text-slate-600 dark:text-slate-400">Paper:</span>
+              <span className="text-xs font-bold text-zinc-600 dark:text-zinc-400">Paper:</span>
               <select
                 value={pageSize}
                 onChange={(e) => setPageSize(e.target.value as any)}
-                className="text-xs font-semibold bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1 text-slate-700 dark:text-slate-200"
+                className="input w-auto h-8 text-xs font-semibold"
               >
                 <option value="letter">US Letter</option>
                 <option value="a4">A4 Standard</option>
@@ -629,7 +630,7 @@ export const BulkTagPrintModal: React.FC<BulkTagPrintModalProps> = ({
         </div>
 
         {/* Printable Content Area Live Interactive Preview */}
-        <div className="flex-1 overflow-y-auto p-4 sm:p-6 bg-slate-100 dark:bg-slate-950">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6 bg-zinc-100 dark:bg-zinc-950">
           
           <div className={`grid gap-3.5 ${previewGridClass}`}>
             
@@ -641,19 +642,19 @@ export const BulkTagPrintModal: React.FC<BulkTagPrintModalProps> = ({
                 return (
                   <div 
                     key={doc.id}
-                    className="bg-white text-slate-900 border-2 border-slate-800 rounded-xl p-3 shadow-sm flex flex-col justify-between relative overflow-hidden"
+                    className="bg-white text-zinc-900 border-2 border-zinc-800 rounded-xl p-3 shadow-sm flex flex-col justify-between relative overflow-hidden"
                   >
                     <div className="space-y-1.5">
-                      <div className="flex items-center justify-between border-b-2 border-slate-800 pb-1.5">
+                      <div className="flex items-center justify-between border-b-2 border-zinc-800 pb-1.5">
                         <span className="font-mono font-black text-xs uppercase tracking-tight text-indigo-700">
                           {doc.departmentName ? doc.departmentName.split(' ')[0] : 'ARCHIVE'} ARCHIVE
                         </span>
-                        <span className="font-mono text-[9px] font-bold px-1.5 py-0.2 bg-slate-900 text-white rounded">
+                        <span className="font-mono text-[9px] font-bold px-1.5 py-0.2 bg-zinc-900 text-white rounded">
                           #{idx + 1}
                         </span>
                       </div>
                       
-                      <div className="font-mono font-black text-sm text-slate-900 tracking-tight">
+                      <div className="font-mono font-black text-sm text-zinc-900 tracking-tight">
                         {doc.documentNumber}
                       </div>
 
@@ -662,11 +663,11 @@ export const BulkTagPrintModal: React.FC<BulkTagPrintModalProps> = ({
                       </div>
                     </div>
 
-                    <div className="mt-3 pt-2 border-t border-slate-300 space-y-1 text-[10px]">
-                      <div className="font-mono font-semibold text-slate-600 truncate">
+                    <div className="mt-3 pt-2 border-t border-zinc-300 space-y-1 text-[10px]">
+                      <div className="font-mono font-semibold text-zinc-600 truncate">
                         Ref: {doc.referenceNumber}
                       </div>
-                      <div className="font-mono text-[9px] text-slate-700 bg-slate-100 p-1 rounded font-bold truncate">
+                      <div className="font-mono text-[9px] text-zinc-700 bg-zinc-100 p-1 rounded font-bold truncate">
                         Loc: {homePath}
                       </div>
                     </div>
@@ -678,22 +679,22 @@ export const BulkTagPrintModal: React.FC<BulkTagPrintModalProps> = ({
                 return (
                   <div
                     key={doc.id}
-                    className="bg-white text-slate-900 border-2 border-slate-800 rounded-xl p-3 shadow-sm flex flex-col justify-between relative"
+                    className="bg-white text-zinc-900 border-2 border-zinc-800 rounded-xl p-3 shadow-sm flex flex-col justify-between relative"
                   >
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex-1 min-w-0">
                         <span className="text-[9px] font-mono font-black uppercase text-indigo-700 tracking-wider block truncate">
                           NIA ARCHIVES
                         </span>
-                        <div className="font-mono font-black text-xs text-slate-900 truncate">
+                        <div className="font-mono font-black text-xs text-zinc-900 truncate">
                           {doc.documentNumber}
                         </div>
                       </div>
-                      <div className="w-10 h-10 border border-slate-800 bg-white flex items-center justify-center rounded p-0.5 overflow-hidden flex-shrink-0">
+                      <div className="w-10 h-10 border border-zinc-800 bg-white flex items-center justify-center rounded p-0.5 overflow-hidden flex-shrink-0">
                         {qrDataUrl ? (
                           <img src={qrDataUrl} alt="QR" className="w-full h-full object-contain" />
                         ) : (
-                          <div className="w-full h-full bg-slate-100 animate-pulse" />
+                          <div className="w-full h-full bg-zinc-100 animate-pulse" />
                         )}
                       </div>
                     </div>
@@ -704,9 +705,9 @@ export const BulkTagPrintModal: React.FC<BulkTagPrintModalProps> = ({
                       </div>
                     </div>
 
-                    <div className="pt-1.5 border-t border-slate-300 flex items-center justify-between text-[9px] font-mono text-slate-600">
+                    <div className="pt-1.5 border-t border-zinc-300 flex items-center justify-between text-[9px] font-mono text-zinc-600">
                       <span className="truncate max-w-[120px]">{doc.departmentName}</span>
-                      <span className="font-bold text-slate-900">{doc.confidentiality}</span>
+                      <span className="font-bold text-zinc-900">{doc.confidentiality}</span>
                     </div>
                   </div>
                 );
@@ -716,23 +717,23 @@ export const BulkTagPrintModal: React.FC<BulkTagPrintModalProps> = ({
               return (
                 <div
                   key={doc.id}
-                  className="bg-white text-slate-900 border-2 border-slate-900 rounded-2xl p-3.5 shadow-sm relative overflow-hidden flex flex-col justify-between"
+                  className="bg-white text-zinc-900 border-2 border-zinc-900 rounded-2xl p-3.5 shadow-sm relative overflow-hidden flex flex-col justify-between"
                 >
                   {/* Corner Accent */}
                   <div className="absolute -top-6 -right-6 w-12 h-12 bg-indigo-600 rotate-45" />
 
                   {/* Header Row */}
                   <div>
-                    <div className="flex items-center justify-between border-b-2 border-slate-900 pb-1.5 mb-2">
+                    <div className="flex items-center justify-between border-b-2 border-zinc-900 pb-1.5 mb-2">
                       <div className="flex items-center gap-1.5">
                         <div className="w-4 h-4 bg-indigo-600 text-white rounded flex items-center justify-center font-bold text-[9px]">
                           NIA
                         </div>
-                        <span className="font-mono font-black text-[10px] uppercase tracking-wider text-slate-900">
+                        <span className="font-mono font-black text-[10px] uppercase tracking-wider text-zinc-900">
                           PHYSICAL ARCHIVE TAG
                         </span>
                       </div>
-                      <span className="text-[9px] font-mono font-black px-1.5 py-0.5 bg-slate-100 text-slate-800 rounded border border-slate-300">
+                      <span className="text-[9px] font-mono font-black px-1.5 py-0.5 bg-zinc-100 text-zinc-800 rounded border border-zinc-300">
                         {doc.confidentiality}
                       </span>
                     </div>
@@ -741,14 +742,14 @@ export const BulkTagPrintModal: React.FC<BulkTagPrintModalProps> = ({
                     <div className="flex gap-2.5 items-start">
                       {/* Left: Barcode / QR Box */}
                       <div className={`${columns >= 3 ? 'w-14' : 'w-18'} flex-shrink-0 text-center space-y-1`}>
-                        <div className={`${columns >= 3 ? 'w-14 h-14' : 'w-18 h-18'} border-2 border-slate-900 rounded-xl bg-white flex items-center justify-center p-0.5 shadow-inner overflow-hidden`}>
+                        <div className={`${columns >= 3 ? 'w-14 h-14' : 'w-18 h-18'} border-2 border-zinc-900 rounded-xl bg-white flex items-center justify-center p-0.5 shadow-inner overflow-hidden`}>
                           {qrDataUrl ? (
                             <img src={qrDataUrl} alt="QR" className="w-full h-full object-contain" />
                           ) : (
-                            <div className="w-full h-full bg-slate-100 animate-pulse rounded" />
+                            <div className="w-full h-full bg-zinc-100 animate-pulse rounded" />
                           )}
                         </div>
-                        <span className="font-mono font-bold text-[8px] text-slate-500 block truncate">
+                        <span className="font-mono font-bold text-[8px] text-zinc-500 block truncate">
                           {doc.qrCode || doc.documentNumber}
                         </span>
                       </div>
@@ -758,14 +759,14 @@ export const BulkTagPrintModal: React.FC<BulkTagPrintModalProps> = ({
                         <div className="font-mono font-black text-xs sm:text-sm text-indigo-700 tracking-tight">
                           {doc.documentNumber}
                         </div>
-                        <div className="text-[9px] font-mono text-slate-500 font-semibold truncate">
+                        <div className="text-[9px] font-mono text-zinc-500 font-semibold truncate">
                           Ref: {doc.referenceNumber}
                         </div>
-                        <div className="font-bold text-[11px] text-slate-900 line-clamp-2 leading-tight">
+                        <div className="font-bold text-[11px] text-zinc-900 line-clamp-2 leading-tight">
                           {doc.title}
                         </div>
-                        <div className="text-[9.5px] font-semibold text-slate-600 flex items-center gap-1">
-                          <Building2 className="w-3 h-3 text-slate-400 flex-shrink-0" />
+                        <div className="text-[9.5px] font-semibold text-zinc-600 flex items-center gap-1">
+                          <Building2 className="w-3 h-3 text-zinc-400 flex-shrink-0" />
                           <span className="truncate">{doc.departmentName}</span>
                         </div>
                       </div>
@@ -773,19 +774,19 @@ export const BulkTagPrintModal: React.FC<BulkTagPrintModalProps> = ({
                   </div>
 
                   {/* Footer Storage Specifier */}
-                  <div className="mt-2.5 pt-1.5 border-t-2 border-slate-900/40 bg-slate-50 p-2 rounded-xl border border-slate-200">
-                    <div className="flex items-center justify-between text-[8.5px] font-mono font-bold text-slate-500 mb-0.5">
+                  <div className="mt-2.5 pt-1.5 border-t-2 border-zinc-900/40 bg-zinc-50 p-2 rounded-xl border border-zinc-200">
+                    <div className="flex items-center justify-between text-[8.5px] font-mono font-bold text-zinc-500 mb-0.5">
                       <span className="uppercase">STORAGE:</span>
                       <span className="text-indigo-600 font-extrabold truncate max-w-[140px]">{doc.documentTypeName}</span>
                     </div>
-                    <div className="font-mono font-bold text-[9px] text-slate-800 truncate">
+                    <div className="font-mono font-bold text-[9px] text-zinc-800 truncate">
                       {homePath}
                     </div>
                     {doc.bundleNumber && (
-                      <div className="mt-1 pt-1 border-t border-slate-200 text-[8.5px] font-mono font-bold text-amber-800 flex items-center gap-1">
+                      <div className="mt-1 pt-1 border-t border-zinc-200 text-[8.5px] font-mono font-bold text-amber-800 flex items-center gap-1">
                         <span>DOSSIER:</span>
                         <span className="bg-amber-100 px-1 py-0.2 rounded font-extrabold">{doc.bundleNumber}</span>
-                        <span className="text-slate-500 truncate">{doc.bundleTitle}</span>
+                        <span className="text-zinc-500 truncate">{doc.bundleTitle}</span>
                       </div>
                     )}
                   </div>
@@ -795,7 +796,7 @@ export const BulkTagPrintModal: React.FC<BulkTagPrintModalProps> = ({
                     <button
                       type="button"
                       onClick={() => handleCopyTagText(doc)}
-                      className="inline-flex items-center gap-1 text-[10px] font-semibold text-slate-500 hover:text-indigo-600 transition-colors"
+                      className="btn btn-ghost btn-xs text-zinc-500 hover:text-teal-600"
                     >
                       {copiedId === doc.id ? (
                         <>
@@ -819,7 +820,7 @@ export const BulkTagPrintModal: React.FC<BulkTagPrintModalProps> = ({
         </div>
 
         {/* Footer Actions with Multiple Output Options */}
-        <div className="px-6 py-3.5 border-t border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-500 flex-shrink-0">
+        <div className="px-5 py-4 border-t border-zinc-100 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-800/50 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-zinc-500 flex-shrink-0">
           <div className="flex items-center gap-2">
             <span>Rendered at {columns} column(s) per sheet on {pageSize.toUpperCase()} paper</span>
           </div>
@@ -829,10 +830,10 @@ export const BulkTagPrintModal: React.FC<BulkTagPrintModalProps> = ({
             <button
               type="button"
               onClick={handleDownloadSheet}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 hover:bg-slate-100 border border-slate-200 dark:border-slate-700 rounded-xl font-semibold shadow-2xs transition-colors cursor-pointer"
+              className="btn btn-secondary btn-sm"
               title="Download sticker sheet to save, send, or print anytime"
             >
-              <Download className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+              <Download className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400" aria-hidden="true" />
               <span>Download HTML Sheet</span>
             </button>
 
@@ -840,10 +841,10 @@ export const BulkTagPrintModal: React.FC<BulkTagPrintModalProps> = ({
             <button
               type="button"
               onClick={handleOpenInNewTab}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 hover:bg-slate-100 border border-slate-200 dark:border-slate-700 rounded-xl font-semibold shadow-2xs transition-colors cursor-pointer"
+              className="btn btn-secondary btn-sm"
               title="Open full page in a new browser tab for clean direct printing"
             >
-              <ExternalLink className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+              <ExternalLink className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400" aria-hidden="true" />
               <span>Open in New Tab</span>
             </button>
 
@@ -852,9 +853,9 @@ export const BulkTagPrintModal: React.FC<BulkTagPrintModalProps> = ({
               type="button"
               disabled={isPrinting}
               onClick={handlePrint}
-              className="inline-flex items-center gap-1.5 px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-semibold rounded-xl shadow-xs transition-all cursor-pointer"
+              className="btn btn-primary btn-sm"
             >
-              <Printer className="w-3.5 h-3.5" />
+              <Printer className="w-3.5 h-3.5" aria-hidden="true" />
               <span>{isPrinting ? 'Opening Printer...' : `Print ${columns}-Col Sheet`}</span>
             </button>
           </div>

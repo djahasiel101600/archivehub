@@ -1,0 +1,164 @@
+[
+  {
+    "id": "SETUP",
+    "name": "admin login",
+    "detail": {
+      "status": 200,
+      "role": "ADMIN"
+    }
+  },
+  {
+    "id": "T1",
+    "name": "Approve & Release (no temp location) -> dispatch",
+    "detail": {
+      "request": 201,
+      "approve": {
+        "status": 200,
+        "body": {
+          "success": true
+        }
+      },
+      "dispatch": {
+        "status": 500,
+        "body": {
+          "error": "null value in column \"current_location_id\" of relation \"documents\" violates not-null constraint"
+        }
+      },
+      "checkoutStatusAfter": "APPROVED",
+      "documentStatusAfter": "APPROVED",
+      "currentLocationIdAfter": "loc-shelf-2ab7ef93-da5c-4353-9152-1c032c96e951"
+    }
+  },
+  {
+    "id": "T1b",
+    "name": "Recovery: dispatch again WITH tempLocationId",
+    "detail": {
+      "status": 200,
+      "body": {
+        "success": true
+      },
+      "checkoutStatusAfter": "CHECKED_OUT"
+    }
+  },
+  {
+    "id": "T2",
+    "name": "Signup RECORDS_OFFICER -> approve -> actual role",
+    "detail": {
+      "shortPasswordSignup": {
+        "status": 400,
+        "body": {
+          "success": false,
+          "message": "A password of at least 8 characters is required."
+        }
+      },
+      "signup": {
+        "status": 400,
+        "requestedRole": "RECORDS_OFFICER",
+        "storedRole": "DEPT_USER"
+      },
+      "afterApprovalRole": "DEPT_USER"
+    }
+  },
+  {
+    "id": "T3",
+    "name": "Self department change -> CONFIDENTIAL doc access",
+    "detail": {
+      "loginAsOfficer": 200,
+      "getConfDocBefore": {
+        "status": 200
+      },
+      "selfUpdate": {
+        "status": 200,
+        "body": {
+          "success": true,
+          "user": {
+            "id": "usr-reg-54121de1-995c-4c72-92fe-1799e720ec7b",
+            "email": "audit-officer@test.local",
+            "fullName": "AUDIT-TEST Officer",
+            "role": "DEPT_USER",
+            "departmentId": "dept-bb7eea69-9a73-41c1-8fbb-7d42f8ca9b0b",
+            "departmentName": "AUDIT-TEST Dept B",
+            "avatarUrl": null,
+            "title": "Records Officer",
+            "approvalStatus": "APPROVED",
+            "createdAt": "2026-11-23T09:49:18.758Z"
+          }
+        }
+      },
+      "getConfDocAfter": {
+        "status": 200,
+        "title": "AUDIT-TEST Confidential Dept B"
+      },
+      "visibleInListAfter": true
+    }
+  },
+  {
+    "id": "T4",
+    "name": "Export then re-import into same non-empty DB",
+    "detail": {
+      "exportStatus": 200,
+      "importStatus": 500,
+      "importBody": {
+        "success": false,
+        "message": "update or delete on table \"departments\" violates foreign key constraint \"fk_documents_department\" on table \"documents\""
+      },
+      "documentCountAfter": 2
+    }
+  },
+  {
+    "id": "T5",
+    "name": "Delete in-use document type",
+    "detail": {
+      "status": 500,
+      "body": {
+        "error": "update or delete on table \"document_types\" violates foreign key constraint \"fk_documents_type\" on table \"documents\""
+      }
+    }
+  },
+  {
+    "id": "T6",
+    "name": "Checkout with dueDate 2020-01-01 (6 years overdue)",
+    "detail": {
+      "requestAccepted": 201,
+      "dispatch": 200,
+      "checkoutStatus": "CHECKED_OUT",
+      "anyOverdueAnywhere": false
+    }
+  },
+  {
+    "id": "T7",
+    "name": "Batch-move document while CHECKED_OUT",
+    "detail": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "moved": 1,
+        "errors": []
+      },
+      "docStatusAfter": "CHECKED_OUT"
+    }
+  },
+  {
+    "id": "T8",
+    "name": "Delete document that has an active checkout",
+    "detail": {
+      "deleteStatus": 400,
+      "deleteBody": {
+        "success": false,
+        "message": "Cannot delete record while checked out."
+      },
+      "orphanCheckoutStatus": "CHECKED_OUT",
+      "orphanDocumentId": "doc-49152024-753e-414f-8cf1-6c06737054df"
+    }
+  },
+  {
+    "id": "T9",
+    "name": "Return orphaned checkout",
+    "detail": {
+      "status": 500,
+      "body": {
+        "error": "null value in column \"current_location_id\" of relation \"documents\" violates not-null constraint"
+      }
+    }
+  }
+]

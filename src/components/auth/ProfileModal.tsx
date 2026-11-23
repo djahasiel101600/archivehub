@@ -75,21 +75,22 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ onClose }) => {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-3 sm:p-4 animate-in fade-in duration-200">
-      <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800 max-w-lg w-full max-h-[90vh] flex flex-col overflow-hidden my-auto">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 flex-shrink-0">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-900/60 backdrop-blur-sm p-3 sm:p-4 animate-in fade-in duration-200">
+      <div className="card max-w-lg w-full max-h-[90vh] flex flex-col overflow-hidden my-auto" role="dialog" aria-modal="true">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-100 dark:border-zinc-800 flex-shrink-0">
           <div className="flex items-center gap-2">
-            <UserCircle className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
-            <h3 className="font-bold text-slate-900 dark:text-slate-100">
+            <UserCircle className="w-5 h-5 text-teal-600 dark:text-teal-400" aria-hidden="true" />
+            <h3 className="section-title">
               My Profile & Account Information
             </h3>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="text-slate-400 hover:text-slate-600 p-1"
+            className="btn btn-ghost btn-icon btn-sm"
+            aria-label="Close dialog"
           >
-            <X className="w-5 h-5" />
+            <X className="w-4 h-4" aria-hidden="true" />
           </button>
         </div>
 
@@ -97,12 +98,12 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ onClose }) => {
           <div className="p-6 space-y-4 text-xs overflow-y-auto flex-1">
 
             {/* Role Badge (read-only, admin-controlled) */}
-            <div className="flex items-center justify-between p-3 bg-indigo-50/70 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800/80 rounded-xl">
+            <div className="flex items-center justify-between p-3 bg-teal-50/70 dark:bg-teal-950/40 border border-teal-200 dark:border-teal-800/80 rounded-xl">
               <div>
-                <span className="block text-[10px] uppercase font-bold text-indigo-500 dark:text-indigo-400 tracking-wider">Assigned System Role</span>
-                <span className="font-bold text-indigo-900 dark:text-indigo-200">{currentUser.role}</span>
+                <span className="block text-[10px] uppercase font-bold text-teal-500 dark:text-teal-400 tracking-wider">Assigned System Role</span>
+                <span className="font-bold text-teal-900 dark:text-teal-200">{currentUser.role}</span>
               </div>
-              <span className="text-[10px] text-indigo-600 dark:text-indigo-300 italic">Managed by Administrators</span>
+              <span className="text-[10px] text-teal-600 dark:text-teal-300 italic">Managed by Administrators</span>
             </div>
 
             {formError && (
@@ -112,7 +113,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ onClose }) => {
             )}
 
             <div>
-              <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+              <label className="label">
                 Full Name *
               </label>
               <input
@@ -120,12 +121,12 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ onClose }) => {
                 required
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
-                className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl outline-none font-medium"
+                className="input font-medium"
               />
             </div>
 
             <div>
-              <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+              <label className="label">
                 Email Address *
               </label>
               <input
@@ -133,12 +134,12 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ onClose }) => {
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl outline-none font-mono"
+                className="input font-mono"
               />
             </div>
 
             <div>
-              <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+              <label className="label">
                 Job Title / Position
               </label>
               <input
@@ -146,19 +147,19 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ onClose }) => {
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 placeholder="e.g. Records Officer II"
-                className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl outline-none font-medium"
+                className="input font-medium"
               />
             </div>
 
             <div>
-              <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1 flex items-center gap-1.5">
-                <Building2 className="w-3.5 h-3.5 text-slate-400" />
+              <label className="label flex items-center gap-1.5">
+                <Building2 className="w-3.5 h-3.5 text-zinc-400" />
                 Department
               </label>
               <select
                 value={departmentId}
                 onChange={(e) => setDepartmentId(e.target.value)}
-                className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl outline-none font-semibold"
+                className="input font-semibold"
               >
                 {departments.map(d => (
                   <option key={d.id} value={d.id}>{d.name}</option>
@@ -167,7 +168,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ onClose }) => {
             </div>
 
             {/* Optional Password Change Section */}
-            <div className="p-3 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-xl space-y-2.5">
+            <div className="p-3 bg-zinc-50 dark:bg-zinc-800/60 border border-zinc-200 dark:border-zinc-700 rounded-xl space-y-2.5">
               <button
                 type="button"
                 onClick={() => {
@@ -176,50 +177,50 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ onClose }) => {
                   setNewPassword('');
                   setConfirmPassword('');
                 }}
-                className="flex items-center gap-2 font-semibold text-xs text-slate-800 dark:text-slate-200 w-full"
+                className="flex items-center gap-2 font-semibold text-xs text-zinc-800 dark:text-zinc-200 w-full"
               >
-                <KeyRound className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+                <KeyRound className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400" />
                 <span>{showPasswordSection ? 'Cancel Password Change' : 'Change My Password (Optional)'}</span>
               </button>
 
               {showPasswordSection && (
-                <div className="space-y-2.5 pt-1 border-t border-slate-200 dark:border-slate-700 animate-in fade-in">
+                <div className="space-y-2.5 pt-1 border-t border-zinc-200 dark:border-zinc-700 animate-in fade-in">
                   <div>
-                    <label className="block text-[11px] font-medium text-slate-600 dark:text-slate-400 mb-0.5">
+                    <label className="label">
                       Current Password
                     </label>
                     <input
                       type="password"
                       value={currentPassword}
                       onChange={(e) => setCurrentPassword(e.target.value)}
-                      className="w-full px-3 py-2 text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg outline-none"
+                      className="input"
                     />
                   </div>
                   <div className="grid grid-cols-2 gap-2.5">
                     <div>
-                      <label className="block text-[11px] font-medium text-slate-600 dark:text-slate-400 mb-0.5">
+                      <label className="label">
                         New Password
                       </label>
                       <input
                         type="password"
                         value={newPassword}
                         onChange={(e) => setNewPassword(e.target.value)}
-                        className="w-full px-3 py-2 text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg outline-none"
+                        className="input"
                       />
                     </div>
                     <div>
-                      <label className="block text-[11px] font-medium text-slate-600 dark:text-slate-400 mb-0.5">
+                      <label className="label">
                         Confirm New Password
                       </label>
                       <input
                         type="password"
                         value={confirmPassword}
                         onChange={(e) => setConfirmPassword(e.target.value)}
-                        className="w-full px-3 py-2 text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg outline-none"
+                        className="input"
                       />
                     </div>
                   </div>
-                  <p className="text-[10px] text-slate-500 dark:text-slate-400">
+                  <p className="field-hint">
                     Minimum 6 characters. Your current password is required to confirm the change.
                   </p>
                 </div>
@@ -228,20 +229,20 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ onClose }) => {
 
           </div>
 
-          <div className="px-6 py-4 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-100 dark:border-slate-800 flex justify-end gap-2.5 flex-shrink-0">
+          <div className="px-5 py-4 bg-zinc-50 dark:bg-zinc-800/50 border-t border-zinc-100 dark:border-zinc-800 flex justify-end gap-2 flex-shrink-0">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-xl font-medium"
+              className="btn btn-secondary"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={isSaving}
-              className="px-5 py-2 text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 rounded-xl font-semibold shadow-md shadow-indigo-600/20 flex items-center gap-1.5"
+              className="btn btn-primary"
             >
-              <Save className="w-3.5 h-3.5" />
+              <Save className="w-3.5 h-3.5" aria-hidden="true" />
               {isSaving ? 'Saving...' : 'Save Changes'}
             </button>
           </div>

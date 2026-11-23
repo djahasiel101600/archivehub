@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { QrScannerView } from './QrScannerView';
 import { useArchive } from '../../context/ArchiveContext';
 import { StatusBadge } from '../common/StatusBadge';
@@ -34,7 +34,7 @@ export const CameraQRScannerModal: React.FC<CameraQRScannerModalProps> = ({
   onSelectLocation,
   onSelectBundle
 }) => {
-  const { lookupByQR, calculatePath, bundles, documents, setActiveTab: navigateToTab } = useArchive();
+  const { lookupByQR, lookupByQRRemote, calculatePath, bundles, documents, setActiveTab: navigateToTab } = useArchive();
   const [manualInput, setManualInput] = useState('');
   const [activeTab, setActiveTab] = useState<'camera' | 'manual'>('camera');
   const [scanResult, setScanResult] = useState<{
@@ -42,25 +42,50 @@ export const CameraQRScannerModal: React.FC<CameraQRScannerModalProps> = ({
     data: DocumentItem | LocationItem | DocumentBundle;
   } | null>(null);
   const [scanError, setScanError] = useState<string | null>(null);
+  const [cameraError, setCameraError] = useState<string | null>(null);
+  const [cameraRetryKey, setCameraRetryKey] = useState(0);
+  const [lookingUp, setLookingUp] = useState(false);
+  // Continuous camera decodes must not stack overlapping remote lookups.
+  const lookupBusyRef = useRef(false);
 
   // Modal opens from a user click — unlock Web Audio inside that gesture
   // window so later camera decodes (not gestures) can play feedback sounds.
   useEffect(() => {
-    if (isOpen) ensureScanAudioUnlocked();
+    if (isOpen) {
+      ensureScanAudioUnlocked();
+      setScanError(null);
+      setCameraError(null);
+    }
   }, [isOpen]);
 
   if (!isOpen) return null;
 
-  const handleProcessCode = (code: string) => {
+  const handleProcessCode = async (code: string) => {
+    if (lookupBusyRef.current) return;
     setScanError(null);
-    const result = lookupByQR(code);
-    if (result) {
+    const local = lookupByQR(code);
+    if (local) {
       scanFeedback('success');
-      setScanResult(result);
-    } else {
-      scanFeedback('error');
-      setScanResult(null);
-      setScanError(`No document, bundle, or storage location found matching code: "${code}"`);
+      setScanResult(local);
+      return;
+    }
+    // Not in the local cache — resolve via the server so tags registered on
+    // other workstations (or filtered out of this user's list) still scan.
+    lookupBusyRef.current = true;
+    setLookingUp(true);
+    try {
+      const remote = await lookupByQRRemote(code);
+      if (remote) {
+        scanFeedback('success');
+        setScanResult(remote);
+      } else {
+        scanFeedback('error');
+        setScanResult(null);
+        setScanError(`No document, bundle, or storage location found matching code: "${code}"`);
+      }
+    } finally {
+      lookupBusyRef.current = false;
+      setLookingUp(false);
     }
   };
 
@@ -77,20 +102,20 @@ export const CameraQRScannerModal: React.FC<CameraQRScannerModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/70 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-      <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 max-w-xl w-full overflow-hidden flex flex-col max-h-[90vh]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-900/70 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+      <div className="card max-w-xl w-full overflow-hidden flex flex-col max-h-[90vh] my-auto" role="dialog" aria-modal="true">
         
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-800/50">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-100 dark:border-zinc-800 shrink-0">
           <div className="flex items-center gap-2.5">
-            <div className="p-2 bg-indigo-100 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 rounded-xl">
-              <QrCode className="w-5 h-5" />
+            <div className="p-2 bg-teal-100 dark:bg-teal-950 text-teal-600 dark:text-teal-400 rounded-lg">
+              <QrCode className="w-5 h-5" aria-hidden="true" />
             </div>
             <div>
-              <h3 className="font-bold text-slate-900 dark:text-slate-100 text-base">
+              <h3 className="section-title">
                 Archive QR & Barcode Scanner
               </h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
+              <p className="meta">
                 Scan physical location tags, boxes, folders, or document QR labels
               </p>
             </div>
@@ -98,21 +123,22 @@ export const CameraQRScannerModal: React.FC<CameraQRScannerModalProps> = ({
           <button
             type="button"
             onClick={onClose}
-            className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1.5 rounded-lg transition-colors"
+            className="btn btn-ghost btn-icon btn-sm"
+            aria-label="Close dialog"
           >
-            <X className="w-5 h-5" />
+            <X className="w-4 h-4" aria-hidden="true" />
           </button>
         </div>
 
         {/* Tab Selection */}
-        <div className="flex border-b border-slate-200 dark:border-slate-800 bg-slate-100/60 dark:bg-slate-800/30 px-6 pt-2">
+        <div className="flex border-b border-zinc-200 dark:border-zinc-800 bg-zinc-100/60 dark:bg-zinc-800/30 px-5 pt-2 shrink-0">
           <button
             type="button"
             onClick={() => { setActiveTab('camera'); setScanResult(null); setScanError(null); }}
             className={`flex items-center gap-2 px-4 py-2.5 text-xs font-semibold border-b-2 transition-colors ${
               activeTab === 'camera'
-                ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400 bg-white dark:bg-slate-900 rounded-t-lg'
-                : 'border-transparent text-slate-500 hover:text-slate-800 dark:text-slate-400'
+                ? 'border-teal-600 text-teal-600 dark:text-teal-400 dark:border-teal-400 bg-white dark:bg-zinc-900 rounded-t-lg'
+                : 'border-transparent text-zinc-500 hover:text-zinc-800 dark:text-zinc-400'
             }`}
           >
             <Camera className="w-4 h-4" />
@@ -123,8 +149,8 @@ export const CameraQRScannerModal: React.FC<CameraQRScannerModalProps> = ({
             onClick={() => { setActiveTab('manual'); setScanResult(null); setScanError(null); }}
             className={`flex items-center gap-2 px-4 py-2.5 text-xs font-semibold border-b-2 transition-colors ${
               activeTab === 'manual'
-                ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400 bg-white dark:bg-slate-900 rounded-t-lg'
-                : 'border-transparent text-slate-500 hover:text-slate-800 dark:text-slate-400'
+                ? 'border-teal-600 text-teal-600 dark:text-teal-400 dark:border-teal-400 bg-white dark:bg-zinc-900 rounded-t-lg'
+                : 'border-transparent text-zinc-500 hover:text-zinc-800 dark:text-zinc-400'
             }`}
           >
             <Search className="w-4 h-4" />
@@ -134,24 +160,48 @@ export const CameraQRScannerModal: React.FC<CameraQRScannerModalProps> = ({
 
         {/* Body Content */}
         <div className="p-6 overflow-y-auto space-y-5">
-          {activeTab === 'camera' && !scanResult && (
+          {activeTab === 'camera' && !scanResult && !cameraError && (
             <div className="flex flex-col items-center justify-center">
-              <div className="w-full max-w-sm rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800 shadow-inner bg-black">
-                <QrScannerView onDecode={handleProcessCode} />
+              <div className="w-full max-w-sm rounded-xl overflow-hidden border border-zinc-200 dark:border-zinc-800 shadow-inner bg-black">
+                <QrScannerView
+                  key={cameraRetryKey}
+                  onDecode={handleProcessCode}
+                  onError={(message) => setCameraError(message)}
+                />
               </div>
-              <p className="text-xs text-slate-500 mt-3 text-center">
-                Position the QR code or Barcode label within the camera viewport
+              <p className="text-xs text-zinc-500 mt-3 text-center">
+                {lookingUp ? 'Looking up code on the server…' : 'Position the QR code or Barcode label within the camera viewport'}
               </p>
-              <p className="text-[11px] text-slate-400 mt-1 text-center">
+              <p className="text-[11px] text-zinc-400 mt-1 text-center">
                 {SCANNER_TAG_HINT}
               </p>
+            </div>
+          )}
+
+          {activeTab === 'camera' && !scanResult && cameraError && (
+            <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-3 dark:bg-amber-950/40 dark:border-amber-800">
+              <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <p className="text-xs font-semibold text-amber-900 dark:text-amber-200">Camera Unavailable</p>
+                <p className="text-xs text-amber-700 dark:text-amber-300 mt-0.5">{cameraError}</p>
+                <p className="text-[11px] text-amber-600 dark:text-amber-400 mt-1">
+                  Allow camera access in your browser settings, or switch to the Manual Key-In tab to type the tag code.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => { setCameraError(null); setCameraRetryKey(k => k + 1); }}
+                  className="btn btn-secondary btn-xs mt-2"
+                >
+                  Retry Camera
+                </button>
+              </div>
             </div>
           )}
 
           {activeTab === 'manual' && !scanResult && (
             <form onSubmit={handleManualSubmit} className="space-y-4">
               <div>
-                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1.5">
+                <label className="label">
                   Enter Tag Code, Document #, or Barcode Identifier
                 </label>
                 <div className="flex gap-2">
@@ -160,12 +210,12 @@ export const CameraQRScannerModal: React.FC<CameraQRScannerModalProps> = ({
                     value={manualInput}
                     onChange={(e) => setManualInput(e.target.value)}
                     placeholder="e.g., DOC-8F29A1, ENG-ARCH-0001, LOC-BOX-B017"
-                    className="flex-1 px-3.5 py-2 text-sm bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none"
+                    className="input flex-1"
                     autoFocus
                   />
                   <button
                     type="submit"
-                    className="px-4 py-2 bg-indigo-600 text-white font-medium text-xs rounded-xl hover:bg-indigo-700 transition-colors shadow-sm"
+                    className="btn btn-primary"
                   >
                     Lookup
                   </button>
@@ -174,7 +224,7 @@ export const CameraQRScannerModal: React.FC<CameraQRScannerModalProps> = ({
 
               {/* Preset Sample Quick Buttons */}
               <div>
-                <span className="block text-[11px] text-slate-400 uppercase font-semibold tracking-wider mb-2">
+                <span className="block text-[11px] text-zinc-400 uppercase font-semibold tracking-wider mb-2">
                   Try Demo Physical QR Tags:
                 </span>
                 <div className="flex flex-wrap gap-2">
@@ -188,7 +238,7 @@ export const CameraQRScannerModal: React.FC<CameraQRScannerModalProps> = ({
                       key={sample.code}
                       type="button"
                       onClick={() => handleSampleScan(sample.code)}
-                      className="px-2.5 py-1 text-xs font-mono bg-slate-100 hover:bg-indigo-50 hover:text-indigo-700 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg border border-slate-200 dark:border-slate-700 transition-colors"
+                      className="btn btn-secondary btn-xs font-mono"
                     >
                       {sample.label}
                     </button>
@@ -210,17 +260,17 @@ export const CameraQRScannerModal: React.FC<CameraQRScannerModalProps> = ({
 
           {/* Successful Scan Card Result */}
           {scanResult && (
-            <div className="p-5 bg-indigo-50/80 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800/80 rounded-2xl space-y-4 animate-in zoom-in-95 duration-200">
+            <div className="p-5 bg-teal-50/80 dark:bg-teal-950/40 border border-teal-200 dark:border-teal-800/80 rounded-xl space-y-4 animate-in zoom-in-95 duration-200">
               <div className="flex items-start justify-between">
                 <div className="flex items-center gap-2">
                   {scanResult.type === 'DOCUMENT' ? (
-                    <FileText className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+                    <FileText className="w-5 h-5 text-teal-600 dark:text-teal-400" />
                   ) : scanResult.type === 'BUNDLE' ? (
                     <Layers className="w-5 h-5 text-violet-600 dark:text-violet-400" />
                   ) : (
                     <MapPin className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
                   )}
-                  <span className="text-xs font-bold uppercase tracking-wider text-indigo-800 dark:text-indigo-300 bg-indigo-100 dark:bg-indigo-900/60 px-2 py-0.5 rounded">
+                  <span className="chip uppercase tracking-wider text-teal-800 dark:text-teal-300 bg-teal-100 dark:bg-teal-900/60">
                     {scanResult.type === 'DOCUMENT' ? 'Document Record Identified' : scanResult.type === 'BUNDLE' ? 'Bundle Dossier Identified' : 'Physical Storage Location Identified'}
                   </span>
                 </div>
@@ -228,7 +278,7 @@ export const CameraQRScannerModal: React.FC<CameraQRScannerModalProps> = ({
                 <button
                   type="button"
                   onClick={() => setScanResult(null)}
-                  className="text-xs text-indigo-600 hover:underline font-medium"
+                  className="btn btn-ghost btn-xs text-teal-600 dark:text-teal-400"
                 >
                   Scan Another Tag
                 </button>
@@ -242,13 +292,13 @@ export const CameraQRScannerModal: React.FC<CameraQRScannerModalProps> = ({
                 const currentPath = calculatePath(doc.currentLocationId);
 
                 return (
-                  <div className="space-y-3 bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
+                  <div className="card space-y-3 p-4">
                     <div className="flex items-start justify-between">
                       <div>
-                        <span className="text-xs font-mono font-bold text-indigo-600 dark:text-indigo-400">
+                        <span className="text-xs font-mono font-bold text-teal-600 dark:text-teal-400">
                           #{doc.documentNumber}
                         </span>
-                        <h4 className="font-bold text-slate-900 dark:text-slate-100 text-sm mt-0.5">
+                        <h4 className="font-bold text-zinc-900 dark:text-zinc-100 text-sm mt-0.5">
                           {doc.title}
                         </h4>
                       </div>
@@ -256,9 +306,9 @@ export const CameraQRScannerModal: React.FC<CameraQRScannerModalProps> = ({
                     </div>
 
                     {/* Distinct Home vs Current Location Display */}
-                    <div className="space-y-2 pt-2 border-t border-slate-100 dark:border-slate-800 text-xs">
+                    <div className="space-y-2 pt-2 border-t border-zinc-100 dark:border-zinc-800 text-xs">
                       <div>
-                        <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider block mb-1">
+                        <span className="text-[11px] font-semibold text-zinc-500 uppercase tracking-wider block mb-1">
                           🏠 Home Archive Storage Location:
                         </span>
                         <LocationPathBreadcrumbs locationId={doc.homeLocationId} badgeSize="sm" />
@@ -275,7 +325,7 @@ export const CameraQRScannerModal: React.FC<CameraQRScannerModalProps> = ({
                         </div>
                       ) : (
                         <div>
-                          <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider block mb-1">
+                          <span className="text-[11px] font-semibold text-zinc-500 uppercase tracking-wider block mb-1">
                             📍 Current Physical Position:
                           </span>
                           <LocationPathBreadcrumbs locationId={doc.currentLocationId} badgeSize="sm" />
@@ -283,17 +333,17 @@ export const CameraQRScannerModal: React.FC<CameraQRScannerModalProps> = ({
                       )}
                     </div>
 
-                    <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex justify-end gap-2">
+                    <div className="pt-3 border-t border-zinc-100 dark:border-zinc-800 flex justify-end gap-2">
                       <button
                         type="button"
                         onClick={() => {
                           onClose();
                           if (onSelectDocument) onSelectDocument(doc);
                         }}
-                        className="inline-flex items-center gap-1.5 px-4 py-2 bg-indigo-600 text-white font-medium text-xs rounded-xl hover:bg-indigo-700 shadow-sm transition-colors"
+                        className="btn btn-primary btn-sm"
                       >
                         View Record Master Page
-                        <ArrowRight className="w-4 h-4" />
+                        <ArrowRight className="w-4 h-4" aria-hidden="true" />
                       </button>
                     </div>
                   </div>
@@ -306,39 +356,39 @@ export const CameraQRScannerModal: React.FC<CameraQRScannerModalProps> = ({
                 const path = calculatePath(loc.id);
 
                 return (
-                  <div className="space-y-3 bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
+                  <div className="card space-y-3 p-4">
                     <div>
                       <span className="text-xs font-mono font-bold text-emerald-600 dark:text-emerald-400">
                         [{loc.type}] CODE: {loc.code}
                       </span>
-                      <h4 className="font-bold text-slate-900 dark:text-slate-100 text-base mt-0.5">
+                      <h4 className="font-bold text-zinc-900 dark:text-zinc-100 text-base mt-0.5">
                         {loc.name}
                       </h4>
                       {loc.description && (
-                        <p className="text-xs text-slate-500 mt-1">{loc.description}</p>
+                        <p className="text-xs text-zinc-500 mt-1">{loc.description}</p>
                       )}
                     </div>
 
-                    <div className="pt-2 border-t border-slate-100 dark:border-slate-800">
-                      <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider block mb-1">
+                    <div className="pt-2 border-t border-zinc-100 dark:border-zinc-800">
+                      <span className="text-[11px] font-semibold text-zinc-500 uppercase tracking-wider block mb-1">
                         Full Location Tree Path:
                       </span>
-                      <p className="text-xs font-mono text-slate-800 dark:text-slate-200 bg-slate-50 dark:bg-slate-800 p-2 rounded-lg">
+                      <p className="text-xs font-mono text-zinc-800 dark:text-zinc-200 bg-zinc-50 dark:bg-zinc-800 p-2 rounded-lg">
                         {path}
                       </p>
                     </div>
 
-                    <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex justify-end gap-2">
+                    <div className="pt-3 border-t border-zinc-100 dark:border-zinc-800 flex justify-end gap-2">
                       <button
                         type="button"
                         onClick={() => {
                           onClose();
                           if (onSelectLocation) onSelectLocation(loc);
                         }}
-                        className="inline-flex items-center gap-1.5 px-4 py-2 bg-emerald-600 text-white font-medium text-xs rounded-xl hover:bg-emerald-700 shadow-sm transition-colors"
+                        className="btn btn-sm text-white bg-emerald-600 hover:bg-emerald-700"
                       >
                         Explore Storage Unit
-                        <ArrowRight className="w-4 h-4" />
+                        <ArrowRight className="w-4 h-4" aria-hidden="true" />
                       </button>
                     </div>
                   </div>
@@ -353,49 +403,49 @@ export const CameraQRScannerModal: React.FC<CameraQRScannerModalProps> = ({
                   .filter((d): d is DocumentItem => d !== undefined);
 
                 return (
-                  <div className="space-y-3 bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
+                  <div className="card space-y-3 p-4">
                     <div className="flex items-start justify-between">
                       <div>
                         <span className="text-xs font-mono font-bold text-violet-600 dark:text-violet-400">
                           {bundle.bundleNumber}
                         </span>
-                        <h4 className="font-bold text-slate-900 dark:text-slate-100 text-sm mt-0.5">
+                        <h4 className="font-bold text-zinc-900 dark:text-zinc-100 text-sm mt-0.5">
                           {bundle.title}
                         </h4>
                       </div>
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full bg-violet-50 text-violet-700 border border-violet-200 dark:bg-violet-950/40 dark:text-violet-400 dark:border-violet-800/50">
+                      <span className="chip rounded-full bg-violet-50 text-violet-700 border border-violet-200 dark:bg-violet-950/40 dark:text-violet-400 dark:border-violet-800/50">
                         {bundle.status}
                       </span>
                     </div>
 
-                    <div className="space-y-2 pt-2 border-t border-slate-100 dark:border-slate-800 text-xs">
+                    <div className="space-y-2 pt-2 border-t border-zinc-100 dark:border-zinc-800 text-xs">
                       <div>
-                        <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider block mb-1">
+                        <span className="text-[11px] font-semibold text-zinc-500 uppercase tracking-wider block mb-1">
                           📦 Bundle Location:
                         </span>
                         {bundle.locationId ? (
                           <LocationPathBreadcrumbs locationId={bundle.locationId} badgeSize="sm" />
                         ) : (
-                          <span className="italic text-slate-400">No physical location assigned</span>
+                          <span className="italic text-zinc-400">No physical location assigned</span>
                         )}
                       </div>
                       <div>
-                        <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider block mb-1">
+                        <span className="text-[11px] font-semibold text-zinc-500 uppercase tracking-wider block mb-1">
                           📄 Contains {bundle.documentIds.length} document(s):
                         </span>
                         <div className="max-h-28 overflow-y-auto space-y-1">
                           {bundleDocs.slice(0, 5).map(doc => (
-                            <div key={doc.id} className="flex items-center gap-2 p-1.5 bg-slate-50 dark:bg-slate-800 rounded-lg">
-                              <FileText className="w-3 h-3 text-slate-400 flex-shrink-0" />
-                              <span className="font-mono text-[10px] text-indigo-500 font-bold">{doc.documentNumber}</span>
-                              <span className="text-[11px] text-slate-600 dark:text-slate-400 truncate flex-1">{doc.title}</span>
+                            <div key={doc.id} className="flex items-center gap-2 p-1.5 bg-zinc-50 dark:bg-zinc-800 rounded-lg">
+                              <FileText className="w-3 h-3 text-zinc-400 flex-shrink-0" />
+                              <span className="font-mono text-[10px] text-teal-500 font-bold">{doc.documentNumber}</span>
+                              <span className="text-[11px] text-zinc-600 dark:text-zinc-400 truncate flex-1">{doc.title}</span>
                             </div>
                           ))}
                           {bundleDocs.length > 5 && (
-                            <p className="text-[10px] text-slate-400 pl-1">+{bundleDocs.length - 5} more documents</p>
+                            <p className="text-[10px] text-zinc-400 pl-1">+{bundleDocs.length - 5} more documents</p>
                           )}
                           {bundleDocs.length === 0 && (
-                            <p className="text-[11px] text-slate-400 italic">No documents found in this bundle</p>
+                            <p className="text-[11px] text-zinc-400 italic">No documents found in this bundle</p>
                           )}
                         </div>
                       </div>
@@ -404,14 +454,14 @@ export const CameraQRScannerModal: React.FC<CameraQRScannerModalProps> = ({
                     {bundle.tags && bundle.tags.length > 0 && (
                       <div className="flex flex-wrap gap-1 pt-1">
                         {bundle.tags.map(tag => (
-                          <span key={tag} className="px-1.5 py-0.5 text-[10px] font-medium rounded bg-violet-50 text-violet-600 dark:bg-violet-900/30 dark:text-violet-400">
+                          <span key={tag} className="chip bg-violet-50 text-violet-600 dark:bg-violet-900/30 dark:text-violet-400">
                             {tag}
                           </span>
                         ))}
                       </div>
                     )}
 
-                    <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex justify-end gap-2">
+                    <div className="pt-3 border-t border-zinc-100 dark:border-zinc-800 flex justify-end gap-2">
                       <button
                         type="button"
                         onClick={() => {
@@ -419,10 +469,10 @@ export const CameraQRScannerModal: React.FC<CameraQRScannerModalProps> = ({
                           navigateToTab('bundles');
                           if (onSelectBundle) onSelectBundle(bundle);
                         }}
-                        className="inline-flex items-center gap-1.5 px-4 py-2 bg-violet-600 text-white font-medium text-xs rounded-xl hover:bg-violet-700 shadow-sm transition-colors"
+                        className="btn btn-sm text-white bg-violet-600 hover:bg-violet-700"
                       >
                         View in Bundle Manager
-                        <ArrowRight className="w-4 h-4" />
+                        <ArrowRight className="w-4 h-4" aria-hidden="true" />
                       </button>
                     </div>
                   </div>

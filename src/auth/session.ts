@@ -2,7 +2,8 @@ import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import type { RoleCode, User } from '../types.js';
 
-const TOKEN_TTL = '7d';
+const TOKEN_TTL = '12h';
+export const SESSION_COOKIE_MAX_AGE = 12 * 60 * 60; // seconds, matches TOKEN_TTL
 
 export type AuthUser = Omit<User, 'password'>;
 
@@ -44,10 +45,9 @@ export function isPasswordHash(value: string | undefined): boolean {
 
 export async function verifyPassword(plain: string | undefined, stored: string | undefined): Promise<boolean> {
   if (!plain || !stored) return false;
-  if (isPasswordHash(stored)) {
-    return bcrypt.compare(plain, stored);
-  }
-  return stored === plain;
+  // Only bcrypt hashes are accepted — legacy plaintext storage is never honored.
+  if (!isPasswordHash(stored)) return false;
+  return bcrypt.compare(plain, stored);
 }
 
 export function signAuthToken(user: User): string {

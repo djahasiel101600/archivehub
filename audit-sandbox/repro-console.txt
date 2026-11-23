@@ -1,0 +1,142 @@
+﻿
+=== SETUP: admin login ===
+{
+ "status": 200,
+ "role": "ADMIN"
+}
+
+=== T1: Approve & Release (no temp location) -> dispatch ===
+{
+ "request": 201,
+ "approve": {
+  "status": 200,
+  "body": {
+   "success": true
+  }
+ },
+ "dispatch": {
+  "status": 500,
+  "body": {
+   "error": "null value in column \"current_location_id\" of relation \"documents\" violates not-null constraint"
+  }
+ },
+ "checkoutStatusAfter": "APPROVED",
+ "documentStatusAfter": "APPROVED",
+ "currentLocationIdAfter": "loc-shelf-2ab7ef93-da5c-4353-9152-1c032c96e951"
+}
+
+=== T1b: Recovery: dispatch again WITH tempLocationId ===
+{
+ "status": 200,
+ "body": {
+  "success": true
+ },
+ "checkoutStatusAfter": "CHECKED_OUT"
+}
+
+=== T2: Signup RECORDS_OFFICER -> approve -> actual role ===
+{
+ "shortPasswordSignup": {
+  "status": 400,
+  "body": {
+   "success": false,
+   "message": "A password of at least 8 characters is required."
+  }
+ },
+ "signup": {
+  "status": 400,
+  "requestedRole": "RECORDS_OFFICER",
+  "storedRole": "DEPT_USER"
+ },
+ "afterApprovalRole": "DEPT_USER"
+}
+
+=== T3: Self department change -> CONFIDENTIAL doc access ===
+{
+ "loginAsOfficer": 200,
+ "getConfDocBefore": {
+  "status": 200
+ },
+ "selfUpdate": {
+  "status": 200,
+  "body": {
+   "success": true,
+   "user": {
+    "id": "usr-reg-54121de1-995c-4c72-92fe-1799e720ec7b",
+    "email": "audit-officer@test.local",
+    "fullName": "AUDIT-TEST Officer",
+    "role": "DEPT_USER",
+    "departmentId": "dept-bb7eea69-9a73-41c1-8fbb-7d42f8ca9b0b",
+    "departmentName": "AUDIT-TEST Dept B",
+    "avatarUrl": null,
+    "title": "Records Officer",
+    "approvalStatus": "APPROVED",
+    "createdAt": "2026-11-23T09:49:18.758Z"
+   }
+  }
+ },
+ "getConfDocAfter": {
+  "status": 200,
+  "title": "AUDIT-TEST Confidential Dept B"
+ },
+ "visibleInListAfter": true
+}
+
+=== T4: Export then re-import into same non-empty DB ===
+{
+ "exportStatus": 200,
+ "importStatus": 500,
+ "importBody": {
+  "success": false,
+  "message": "update or delete on table \"departments\" violates foreign key constraint \"fk_documents_department\" on table \"documents\""
+ },
+ "documentCountAfter": 2
+}
+
+=== T5: Delete in-use document type ===
+{
+ "status": 500,
+ "body": {
+  "error": "update or delete on table \"document_types\" violates foreign key constraint \"fk_documents_type\" on table \"documents\""
+ }
+}
+
+=== T6: Checkout with dueDate 2020-01-01 (6 years overdue) ===
+{
+ "requestAccepted": 201,
+ "dispatch": 200,
+ "checkoutStatus": "CHECKED_OUT",
+ "anyOverdueAnywhere": false
+}
+
+=== T7: Batch-move document while CHECKED_OUT ===
+{
+ "status": 200,
+ "body": {
+  "success": true,
+  "moved": 1,
+  "errors": []
+ },
+ "docStatusAfter": "CHECKED_OUT"
+}
+
+=== T8: Delete document that has an active checkout ===
+{
+ "deleteStatus": 400,
+ "deleteBody": {
+  "success": false,
+  "message": "Cannot delete record while checked out."
+ },
+ "orphanCheckoutStatus": "CHECKED_OUT",
+ "orphanDocumentId": "doc-49152024-753e-414f-8cf1-6c06737054df"
+}
+
+=== T9: Return orphaned checkout ===
+{
+ "status": 500,
+ "body": {
+  "error": "null value in column \"current_location_id\" of relation \"documents\" violates not-null constraint"
+ }
+}
+
+Saved repro-results.json

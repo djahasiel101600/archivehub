@@ -282,6 +282,103 @@ export async function runMigrations(): Promise<void> {
 ALTER TABLE bundles ADD COLUMN IF NOT EXISTS image_url TEXT;
     `);
 
+    // 12b. Integrity & performance hardening (idempotent).
+    // gen_random_uuid() is built-in on PG13+; pgcrypto covers older servers.
+    await client.query(`
+      DO $$ BEGIN
+        CREATE EXTENSION IF NOT EXISTS pgcrypto;
+      EXCEPTION WHEN insufficient_privilege THEN
+        RAISE NOTICE 'pgcrypto unavailable; gen_random_uuid() requires PostgreSQL 13+';
+      END $$;
+    `);
+
+    // Unique barcode indexes. Legacy duplicate rows must not block startup, so
+    // a violation downgrades to a notice and the index is skipped.
+    for (const table of ['documents', 'locations', 'bundles']) {
+      await client.query(`
+        DO $$ BEGIN
+          CREATE UNIQUE INDEX IF NOT EXISTS uq_${table}_barcode ON ${table}(barcode);
+        EXCEPTION WHEN unique_violation THEN
+          RAISE NOTICE '${table}.barcode contains legacy duplicates; unique index skipped';
+        END $$;
+      `);
+    }
+
+    // Lookup indexes for the hot query paths (filters, joins, trails).
+    await client.query(`
+      CREATE INDEX IF NOT EXISTS idx_documents_current_location ON documents(current_location_id);
+      CREATE INDEX IF NOT EXISTS idx_documents_home_location ON documents(home_location_id);
+      CREATE INDEX IF NOT EXISTS idx_documents_department ON documents(department_id);
+      CREATE INDEX IF NOT EXISTS idx_documents_type ON documents(document_type_id);
+      CREATE INDEX IF NOT EXISTS idx_documents_bundle ON documents(bundle_id);
+      CREATE INDEX IF NOT EXISTS idx_documents_status ON documents(status);
+      CREATE INDEX IF NOT EXISTS idx_documents_confidentiality ON documents(confidentiality);
+      CREATE INDEX IF NOT EXISTS idx_documents_created_at ON documents(created_at);
+      CREATE INDEX IF NOT EXISTS idx_checkouts_document ON checkouts(document_id);
+      CREATE INDEX IF NOT EXISTS idx_checkouts_status ON checkouts(status);
+      CREATE INDEX IF NOT EXISTS idx_movements_document ON movements(document_id);
+      CREATE INDEX IF NOT EXISTS idx_movements_timestamp ON movements(timestamp);
+      CREATE INDEX IF NOT EXISTS idx_audit_logs_timestamp ON audit_logs(timestamp);
+      CREATE INDEX IF NOT EXISTS idx_audit_logs_entity ON audit_logs(entity_id);
+      CREATE INDEX IF NOT EXISTS idx_locations_parent ON locations(parent_id);
+      CREATE INDEX IF NOT EXISTS idx_bundles_department ON bundles(department_id);
+    `);
+
+    // Circulation trails must survive record deletion: keep the history rows
+    // with a NULL document reference instead of blocking the delete.
+    await client.query(`
+      ALTER TABLE checkouts ALTER COLUMN document_id DROP NOT NULL;
+      ALTER TABLE movements ALTER COLUMN document_id DROP NOT NULL;
+    `);
+
+    // Foreign keys are added NOT VALID so orphaned legacy rows do not fail the
+    // migration; new writes are still checked against the referenced tables.
+    const addForeignKey = async (name: string, table: string, column: string, refTable: string, onDelete: string) => {
+      await client.query(`
+        DO $$ BEGIN
+          ALTER TABLE ${table} ADD CONSTRAINT ${name}
+            FOREIGN KEY (${column}) REFERENCES ${refTable}(id) ON DELETE ${onDelete} NOT VALID;
+        EXCEPTION WHEN duplicate_object THEN NULL;
+        END $$;
+      `);
+    };
+    await addForeignKey('fk_documents_department', 'documents', 'department_id', 'departments', 'RESTRICT');
+    await addForeignKey('fk_documents_type', 'documents', 'document_type_id', 'document_types', 'RESTRICT');
+    await addForeignKey('fk_documents_home_location', 'documents', 'home_location_id', 'locations', 'RESTRICT');
+    await addForeignKey('fk_documents_current_location', 'documents', 'current_location_id', 'locations', 'RESTRICT');
+    await addForeignKey('fk_documents_bundle', 'documents', 'bundle_id', 'bundles', 'SET NULL');
+    await addForeignKey('fk_checkouts_document', 'checkouts', 'document_id', 'documents', 'SET NULL');
+    await addForeignKey('fk_movements_document', 'movements', 'document_id', 'documents', 'SET NULL');
+    await addForeignKey('fk_bundles_department', 'bundles', 'department_id', 'departments', 'RESTRICT');
+    await addForeignKey('fk_bundles_location', 'bundles', 'location_id', 'locations', 'SET NULL');
+    await addForeignKey('fk_locations_parent', 'locations', 'parent_id', 'locations', 'SET NULL');
+    await addForeignKey('fk_users_department', 'users', 'department_id', 'departments', 'SET NULL');
+    await addForeignKey('fk_document_types_department', 'document_types', 'department_id', 'departments', 'SET NULL');
+    await addForeignKey('fk_retention_document_type', 'retention_policies', 'document_type_id', 'document_types', 'CASCADE');
+
+    // Convert ISO date strings to real DATE columns for correct range queries
+    // and ordering. Guarded by data_type so re-runs are no-ops; malformed
+    // legacy values become NULL rather than failing the migration.
+    const convertToDate = async (table: string, column: string) => {
+      const check = await client.query(
+        'SELECT data_type FROM information_schema.columns WHERE table_name = $1 AND column_name = $2',
+        [table, column]
+      );
+      if (check.rows.length === 0 || check.rows[0].data_type === 'date') return;
+      await client.query(`
+        ALTER TABLE ${table} ALTER COLUMN ${column} TYPE DATE
+        USING CASE WHEN ${column} ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}' THEN ${column}::date ELSE NULL END
+      `);
+    };
+    await client.query('ALTER TABLE documents ALTER COLUMN document_date DROP NOT NULL;');
+    for (const column of ['document_date', 'received_date', 'filed_date', 'retention_start_date', 'retention_end_date', 'disposal_date']) {
+      await convertToDate('documents', column);
+    }
+    for (const column of ['request_date', 'checkout_date', 'due_date', 'return_date']) {
+      await convertToDate('checkouts', column);
+    }
+    await convertToDate('disposal_records', 'disposal_date');
+
     // 13. One-time backfill: renumber legacy auto-generated "NIA-YYYY-NNNNNN"
     // records into the structured {DEPT_CODE}-{TYPE_CODE}-{NNNN} scheme.
     // Idempotent — once renumbered, rows no longer match the legacy pattern.

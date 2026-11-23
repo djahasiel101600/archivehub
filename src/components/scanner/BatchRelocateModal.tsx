@@ -208,20 +208,20 @@ export const BatchRelocateModal: React.FC<BatchRelocateModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 backdrop-blur-sm p-3 sm:p-4 animate-in fade-in">
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-xl w-full max-h-[92vh] flex flex-col overflow-hidden shadow-2xl">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950/70 backdrop-blur-sm p-3 sm:p-4 animate-in fade-in">
+      <div className="card max-w-xl w-full max-h-[92vh] flex flex-col overflow-hidden my-auto" role="dialog" aria-modal="true">
 
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60 flex-shrink-0">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-100 dark:border-zinc-800 flex-shrink-0">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-emerald-600 text-white flex items-center justify-center shadow-sm">
-              <Truck className="w-4 h-4" />
+            <div className="w-8 h-8 rounded-lg bg-emerald-600 text-white flex items-center justify-center">
+              <Truck className="w-4 h-4" aria-hidden="true" />
             </div>
             <div>
-              <h3 className="font-extrabold text-slate-900 dark:text-slate-100 text-sm">
+              <h3 className="section-title">
                 {isBundleMode ? 'Relocate Bundle' : 'Batch Relocate Documents'}
               </h3>
-              <p className="text-[11px] text-slate-500">
+              <p className="meta">
                 {isBundleMode
                   ? `Moving ${preselectedDocs.length} document(s) to a new storage location`
                   : 'Scan QR codes to move multiple records to a new storage location'
@@ -229,25 +229,25 @@ export const BatchRelocateModal: React.FC<BatchRelocateModalProps> = ({
               </p>
             </div>
           </div>
-          <button type="button" onClick={handleClose} className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg">
-            <X className="w-5 h-5" />
+          <button type="button" onClick={handleClose} className="btn btn-ghost btn-icon btn-sm" aria-label="Close dialog">
+            <X className="w-4 h-4" aria-hidden="true" />
           </button>
         </div>
 
         {/* Step Indicator */}
-        <div className="flex items-center gap-1 px-5 py-2.5 border-b border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 flex-shrink-0">
+        <div className="flex items-center gap-1 px-5 py-2.5 border-b border-zinc-100 dark:border-zinc-800 bg-white dark:bg-zinc-900 flex-shrink-0">
           {(['scan', 'confirm', 'done'] as Step[]).map((s, i) => (
             <React.Fragment key={s}>
-              {i > 0 && <div className={`flex-1 h-0.5 rounded ${step === s || (s === 'confirm' && step === 'done') ? 'bg-emerald-500' : 'bg-slate-200 dark:bg-slate-700'}`} />}
+              {i > 0 && <div className={`flex-1 h-0.5 rounded ${step === s || (s === 'confirm' && step === 'done') ? 'bg-emerald-500' : 'bg-zinc-200 dark:bg-zinc-700'}`} />}
               <div className={`flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider ${
                 step === s ? 'text-emerald-600 dark:text-emerald-400' :
                 (s === 'scan' && step !== 'scan') || (s === 'confirm' && step === 'done') ? 'text-emerald-500' :
-                'text-slate-400'
+                'text-zinc-400'
               }`}>
                 <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold border ${
                   step === s ? 'bg-emerald-600 text-white border-emerald-600' :
                   (s === 'scan' && step !== 'scan') || (s === 'confirm' && step === 'done') ? 'bg-emerald-100 dark:bg-emerald-950 text-emerald-600 border-emerald-300' :
-                  'bg-slate-100 dark:bg-slate-800 text-slate-400 border-slate-300 dark:border-slate-700'
+                  'bg-zinc-100 dark:bg-zinc-800 text-zinc-400 border-zinc-300 dark:border-zinc-700'
                 }`}>
                   {i + 1}
                 </div>
@@ -264,14 +264,14 @@ export const BatchRelocateModal: React.FC<BatchRelocateModalProps> = ({
           {step === 'scan' && (
             <div className="p-5 space-y-4">
               {/* Scan Mode Tabs */}
-              <div className="flex border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden text-xs font-semibold">
+              <div className="flex border border-zinc-200 dark:border-zinc-700 rounded-lg overflow-hidden text-xs font-semibold">
                 <button
                   type="button"
                   onClick={() => { setActiveScanTab('camera'); setScanToast(null); }}
                   className={`flex-1 py-2 flex items-center justify-center gap-1.5 transition-colors ${
                     activeScanTab === 'camera'
                       ? 'bg-emerald-600 text-white'
-                      : 'bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
+                      : 'bg-zinc-50 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400'
                   }`}
                 >
                   <Camera className="w-3.5 h-3.5" /> Camera Scanner
@@ -282,7 +282,7 @@ export const BatchRelocateModal: React.FC<BatchRelocateModalProps> = ({
                   className={`flex-1 py-2 flex items-center justify-center gap-1.5 transition-colors ${
                     activeScanTab === 'manual'
                       ? 'bg-emerald-600 text-white'
-                      : 'bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
+                      : 'bg-zinc-50 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400'
                   }`}
                 >
                   <Search className="w-3.5 h-3.5" /> Manual Key-In
@@ -294,12 +294,12 @@ export const BatchRelocateModal: React.FC<BatchRelocateModalProps> = ({
                 <div className="flex flex-col items-center">
                   <QrScannerView
                     onDecode={processScannedCode}
-                    className="w-full max-w-sm h-auto rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-950 shadow-inner"
+                    className="w-full max-w-sm h-auto rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-950 shadow-inner"
                   />
-                  <p className="text-[11px] text-slate-500 mt-2 text-center">
+                  <p className="text-[11px] text-zinc-500 mt-2 text-center">
                     Point camera at each document QR code — scanning continues automatically
                   </p>
-                  <p className="text-[11px] text-slate-400 mt-1 text-center">
+                  <p className="text-[11px] text-zinc-400 mt-1 text-center">
                     {SCANNER_TAG_HINT}
                   </p>
                 </div>
@@ -313,10 +313,10 @@ export const BatchRelocateModal: React.FC<BatchRelocateModalProps> = ({
                     value={manualInput}
                     onChange={(e) => setManualInput(e.target.value)}
                     placeholder="Enter document #, QR code, or barcode..."
-                    className="flex-1 px-3 py-2 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none font-mono"
+                    className="input flex-1 font-mono"
                     autoFocus
                   />
-                  <button type="submit" className="px-4 py-2 bg-emerald-600 text-white text-xs font-semibold rounded-xl hover:bg-emerald-700 shadow-sm">
+                  <button type="submit" className="btn text-white bg-emerald-600 hover:bg-emerald-700">
                     Add
                   </button>
                 </form>
@@ -340,30 +340,31 @@ export const BatchRelocateModal: React.FC<BatchRelocateModalProps> = ({
               {scannedDocs.length > 0 && (
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 flex items-center gap-1.5">
                       <FileText className="w-3.5 h-3.5" />
                       Scanned Documents
                     </span>
-                    <span className="text-[10px] font-mono font-bold bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 px-2 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800">
+                    <span className="chip rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 font-mono">
                       {scannedDocs.length} item(s)
                     </span>
                   </div>
                   <div className="space-y-1 max-h-48 overflow-y-auto">
                     {scannedDocs.map(doc => (
-                      <div key={doc.id} className="flex items-center justify-between gap-2 px-3 py-2 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700 text-xs">
+                      <div key={doc.id} className="flex items-center justify-between gap-2 px-3 py-2 bg-zinc-50 dark:bg-zinc-800/60 rounded-lg border border-zinc-200 dark:border-zinc-700 text-xs">
                         <div className="min-w-0 flex-1">
                           <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400 text-[11px]">
                             #{doc.documentNumber}
                           </span>
-                          <span className="text-slate-600 dark:text-slate-300 ml-2 truncate">{doc.title.slice(0, 40)}</span>
+                          <span className="text-zinc-600 dark:text-zinc-300 ml-2 truncate">{doc.title.slice(0, 40)}</span>
                         </div>
                         <button
                           type="button"
                           onClick={() => handleRemoveDoc(doc.id)}
-                          className="p-1 text-slate-400 hover:text-rose-500 rounded-lg flex-shrink-0"
+                          className="btn btn-ghost btn-icon btn-xs text-zinc-400 hover:text-rose-500 flex-shrink-0"
                           title="Remove from batch"
+                          aria-label="Remove from batch"
                         >
-                          <Trash2 className="w-3.5 h-3.5" />
+                          <Trash2 className="w-3.5 h-3.5" aria-hidden="true" />
                         </button>
                       </div>
                     ))}
@@ -373,8 +374,8 @@ export const BatchRelocateModal: React.FC<BatchRelocateModalProps> = ({
 
               {/* Empty State */}
               {scannedDocs.length === 0 && !scanToast && (
-                <div className="text-center py-6 text-xs text-slate-400">
-                  <Truck className="w-8 h-8 mx-auto mb-2 text-slate-300 dark:text-slate-600" />
+                <div className="text-center py-6 text-xs text-zinc-400">
+                  <Truck className="w-8 h-8 mx-auto mb-2 text-zinc-300 dark:text-zinc-600" />
                   <p>No documents scanned yet.</p>
                   <p className="text-[10px] mt-1">Scan QR codes to build your relocation batch.</p>
                 </div>
@@ -386,24 +387,24 @@ export const BatchRelocateModal: React.FC<BatchRelocateModalProps> = ({
           {step === 'confirm' && (
             <div className="p-5 space-y-4">
               {/* Batch Summary */}
-              <div className="bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/60 rounded-2xl p-4 space-y-2">
+              <div className="bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/60 rounded-xl p-4 space-y-2">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold text-emerald-800 dark:text-emerald-300 uppercase tracking-wider">
                     Batch Ready — {scannedDocs.length} Document(s)
                   </span>
-                  <button type="button" onClick={handleBackToScan} className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold hover:underline">
+                  <button type="button" onClick={handleBackToScan} className="btn btn-ghost btn-xs text-emerald-600 dark:text-emerald-400">
                     ← Back to Scanner
                   </button>
                 </div>
                 <div className="max-h-36 overflow-y-auto space-y-1">
                   {scannedDocs.map(doc => (
-                    <div key={doc.id} className="flex items-center justify-between text-[11px] bg-white dark:bg-slate-900 rounded-lg px-2.5 py-1.5 border border-emerald-200/60 dark:border-emerald-800/40">
+                    <div key={doc.id} className="flex items-center justify-between text-[11px] bg-white dark:bg-zinc-900 rounded-lg px-2.5 py-1.5 border border-emerald-200/60 dark:border-emerald-800/40">
                       <div className="min-w-0 flex-1 truncate">
                         <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400">#{doc.documentNumber}</span>
-                        <span className="text-slate-600 dark:text-slate-300 ml-1.5">{doc.title.slice(0, 35)}</span>
+                        <span className="text-zinc-600 dark:text-zinc-300 ml-1.5">{doc.title.slice(0, 35)}</span>
                       </div>
-                      <button type="button" onClick={() => handleRemoveDoc(doc.id)} className="p-0.5 text-slate-400 hover:text-rose-500 ml-2 flex-shrink-0">
-                        <X className="w-3 h-3" />
+                      <button type="button" onClick={() => handleRemoveDoc(doc.id)} className="btn btn-ghost btn-icon btn-xs text-zinc-400 hover:text-rose-500 ml-2 flex-shrink-0" aria-label="Remove from batch">
+                        <X className="w-3 h-3" aria-hidden="true" />
                       </button>
                     </div>
                   ))}
@@ -413,14 +414,14 @@ export const BatchRelocateModal: React.FC<BatchRelocateModalProps> = ({
               {/* Destination Location */}
               <div>
                 <div className="flex items-center justify-between mb-1.5">
-                  <label className="block font-semibold text-slate-700 dark:text-slate-300 text-xs flex items-center gap-1.5">
+                  <label className="label flex items-center gap-1.5">
                     <MapPin className="w-3.5 h-3.5 text-emerald-600" />
                     Destination Storage Location *
                   </label>
                   <button
                     type="button"
                     onClick={() => { setShowDestScanner(v => !v); setDestScanError(''); }}
-                    className={`inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-bold rounded-lg border transition-colors ${
+                    className={`btn btn-xs border ${
                       showDestScanner
                         ? 'text-white bg-emerald-600 border-emerald-600 hover:bg-emerald-700'
                         : 'text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/60 border-emerald-200 dark:border-emerald-800 hover:bg-emerald-100 dark:hover:bg-emerald-900/60'
@@ -432,19 +433,19 @@ export const BatchRelocateModal: React.FC<BatchRelocateModalProps> = ({
                 </div>
 
                 {showDestScanner && (
-                  <div className="mb-2 p-2 bg-slate-900 rounded-xl border border-slate-700">
+                  <div className="mb-2 p-2 bg-zinc-900 rounded-xl border border-zinc-700">
                     <QrScannerView
                       onDecode={processDestScannedCode}
-                      className="w-full h-auto rounded-lg bg-slate-950"
+                      className="w-full h-auto rounded-lg bg-zinc-950"
                     />
-                    <p className="text-[10px] text-slate-300 mt-1.5 text-center">
+                    <p className="text-[10px] text-zinc-300 mt-1.5 text-center">
                       Scan the QR tag of the destination storage location
                     </p>
-                    <p className="text-[10px] text-slate-400 mt-1 text-center">
+                    <p className="text-[10px] text-zinc-400 mt-1 text-center">
                       {SCANNER_TAG_HINT}
                     </p>
                     {destScanError && (
-                      <p className="text-[10px] text-red-400 font-semibold mt-1 text-center flex items-center justify-center gap-1">
+                      <p className="text-[10px] text-rose-400 font-semibold mt-1 text-center flex items-center justify-center gap-1">
                         <AlertTriangle className="w-3 h-3" /> {destScanError}
                       </p>
                     )}
@@ -454,7 +455,7 @@ export const BatchRelocateModal: React.FC<BatchRelocateModalProps> = ({
                 <select
                   value={destinationId}
                   onChange={(e) => setDestinationId(e.target.value)}
-                  className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none text-xs font-mono"
+                  className="input font-mono"
                 >
                   {locations.map(loc => (
                     <option key={loc.id} value={loc.id}>
@@ -468,7 +469,7 @@ export const BatchRelocateModal: React.FC<BatchRelocateModalProps> = ({
                     {(() => {
                       const destLoc = locations.find(l => l.id === destinationId);
                       return destLoc?.latitude != null && destLoc.longitude != null ? (
-                        <div className="flex items-center gap-1 text-[10px] font-mono text-slate-500 dark:text-slate-400">
+                        <div className="flex items-center gap-1 text-[10px] font-mono text-zinc-500 dark:text-zinc-400">
                           <MapPin className="w-3 h-3 text-emerald-600" />
                           GPS: {destLoc.latitude.toFixed(5)}, {destLoc.longitude.toFixed(5)}
                         </div>
@@ -480,7 +481,7 @@ export const BatchRelocateModal: React.FC<BatchRelocateModalProps> = ({
 
               {/* Reason */}
               <div>
-                <label className="block font-semibold text-slate-700 dark:text-slate-300 text-xs mb-1">
+                <label className="label">
                   Reason for Transfer
                 </label>
                 <input
@@ -488,14 +489,14 @@ export const BatchRelocateModal: React.FC<BatchRelocateModalProps> = ({
                   value={reason}
                   onChange={(e) => setReason(e.target.value)}
                   placeholder="e.g. Moving to off-site storage facility"
-                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none text-xs"
+                  className="input"
                 />
               </div>
 
               {/* Optional Bundle — hidden when already relocating a bundle */}
               {!isBundleMode && (
               <div className="p-3 bg-amber-50/70 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/60 rounded-xl space-y-2.5">
-                <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-slate-800 dark:text-slate-200">
+                <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-zinc-800 dark:text-zinc-200">
                   <input
                     type="checkbox"
                     checked={wantBundle}
@@ -511,14 +512,14 @@ export const BatchRelocateModal: React.FC<BatchRelocateModalProps> = ({
                       value={bundleNumber}
                       onChange={(e) => setBundleNumber(e.target.value)}
                       placeholder="Bundle # (auto if blank)"
-                      className="px-2.5 py-1.5 bg-white dark:bg-slate-900 border border-amber-200 dark:border-amber-800 rounded-lg text-[11px] font-mono outline-none"
+                      className="input font-mono text-[11px]"
                     />
                     <input
                       type="text"
                       value={bundleTitle}
                       onChange={(e) => setBundleTitle(e.target.value)}
                       placeholder="Dossier title *"
-                      className="px-2.5 py-1.5 bg-white dark:bg-slate-900 border border-amber-200 dark:border-amber-800 rounded-lg text-[11px] outline-none"
+                      className="input text-[11px]"
                     />
                   </div>
                 )}
@@ -534,10 +535,10 @@ export const BatchRelocateModal: React.FC<BatchRelocateModalProps> = ({
                 <CheckCircle2 className="w-8 h-8" />
               </div>
               <div>
-                <h4 className="font-bold text-slate-900 dark:text-slate-100 text-base">Relocation Complete</h4>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">{resultMessage}</p>
+                <h4 className="font-bold text-zinc-900 dark:text-zinc-100 text-base">Relocation Complete</h4>
+                <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">{resultMessage}</p>
               </div>
-              <p className="text-[11px] text-slate-400">
+              <p className="text-[11px] text-zinc-400">
                 Each document now has a RELOCATION entry in the audit trail.
               </p>
             </div>
@@ -546,17 +547,17 @@ export const BatchRelocateModal: React.FC<BatchRelocateModalProps> = ({
         </div>
 
         {/* Footer Actions */}
-        <div className="px-5 py-3.5 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-100 dark:border-slate-800 flex justify-between gap-2 flex-shrink-0">
+        <div className="px-5 py-4 bg-zinc-50 dark:bg-zinc-800/50 border-t border-zinc-100 dark:border-zinc-800 flex justify-between gap-2 flex-shrink-0">
           {step === 'scan' && (
             <>
-              <button type="button" onClick={handleClose} className="px-4 py-2 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-xl text-xs font-medium">
+              <button type="button" onClick={handleClose} className="btn btn-secondary">
                 Cancel
               </button>
               <button
                 type="button"
                 onClick={handleProceedToConfirm}
                 disabled={scannedDocs.length === 0}
-                className="px-5 py-2 text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 rounded-xl text-xs font-semibold shadow-md shadow-emerald-600/20 flex items-center gap-1.5"
+                className="btn text-white bg-emerald-600 hover:bg-emerald-700"
               >
                 <ArrowRight className="w-3.5 h-3.5" />
                 <span>Proceed to Relocate ({scannedDocs.length})</span>
@@ -565,14 +566,14 @@ export const BatchRelocateModal: React.FC<BatchRelocateModalProps> = ({
           )}
           {step === 'confirm' && (
             <>
-              <button type="button" onClick={handleBackToScan} className="px-4 py-2 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-xl text-xs font-medium">
+              <button type="button" onClick={handleBackToScan} className="btn btn-secondary">
                 ← Scan More
               </button>
               <button
                 type="button"
                 onClick={handleExecute}
                 disabled={isExecuting || !destinationId || scannedDocs.length === 0 || (wantBundle && !bundleTitle.trim())}
-                className="px-5 py-2 text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 rounded-xl text-xs font-semibold shadow-md shadow-emerald-600/20 flex items-center gap-1.5"
+                className="btn text-white bg-emerald-600 hover:bg-emerald-700"
               >
                 {isExecuting ? (
                   <><Loader2 className="w-3.5 h-3.5 animate-spin" /><span>Relocating...</span></>
@@ -583,7 +584,7 @@ export const BatchRelocateModal: React.FC<BatchRelocateModalProps> = ({
             </>
           )}
           {step === 'done' && (
-            <button type="button" onClick={handleClose} className="w-full px-5 py-2.5 text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl text-xs font-semibold shadow-md">
+            <button type="button" onClick={handleClose} className="btn w-full text-white bg-emerald-600 hover:bg-emerald-700">
               Done — Close
             </button>
           )}

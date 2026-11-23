@@ -20,6 +20,12 @@ export interface DbHealthState {
   timestamp: string;
 }
 
+// Collections that can be re-fetched individually after a mutation, so a
+// single write does not trigger a full 11-endpoint resync.
+type RefreshableEntity =
+  | 'departments' | 'documentTypes' | 'locations' | 'documents' | 'checkouts'
+  | 'movements' | 'auditLogs' | 'users' | 'reusableCustomFields' | 'bundles';
+
 const FALLBACK_ADMIN_USER: User = {
   id: 'usr-001',
   email: 'admin@archivehub.internal',
@@ -111,6 +117,7 @@ interface ArchiveContextType {
   
   // Helper Lookups
   lookupByQR: (qrString: string) => { type: 'DOCUMENT' | 'LOCATION' | 'BUNDLE'; data: DocumentItem | LocationItem | DocumentBundle } | null;
+  lookupByQRRemote: (code: string) => Promise<{ type: 'DOCUMENT' | 'LOCATION' | 'BUNDLE'; data: DocumentItem | LocationItem | DocumentBundle } | null>;
   calculatePath: (locationId: string | null) => string;
   
   // Notifications
@@ -283,6 +290,47 @@ export const ArchiveProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }
   }, [isAuthenticated]);
 
+  // Targeted post-mutation refresh: re-fetch only the collections a write can
+  // affect. Audit entries are always generated server-side, so 'auditLogs'
+  // pulls the authoritative trail instead of fabricating client records.
+  const refreshEntities = useCallback(async (...entities: RefreshableEntity[]) => {
+    if (!isAuthenticated || entities.length === 0) return;
+    const sources: Record<RefreshableEntity, { endpoint: string; apply: (data: any) => void }> = {
+      departments: { endpoint: '/api/departments', apply: setDepartments },
+      documentTypes: { endpoint: '/api/document-types', apply: setDocumentTypes },
+      locations: { endpoint: '/api/locations', apply: setLocations },
+      documents: { endpoint: '/api/documents', apply: setDocuments },
+      checkouts: { endpoint: '/api/checkouts', apply: setCheckouts },
+      movements: { endpoint: '/api/movements', apply: setMovements },
+      auditLogs: { endpoint: '/api/audit-logs', apply: setAuditLogs },
+      users: {
+        endpoint: '/api/users',
+        apply: (data) => { if (Array.isArray(data) && data.length > 0) setDbUsers(data); }
+      },
+      reusableCustomFields: { endpoint: '/api/reusable-custom-fields', apply: setReusableCustomFields },
+      bundles: { endpoint: '/api/bundles', apply: setBundles }
+    };
+    try {
+      const unique = Array.from(new Set(entities));
+      const responses = await Promise.all(unique.map(e => fetch(sources[e].endpoint)));
+      if (responses.some(r => r.status === 401)) {
+        setIsAuthenticatedState(false);
+        try {
+          localStorage.removeItem(AUTH_STORAGE_KEY);
+        } catch (error) {
+          console.warn('Failed to clear expired session from localStorage:', error);
+        }
+        addNotification('error', 'Your session has expired. Please sign in again.');
+        return;
+      }
+      await Promise.all(unique.map(async (e, i) => {
+        if (responses[i].ok) sources[e].apply(await responses[i].json());
+      }));
+    } catch (err) {
+      console.warn('Targeted refresh notice:', err);
+    }
+  }, [isAuthenticated]);
+
   const refreshDbHealth = async (): Promise<DbHealthState> => {
     try {
       const res = await fetch('/api/health');
@@ -431,26 +479,8 @@ export const ArchiveProvider: React.FC<{ children: React.ReactNode }> = ({ child
       });
       const data = await res.json();
       if (data.success && data.user) {
-        // Do NOT log the user in; account is pending approval
-        await fetchAllFromBackend();
-        
-        // Add audit trail for new registration
-        const logId = 'log-' + Date.now();
-        const newLog: AuditLogRecord = {
-          id: logId,
-          timestamp: new Date().toISOString(),
-          userId: data.user.id,
-          userName: data.user.fullName,
-          userRole: data.user.role,
-          action: 'USER_LOGIN',
-          details: `User account registered for ${data.user.fullName} (${data.user.email}) - Status: PENDING_APPROVAL.`,
-          entityType: 'USER',
-          entityId: data.user.id,
-          entityName: data.user.fullName,
-          ipAddress: '127.0.0.1'
-        };
-        setAuditLogs(prev => [newLog, ...prev]);
-        
+        // Do NOT log the user in; account is pending approval. The server
+        // records the registration in the audit trail.
         addNotification('info', `Registration submitted! Account for ${data.user.fullName} is awaiting Administrator approval.`);
         return { 
           success: true, 
@@ -462,100 +492,43 @@ export const ArchiveProvider: React.FC<{ children: React.ReactNode }> = ({ child
         return { success: false, message: data.message || 'Registration failed.' };
       }
     } catch (e: any) {
-      const cleanEmail = userData.email.trim().toLowerCase();
-      if (availableUsers.some(u => u.email.toLowerCase() === cleanEmail)) {
-        return { success: false, message: 'An account with this email address already exists.' };
-      }
-      const newUser: User = {
-        ...userData,
-        id: 'usr-reg-' + Date.now(),
-        email: cleanEmail,
-        approvalStatus: 'PENDING_APPROVAL',
-        createdAt: new Date().toISOString()
-      };
-      setDbUsers(prev => [...prev, newUser]);
-      
-      addNotification('info', `Registration submitted! Account for ${newUser.fullName} is awaiting Administrator approval.`);
-      return { 
-        success: true, 
-        user: newUser, 
-        isPendingApproval: true, 
-        message: 'Account registered successfully! Please wait for Administrator approval before signing in.' 
-      };
+      return { success: false, message: e?.message || 'Unable to reach the registration service. Please try again.' };
     }
   };
 
   const approveUser = async (userId: string) => {
+    const targetUser = availableUsers.find(u => u.id === userId);
+    const userName = targetUser ? targetUser.fullName : 'User';
     try {
-      await fetch(`/api/users/${userId}/approval`, {
+      const res = await fetch(`/api/users/${userId}/approval`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: 'APPROVED' })
       });
-      setDbUsers(prev => prev.map(u => u.id === userId ? { ...u, approvalStatus: 'APPROVED' } : u));
-      
-      const targetUser = availableUsers.find(u => u.id === userId);
-      const userName = targetUser ? targetUser.fullName : 'User';
-      
-      // Audit log
-      const logId = 'log-' + Date.now();
-      const newLog: AuditLogRecord = {
-        id: logId,
-        timestamp: new Date().toISOString(),
-        userId: currentUser.id,
-        userName: currentUser.fullName,
-        userRole: currentUser.role,
-        action: 'METADATA_UPDATE',
-        details: `Approved user registration for ${userName} (${userId}).`,
-        entityType: 'USER',
-        entityId: userId,
-        entityName: userName,
-        ipAddress: '127.0.0.1'
-      };
-      setAuditLogs(prev => [newLog, ...prev]);
-
+      const data = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(data?.error || data?.message || 'Failed to approve user account.');
       addNotification('success', `Approved account for ${userName}. User can now sign in.`);
-      await fetchAllFromBackend();
-    } catch (e) {
-      setDbUsers(prev => prev.map(u => u.id === userId ? { ...u, approvalStatus: 'APPROVED' } : u));
-      addNotification('success', 'User account approved.');
+      await refreshEntities('users', 'auditLogs');
+    } catch (e: any) {
+      addNotification('error', e?.message || 'Failed to approve user account.');
     }
   };
 
   const rejectUser = async (userId: string) => {
+    const targetUser = availableUsers.find(u => u.id === userId);
+    const userName = targetUser ? targetUser.fullName : 'User';
     try {
-      await fetch(`/api/users/${userId}/approval`, {
+      const res = await fetch(`/api/users/${userId}/approval`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: 'REJECTED' })
       });
-      setDbUsers(prev => prev.map(u => u.id === userId ? { ...u, approvalStatus: 'REJECTED' } : u));
-      
-      const targetUser = availableUsers.find(u => u.id === userId);
-      const userName = targetUser ? targetUser.fullName : 'User';
-      
-      // Audit log
-      const logId = 'log-' + Date.now();
-      const newLog: AuditLogRecord = {
-        id: logId,
-        timestamp: new Date().toISOString(),
-        userId: currentUser.id,
-        userName: currentUser.fullName,
-        userRole: currentUser.role,
-        action: 'METADATA_UPDATE',
-        details: `Rejected registration for ${userName} (${userId}).`,
-        entityType: 'USER',
-        entityId: userId,
-        entityName: userName,
-        ipAddress: '127.0.0.1'
-      };
-      setAuditLogs(prev => [newLog, ...prev]);
-
+      const data = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(data?.error || data?.message || 'Failed to reject registration.');
       addNotification('warning', `Registration for ${userName} has been rejected.`);
-      await fetchAllFromBackend();
-    } catch (e) {
-      setDbUsers(prev => prev.map(u => u.id === userId ? { ...u, approvalStatus: 'REJECTED' } : u));
-      addNotification('warning', 'User registration rejected.');
+      await refreshEntities('users', 'auditLogs');
+    } catch (e: any) {
+      addNotification('error', e?.message || 'Failed to reject registration.');
     }
   };
 
@@ -581,17 +554,12 @@ export const ArchiveProvider: React.FC<{ children: React.ReactNode }> = ({ child
       }
 
       addNotification('success', 'Your profile has been updated successfully.');
-      await fetchAllFromBackend();
+      await refreshEntities('users', 'auditLogs');
       return { success: true };
     } catch (e: any) {
-      // Offline fallback: apply locally (password changes cannot be applied offline)
-      const { currentPassword: _cp, newPassword: _np, ...localFields } = updates;
-      setDbUsers(prev => prev.map(u => u.id === userId ? { ...u, ...localFields } : u));
-      if (currentUser.id === userId) {
-        setCurrentUser({ ...currentUser, ...localFields });
-      }
-      addNotification(_np ? 'warning' : 'success', _np ? 'Server unreachable: profile fields updated locally, but the password change was not applied.' : 'Server unreachable: profile updated locally.');
-      return { success: true };
+      const msg = e?.message || 'Unable to reach the server. Profile was not updated.';
+      addNotification('error', msg);
+      return { success: false, message: msg };
     }
   };
 
@@ -610,15 +578,16 @@ export const ArchiveProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   const deleteUser = async (userId: string) => {
     try {
-      await fetch(`/api/users/${userId}`, { method: 'DELETE' });
+      const res = await fetch(`/api/users/${userId}`, { method: 'DELETE' });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(data?.error || 'Failed to remove user account.');
       addNotification('info', 'User account removed from database.');
-      await fetchAllFromBackend();
-    } catch (e) {
-      setDbUsers(prev => prev.filter(u => u.id !== userId));
-      addNotification('info', 'User account removed.');
-    }
-    if (currentUser?.id === userId) {
-      logoutUser();
+      await refreshEntities('users', 'auditLogs');
+      if (currentUser?.id === userId) {
+        logoutUser();
+      }
+    } catch (e: any) {
+      addNotification('error', e?.message || 'Failed to remove user account.');
     }
   };
 
@@ -634,36 +603,43 @@ export const ArchiveProvider: React.FC<{ children: React.ReactNode }> = ({ child
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(docTypeData)
       });
-      const newType = await res.json();
-      setDocumentTypes(prev => [...prev, newType]);
-      addNotification('success', `Document Type "${newType.name}" added successfully.`);
-      return newType;
-    } catch (err) {
-      const newDocType: DocumentTypeInfo = { ...docTypeData, id: `dt-${Date.now()}` };
-      setDocumentTypes(prev => [...prev, newDocType]);
-      addNotification('success', `Document Type "${newDocType.name}" added.`);
-      return newDocType;
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data?.id) throw new Error(data?.error || 'Failed to create document type.');
+      setDocumentTypes(prev => [...prev, data]);
+      addNotification('success', `Document Type "${data.name}" added successfully.`);
+      return data;
+    } catch (err: any) {
+      addNotification('error', err?.message || 'Failed to create document type.');
+      throw err;
     }
   };
 
   const updateDocumentType = async (id: string, updates: Partial<DocumentTypeInfo>): Promise<void> => {
-    setDocumentTypes(prev => prev.map(dt => dt.id === id ? { ...dt, ...updates } : dt));
     try {
-      await fetch(`/api/document-types/${id}`, {
+      const res = await fetch(`/api/document-types/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updates)
       });
-    } catch (e) {}
-    addNotification('info', `Document Type updated.`);
+      const data = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(data?.error || 'Failed to update document type.');
+      setDocumentTypes(prev => prev.map(dt => dt.id === id ? { ...dt, ...updates } : dt));
+      addNotification('info', `Document Type updated.`);
+    } catch (e: any) {
+      addNotification('error', e?.message || 'Failed to update document type.');
+    }
   };
 
   const deleteDocumentType = async (id: string): Promise<void> => {
-    setDocumentTypes(prev => prev.filter(dt => dt.id !== id));
     try {
-      await fetch(`/api/document-types/${id}`, { method: 'DELETE' });
-    } catch (e) {}
-    addNotification('warning', `Document Type deleted.`);
+      const res = await fetch(`/api/document-types/${id}`, { method: 'DELETE' });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(data?.error || 'Failed to delete document type.');
+      setDocumentTypes(prev => prev.filter(dt => dt.id !== id));
+      addNotification('warning', `Document Type deleted.`);
+    } catch (e: any) {
+      addNotification('error', e?.message || 'Failed to delete document type.');
+    }
   };
 
   // Department Handlers
@@ -682,43 +658,41 @@ export const ArchiveProvider: React.FC<{ children: React.ReactNode }> = ({ child
       setDepartments(prev => [...prev, data]);
       addNotification('success', `Department "${data.name}" added.`);
       return data;
-    } catch (err) {
-      const newDept: Department = { ...deptData, id: `dept-${Date.now()}`, documentCount: 0 };
-      setDepartments(prev => [...prev, newDept]);
-      addNotification('success', `Department "${newDept.name}" added.`);
-      return newDept;
+    } catch (err: any) {
+      addNotification('error', err?.message || 'Failed to create department.');
+      return null;
     }
   };
 
   const updateDepartment = async (id: string, updates: Partial<Department>): Promise<void> => {
-    setDepartments(prev => prev.map(d => d.id === id ? { ...d, ...updates } : d));
     try {
-      await fetch(`/api/departments/${id}`, {
+      const res = await fetch(`/api/departments/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updates)
       });
-      // Refresh related records so propagated department names stay in sync
-      await fetchAllFromBackend();
-    } catch (e) {}
-    addNotification('info', `Department updated.`);
+      const data = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(data?.error || 'Failed to update department.');
+      // Department renames propagate into documents, locations, users, types
+      // and bundles, so refresh every collection that carries the name.
+      await refreshEntities('departments', 'documentTypes', 'documents', 'locations', 'users', 'bundles');
+      addNotification('info', `Department updated.`);
+    } catch (e: any) {
+      addNotification('error', e?.message || 'Failed to update department.');
+    }
   };
 
   const deleteDepartment = async (id: string): Promise<boolean> => {
     try {
       const res = await fetch(`/api/departments/${id}`, { method: 'DELETE' });
-      const data = await res.json();
-      if (!res.ok) {
-        addNotification('error', data.error || 'Failed to delete department.');
-        return false;
-      }
+      const data = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(data?.error || 'Failed to delete department.');
       setDepartments(prev => prev.filter(d => d.id !== id));
       addNotification('warning', `Department deleted.`);
       return true;
-    } catch (err) {
-      setDepartments(prev => prev.filter(d => d.id !== id));
-      addNotification('warning', `Department deleted.`);
-      return true;
+    } catch (err: any) {
+      addNotification('error', err?.message || 'Failed to delete department.');
+      return false;
     }
   };
 
@@ -730,40 +704,43 @@ export const ArchiveProvider: React.FC<{ children: React.ReactNode }> = ({ child
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(fieldData)
       });
-      const newField = await res.json();
-      setReusableCustomFields(prev => [...prev, newField]);
-      addNotification('success', `Reusable Field "${newField.label}" added to library.`);
-      return newField;
-    } catch (err) {
-      const newField: ReusableCustomField = {
-        ...fieldData,
-        id: `rcf-${Date.now()}`,
-        createdAt: new Date().toISOString()
-      };
-      setReusableCustomFields(prev => [...prev, newField]);
-      addNotification('success', `Reusable Field "${newField.label}" added.`);
-      return newField;
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data?.id) throw new Error(data?.error || 'Failed to create reusable field.');
+      setReusableCustomFields(prev => [...prev, data]);
+      addNotification('success', `Reusable Field "${data.label}" added to library.`);
+      return data;
+    } catch (err: any) {
+      addNotification('error', err?.message || 'Failed to create reusable field.');
+      throw err;
     }
   };
 
   const updateReusableCustomField = async (id: string, updates: Partial<ReusableCustomField>): Promise<void> => {
-    setReusableCustomFields(prev => prev.map(f => f.id === id ? { ...f, ...updates } : f));
     try {
-      await fetch(`/api/reusable-custom-fields/${id}`, {
+      const res = await fetch(`/api/reusable-custom-fields/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updates)
       });
-    } catch (e) {}
-    addNotification('info', `Reusable Field updated.`);
+      const data = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(data?.error || 'Failed to update reusable field.');
+      setReusableCustomFields(prev => prev.map(f => f.id === id ? { ...f, ...updates } : f));
+      addNotification('info', `Reusable Field updated.`);
+    } catch (e: any) {
+      addNotification('error', e?.message || 'Failed to update reusable field.');
+    }
   };
 
   const deleteReusableCustomField = async (id: string): Promise<void> => {
-    setReusableCustomFields(prev => prev.filter(f => f.id !== id));
     try {
-      await fetch(`/api/reusable-custom-fields/${id}`, { method: 'DELETE' });
-    } catch (e) {}
-    addNotification('warning', `Reusable Field deleted.`);
+      const res = await fetch(`/api/reusable-custom-fields/${id}`, { method: 'DELETE' });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(data?.error || 'Failed to delete reusable field.');
+      setReusableCustomFields(prev => prev.filter(f => f.id !== id));
+      addNotification('warning', `Reusable Field deleted.`);
+    } catch (e: any) {
+      addNotification('error', e?.message || 'Failed to delete reusable field.');
+    }
   };
 
   // Bundle Dossier Handlers
@@ -772,86 +749,80 @@ export const ArchiveProvider: React.FC<{ children: React.ReactNode }> = ({ child
       const res = await fetch('/api/bundles', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ bundleData, user: currentUser })
+        body: JSON.stringify({ bundleData })
       });
-      const newBundle = await res.json();
-      setBundles(prev => [newBundle, ...prev]);
-      await fetchAllFromBackend();
-      addNotification('success', `Bundle dossier "${newBundle.bundleNumber} - ${newBundle.title}" created.`);
-      return newBundle;
-    } catch (err) {
-      const id = `bndl-${Date.now()}`;
-      const now = new Date().toISOString();
-      const newBundle: DocumentBundle = {
-        ...bundleData,
-        id,
-        qrCode: 'BNDL-' + bundleData.bundleNumber,
-        barcode: '889' + Math.floor(100000 + Math.random() * 900000),
-        createdAt: now,
-        updatedAt: now
-      };
-      setBundles(prev => [newBundle, ...prev]);
-      if (newBundle.documentIds && newBundle.documentIds.length > 0) {
-        setDocuments(prev => prev.map(d => newBundle.documentIds.includes(d.id) ? { ...d, bundleId: newBundle.id, bundleNumber: newBundle.bundleNumber, bundleTitle: newBundle.title } : d));
-      }
-      addNotification('success', `Bundle dossier "${newBundle.bundleNumber}" created.`);
-      return newBundle;
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data?.id) throw new Error(data?.error || 'Failed to create bundle dossier.');
+      await refreshEntities('bundles', 'documents', 'auditLogs');
+      addNotification('success', `Bundle dossier "${data.bundleNumber} - ${data.title}" created.`);
+      return data;
+    } catch (err: any) {
+      addNotification('error', err?.message || 'Failed to create bundle dossier.');
+      throw err;
     }
   };
 
   const updateBundle = async (id: string, updates: Partial<DocumentBundle>): Promise<void> => {
-    setBundles(prev => prev.map(b => b.id === id ? { ...b, ...updates, updatedAt: new Date().toISOString() } : b));
     try {
-      await fetch(`/api/bundles/${id}`, {
+      const res = await fetch(`/api/bundles/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ updates, user: currentUser })
+        body: JSON.stringify({ updates })
       });
-    } catch (e) {}
-    addNotification('info', `Bundle updated.`);
+      const data = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(data?.error || 'Failed to update bundle.');
+      await refreshEntities('bundles', 'documents', 'auditLogs');
+      addNotification('info', `Bundle updated.`);
+    } catch (e: any) {
+      addNotification('error', e?.message || 'Failed to update bundle.');
+    }
   };
 
   const deleteBundle = async (id: string): Promise<void> => {
     const target = bundles.find(b => b.id === id);
-    setBundles(prev => prev.filter(b => b.id !== id));
-    setDocuments(prev => prev.map(d => d.bundleId === id ? { ...d, bundleId: undefined, bundleNumber: undefined, bundleTitle: undefined } : d));
     try {
-      await fetch(`/api/bundles/${id}`, {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user: currentUser })
-      });
-    } catch (e) {}
-    addNotification('warning', `Bundle dossier "${target?.bundleNumber || id}" dissolved.`);
+      const res = await fetch(`/api/bundles/${id}`, { method: 'DELETE' });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(data?.error || 'Failed to dissolve bundle.');
+      await refreshEntities('bundles', 'documents', 'auditLogs');
+      addNotification('warning', `Bundle dossier "${target?.bundleNumber || id}" dissolved.`);
+    } catch (e: any) {
+      addNotification('error', e?.message || 'Failed to dissolve bundle.');
+    }
   };
 
   const addDocumentsToBundle = async (bundleId: string, docIds: string[]): Promise<void> => {
     const target = bundles.find(b => b.id === bundleId);
     if (!target) return;
-    const newDocIds = Array.from(new Set([...target.documentIds, ...docIds]));
-    setBundles(prev => prev.map(b => b.id === bundleId ? { ...b, documentIds: newDocIds, updatedAt: new Date().toISOString() } : b));
-    setDocuments(prev => prev.map(d => docIds.includes(d.id) ? { ...d, bundleId: target.id, bundleNumber: target.bundleNumber, bundleTitle: target.title } : d));
     try {
-      await fetch(`/api/bundles/${bundleId}/add-documents`, {
+      const res = await fetch(`/api/bundles/${bundleId}/add-documents`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ documentIds: docIds, user: currentUser })
+        body: JSON.stringify({ documentIds: docIds })
       });
-    } catch (e) {}
-    addNotification('success', `Added ${docIds.length} document(s) to bundle "${target.bundleNumber}".`);
+      const data = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(data?.error || 'Failed to add documents to bundle.');
+      await refreshEntities('bundles', 'documents', 'auditLogs');
+      addNotification('success', `Added ${docIds.length} document(s) to bundle "${target.bundleNumber}".`);
+    } catch (e: any) {
+      addNotification('error', e?.message || 'Failed to add documents to bundle.');
+    }
   };
 
   const removeDocumentFromBundle = async (bundleId: string, docId: string): Promise<void> => {
-    setBundles(prev => prev.map(b => b.id === bundleId ? { ...b, documentIds: b.documentIds.filter(id => id !== docId), updatedAt: new Date().toISOString() } : b));
-    setDocuments(prev => prev.map(d => d.id === docId ? { ...d, bundleId: undefined, bundleNumber: undefined, bundleTitle: undefined } : d));
     try {
-      await fetch(`/api/bundles/${bundleId}/remove-document`, {
+      const res = await fetch(`/api/bundles/${bundleId}/remove-document`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ documentId: docId, user: currentUser })
+        body: JSON.stringify({ documentId: docId })
       });
-    } catch (e) {}
-    addNotification('info', `Removed document from bundle.`);
+      const data = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(data?.error || 'Failed to remove document from bundle.');
+      await refreshEntities('bundles', 'documents', 'auditLogs');
+      addNotification('info', `Removed document from bundle.`);
+    } catch (e: any) {
+      addNotification('error', e?.message || 'Failed to remove document from bundle.');
+    }
   };
 
   // Location Handlers
@@ -862,33 +833,30 @@ export const ArchiveProvider: React.FC<{ children: React.ReactNode }> = ({ child
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(locData)
       });
-      const newLoc = await res.json();
-      setLocations(prev => [...prev, newLoc]);
-      addNotification('success', `Physical location '${newLoc.name}' created successfully.`);
-      return newLoc;
-    } catch (e) {
-      const id = 'loc-' + locData.type.toLowerCase() + '-' + Date.now();
-      const code = locData.code || locData.name.substring(0, 3).toUpperCase() + '-' + Math.floor(100 + Math.random() * 900);
-      const newLoc: LocationItem = {
-        ...locData, id, code, capacity: locData.capacity || 20, currentOccupancy: 0,
-        qrCode: 'LOC-' + code, barcode: '' + (Math.floor(1000000 + Math.random() * 9000000)),
-        createdAt: new Date().toISOString().split('T')[0], updatedAt: new Date().toISOString().split('T')[0]
-      };
-      setLocations(prev => [...prev, newLoc]);
-      addNotification('success', `Physical location '${newLoc.name}' created successfully.`);
-      return newLoc;
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data?.id) throw new Error(data?.error || 'Failed to create physical location.');
+      setLocations(prev => [...prev, data]);
+      addNotification('success', `Physical location '${data.name}' created successfully.`);
+      return data;
+    } catch (e: any) {
+      addNotification('error', e?.message || 'Failed to create physical location.');
+      throw e;
     }
   };
 
   const updateLocation = async (id: string, updates: Partial<LocationItem>): Promise<void> => {
-    setLocations(prev => prev.map(loc => loc.id === id ? { ...loc, ...updates, updatedAt: new Date().toISOString().split('T')[0] } : loc));
     try {
-      await fetch(`/api/locations/${id}`, {
+      const res = await fetch(`/api/locations/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updates)
       });
-    } catch (e) {}
+      const data = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(data?.error || 'Failed to update location.');
+      await refreshEntities('locations', 'documents');
+    } catch (e: any) {
+      addNotification('error', e?.message || 'Failed to update location.');
+    }
   };
 
   const deleteLocation = async (id: string): Promise<boolean> => {
@@ -901,26 +869,28 @@ export const ArchiveProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }
 
     const locToDelete = locations.find(l => l.id === id);
-    setLocations(prev => prev.filter(l => l.id !== id));
-
     try {
-      await fetch(`/api/locations/${id}`, { method: 'DELETE' });
-    } catch (e) {}
-
-    if (locToDelete) {
-      addNotification('info', `Location '${locToDelete.name}' deleted.`);
+      const res = await fetch(`/api/locations/${id}`, { method: 'DELETE' });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(data?.error || 'Failed to delete location.');
+      setLocations(prev => prev.filter(l => l.id !== id));
+      if (locToDelete) {
+        addNotification('info', `Location '${locToDelete.name}' deleted.`);
+      }
+      return true;
+    } catch (e: any) {
+      addNotification('error', e?.message || 'Failed to delete location.');
+      return false;
     }
-    return true;
   };
 
   // Document Handlers
   const addDocument = async (docData: NewDocumentItem): Promise<DocumentItem> => {
-    const homePath = calculatePath(docData.homeLocationId);
     try {
       const res = await fetch('/api/documents', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ docData, user: currentUser, homePath })
+        body: JSON.stringify({ docData })
       });
       const data = await res.json().catch(() => null);
       if (!res.ok) {
@@ -931,7 +901,16 @@ export const ArchiveProvider: React.FC<{ children: React.ReactNode }> = ({ child
         throw new Error('The server did not return a valid saved document.');
       }
       setDocuments(prev => [newDoc, ...prev]);
-      await fetchAllFromBackend();
+      // E7/T-07: trust the server-returned record instead of re-downloading the
+      // whole catalogue on every save (the save path must stay fast at high
+      // intake volume). The server recomputes occupancy in the same transaction;
+      // mirror that locally for the filing location. Audit/movement views pick
+      // up their new entries on the next entity refresh.
+      setLocations(prev => prev.map(loc =>
+        loc.id === newDoc.currentLocationId
+          ? { ...loc, currentOccupancy: (loc.currentOccupancy ?? 0) + 1 }
+          : loc
+      ));
       addNotification('success', `Document #${newDoc.documentNumber} registered successfully.`);
       return newDoc;
     } catch (error) {
@@ -960,7 +939,7 @@ export const ArchiveProvider: React.FC<{ children: React.ReactNode }> = ({ child
       const res = await fetch(`/api/documents/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ updates, user: currentUser })
+        body: JSON.stringify({ updates })
       });
       const data = await res.json().catch(() => null);
       if (!res.ok || !data?.success) {
@@ -968,20 +947,7 @@ export const ArchiveProvider: React.FC<{ children: React.ReactNode }> = ({ child
       }
 
       setDocuments(prev => prev.map(d => d.id === id ? { ...d, ...updates, updatedAt: new Date().toISOString() } : d));
-      const auditRecord: AuditLogRecord = {
-        id: 'aud-' + Date.now(),
-        userId: currentUser.id,
-        userName: currentUser.fullName,
-        userRole: currentUser.role,
-        action: 'DOCUMENT_UPDATED',
-        entityType: 'DOCUMENT',
-        entityId: id,
-        entityName: updates.title || doc?.title || 'Document Record',
-        timestamp: new Date().toISOString(),
-        details: `Updated metadata and attributes for document #${docNum}`
-      };
-      setAuditLogs(prev => [auditRecord, ...prev]);
-      await fetchAllFromBackend();
+      await refreshEntities('documents', 'bundles', 'locations', 'auditLogs');
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Document update failed.';
       addNotification('error', message);
@@ -1010,8 +976,7 @@ export const ArchiveProvider: React.FC<{ children: React.ReactNode }> = ({ child
           fileName: file.name,
           fileData: dataUrl,
           fileType: file.type || 'application/octet-stream',
-          version: version || (doc.digitalFileVersion || 1),
-          user: currentUser
+          version: version || (doc.digitalFileVersion || 1)
         })
       });
       const data = await res.json();
@@ -1031,21 +996,7 @@ export const ArchiveProvider: React.FC<{ children: React.ReactNode }> = ({ child
         updatedAt: new Date().toISOString()
       } : d));
 
-      const auditRecord: AuditLogRecord = {
-        id: 'aud-' + Date.now(),
-        userId: currentUser.id,
-        userName: currentUser.fullName,
-        userRole: currentUser.role,
-        action: 'DIGITAL_COPY_UPLOADED',
-        entityType: 'DOCUMENT',
-        entityId: id,
-        entityName: doc.title || doc.documentNumber,
-        timestamp: new Date().toISOString(),
-        details: `Attached digitized surrogate copy "${data.fileName}" (${data.sizeLabel}) to document #${doc.documentNumber}`
-      };
-      setAuditLogs(prev => [auditRecord, ...prev]);
-
-      fetchAllFromBackend();
+      await refreshEntities('documents', 'auditLogs');
       return { success: true };
     } catch (err: any) {
       return { success: false, message: err?.message || 'Digital copy upload failed.' };
@@ -1060,41 +1011,43 @@ export const ArchiveProvider: React.FC<{ children: React.ReactNode }> = ({ child
       return false;
     }
 
-    setDocuments(prev => prev.filter(d => d.id !== id));
     try {
-      await fetch(`/api/documents/${id}`, {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user: currentUser })
-      });
-    } catch (e) {}
-    addNotification('warning', `Record #${doc.documentNumber} deleted.`);
-    return true;
+      const res = await fetch(`/api/documents/${id}`, { method: 'DELETE' });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(data?.error || 'Failed to delete document.');
+      setDocuments(prev => prev.filter(d => d.id !== id));
+      addNotification('warning', `Record #${doc.documentNumber} deleted.`);
+      await refreshEntities('documents', 'locations', 'auditLogs');
+      return true;
+    } catch (e: any) {
+      addNotification('error', e?.message || 'Failed to delete document.');
+      return false;
+    }
   };
 
   // Bulk Update — apply one metadata change (security/condition/department)
-  // to every selected record, with optimistic local state + backend sync
+  // to every selected record in a single server-side transaction.
   const bulkUpdateDocuments = async (documentIds: string[], updates: Partial<DocumentItem>): Promise<{ updated: number; errors: string[] }> => {
-    setDocuments(prev => prev.map(d => documentIds.includes(d.id) ? { ...d, ...updates, updatedAt: new Date().toISOString() } : d));
     try {
       const res = await fetch('/api/documents/bulk-update', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ documentIds, updates, user: currentUser })
+        body: JSON.stringify({ documentIds, updates })
       });
-      const data = await res.json();
-      await fetchAllFromBackend();
+      const data = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(data?.error || 'Bulk update failed.');
+      await refreshEntities('documents', 'auditLogs');
       const errors: string[] = data.errors || [];
       if (errors.length > 0) {
         addNotification('warning', `Bulk update applied to ${data.updated} of ${documentIds.length} record(s).`);
       } else {
-        addNotification('success', `${documentIds.length} record(s) updated.`);
+        addNotification('success', `${data.updated ?? documentIds.length} record(s) updated.`);
       }
       return { updated: data.updated ?? documentIds.length, errors };
-    } catch (e) {
-      // Offline fallback — local state already applied above
-      addNotification('success', `${documentIds.length} record(s) updated.`);
-      return { updated: documentIds.length, errors: [] };
+    } catch (e: any) {
+      const msg = e?.message || 'Bulk update failed.';
+      addNotification('error', msg);
+      return { updated: 0, errors: [msg] };
     }
   };
 
@@ -1110,22 +1063,22 @@ export const ArchiveProvider: React.FC<{ children: React.ReactNode }> = ({ child
       return { deleted: 0, skipped };
     }
 
-    setDocuments(prev => prev.filter(d => !deletableIds.includes(d.id)));
     try {
       const res = await fetch('/api/documents/bulk-delete', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ documentIds: deletableIds, user: currentUser })
+        body: JSON.stringify({ documentIds: deletableIds })
       });
-      const data = await res.json();
-      await fetchAllFromBackend();
+      const data = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(data?.error || 'Bulk delete failed.');
+      await refreshEntities('documents', 'locations', 'auditLogs');
       const serverSkipped = data.skipped || [];
       addNotification('warning', `${data.deleted ?? deletableIds.length} record(s) deleted from the registry.`);
       return { deleted: data.deleted ?? deletableIds.length, skipped: [...skipped, ...serverSkipped] };
-    } catch (e) {
-      // Offline fallback — local state already pruned above
-      addNotification('warning', `${deletableIds.length} record(s) deleted from the registry.`);
-      return { deleted: deletableIds.length, skipped };
+    } catch (e: any) {
+      const msg = e?.message || 'Bulk delete failed.';
+      addNotification('error', msg);
+      return { deleted: 0, skipped };
     }
   };
 
@@ -1133,47 +1086,36 @@ export const ArchiveProvider: React.FC<{ children: React.ReactNode }> = ({ child
     const doc = documents.find(d => d.id === documentId);
     if (!doc) return;
 
-    const fromLocId = doc.currentLocationId;
-    const fromPath = calculatePath(fromLocId);
-    const toPath = calculatePath(toLocationId);
-
-    setDocuments(prev => prev.map(d => d.id === documentId ? { ...d, currentLocationId: toLocationId, updatedAt: new Date().toISOString() } : d));
-
     try {
-      await fetch(`/api/documents/${documentId}/move`, {
+      const res = await fetch(`/api/documents/${documentId}/move`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ toLocationId, reason, user: currentUser, fromPath, toPath })
+        body: JSON.stringify({ toLocationId, reason })
       });
-      await fetchAllFromBackend();
-    } catch (e) {}
-
-    addNotification('info', `Record #${doc.documentNumber} relocated to new storage position.`);
+      const data = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(data?.error || 'Relocation failed.');
+      await refreshEntities('documents', 'movements', 'locations', 'auditLogs');
+      addNotification('info', `Record #${doc.documentNumber} relocated to new storage position.`);
+    } catch (e: any) {
+      addNotification('error', e?.message || 'Relocation failed.');
+    }
   };
 
   const batchMoveDocuments = async (documentIds: string[], toLocationId: string, reason: string): Promise<void> => {
     const toPath = calculatePath(toLocationId);
-    const fromPaths: Record<string, string> = {};
-    documentIds.forEach(id => {
-      const doc = documents.find(d => d.id === id);
-      fromPaths[id] = doc ? calculatePath(doc.currentLocationId) : 'Unknown';
-    });
-
-    // Optimistic update
-    setDocuments(prev => prev.map(d => documentIds.includes(d.id) ? { ...d, currentLocationId: toLocationId, updatedAt: new Date().toISOString() } : d));
-
     try {
       const res = await fetch('/api/documents/batch-move', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ documentIds, toLocationId, reason: reason || 'Batch Relocation Transfer', user: currentUser, fromPaths, toPath })
+        body: JSON.stringify({ documentIds, toLocationId, reason: reason || 'Batch Relocation Transfer' })
       });
-      const result = await res.json();
-      await fetchAllFromBackend();
+      const result = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(result?.error || 'Batch relocation failed.');
+      await refreshEntities('documents', 'movements', 'locations', 'auditLogs');
       const movedCount = result.moved ?? documentIds.length;
       addNotification('success', `Batch relocated ${movedCount} document(s) to ${toPath}.`);
-    } catch (e) {
-      addNotification('warning', `Batch relocation completed (offline mode). ${documentIds.length} document(s) updated locally.`);
+    } catch (e: any) {
+      addNotification('error', e?.message || 'Batch relocation failed.');
     }
   };
 
@@ -1182,43 +1124,24 @@ export const ArchiveProvider: React.FC<{ children: React.ReactNode }> = ({ child
     const doc = documents.find(d => d.id === documentId);
     if (!doc) return { success: false, message: 'Document not found.' };
 
-    // Optimistic update
-    const now = new Date().toISOString();
-    setDocuments(prev => prev.map(d =>
-      d.id === documentId
-        ? { ...d, qrClaimed: true, qrClaimedAt: now, qrClaimedBy: currentUser.id, updatedAt: now }
-        : d
-    ));
-    setAuditLogs(prev => [{
-      id: 'aud-' + Date.now(),
-      userId: currentUser.id,
-      userName: currentUser.fullName,
-      userRole: currentUser.role,
-      action: 'QR_CODE_CLAIMED',
-      entityType: 'DOCUMENT',
-      entityId: documentId,
-      entityName: doc.documentNumber,
-      timestamp: now,
-      details: `QR code scanned/claimed for document #${doc.documentNumber}`
-    }, ...prev]);
-
     try {
       const res = await fetch(`/api/documents/${documentId}/qr-claim`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user: currentUser })
+        headers: { 'Content-Type': 'application/json' }
       });
-      const result = await res.json();
-      if (!res.ok) {
-        addNotification('error', result.message || 'Failed to claim QR code.');
-        return { success: false, message: result.message };
+      const result = await res.json().catch(() => null);
+      if (!res.ok || !result?.success) {
+        const message = result?.message || result?.error || 'Failed to claim QR code.';
+        addNotification('error', message);
+        return { success: false, message };
       }
-      await fetchAllFromBackend();
+      await refreshEntities('documents', 'auditLogs');
       addNotification('success', `QR code claimed for document #${doc.documentNumber}.`);
-      return { success: true, message: result.message, claimedAt: now };
-    } catch (e) {
-      addNotification('warning', `QR code claimed locally (offline mode) for document #${doc.documentNumber}.`);
-      return { success: true, message: `QR code claimed locally for document #${doc.documentNumber}.`, claimedAt: now };
+      return { success: true, message: result.message, claimedAt: result.claimedAt || new Date().toISOString() };
+    } catch (e: any) {
+      const message = e?.message || 'Failed to claim QR code.';
+      addNotification('error', message);
+      return { success: false, message };
     }
   };
 
@@ -1227,41 +1150,24 @@ export const ArchiveProvider: React.FC<{ children: React.ReactNode }> = ({ child
     if (!doc) return { success: false, message: 'Document not found.' };
     if (!doc.qrClaimed) return { success: false, message: 'QR code is not currently claimed.' };
 
-    setDocuments(prev => prev.map(d =>
-      d.id === documentId
-        ? { ...d, qrClaimed: false, qrClaimedAt: null, qrClaimedBy: null, updatedAt: new Date().toISOString() }
-        : d
-    ));
-    setAuditLogs(prev => [{
-      id: 'aud-' + Date.now(),
-      userId: currentUser.id,
-      userName: currentUser.fullName,
-      userRole: currentUser.role,
-      action: 'QR_CODE_UNCLAIMED',
-      entityType: 'DOCUMENT',
-      entityId: documentId,
-      entityName: doc.documentNumber,
-      timestamp: new Date().toISOString(),
-      details: `QR code claim reset for document #${doc.documentNumber}`
-    }, ...prev]);
-
     try {
       const res = await fetch(`/api/documents/${documentId}/qr-unclaim`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user: currentUser })
+        headers: { 'Content-Type': 'application/json' }
       });
-      const result = await res.json();
-      if (!res.ok) {
-        addNotification('error', result.message || 'Failed to unclaim QR code.');
-        return { success: false, message: result.message };
+      const result = await res.json().catch(() => null);
+      if (!res.ok || !result?.success) {
+        const message = result?.message || result?.error || 'Failed to unclaim QR code.';
+        addNotification('error', message);
+        return { success: false, message };
       }
-      await fetchAllFromBackend();
+      await refreshEntities('documents', 'auditLogs');
       addNotification('success', `QR code claim reset for document #${doc.documentNumber}.`);
       return { success: true, message: result.message };
-    } catch (e) {
-      addNotification('warning', `QR code claim reset locally (offline mode) for document #${doc.documentNumber}.`);
-      return { success: true, message: `QR code claim reset locally for document #${doc.documentNumber}.` };
+    } catch (e: any) {
+      const message = e?.message || 'Failed to unclaim QR code.';
+      addNotification('error', message);
+      return { success: false, message };
     }
   };
 
@@ -1275,23 +1181,16 @@ export const ArchiveProvider: React.FC<{ children: React.ReactNode }> = ({ child
       const res = await fetch('/api/checkouts/request', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ documentId, purpose, dueDate, user: currentUser })
+        body: JSON.stringify({ documentId, purpose, dueDate })
       });
-      const chk = await res.json();
-      setCheckouts(prev => [chk, ...prev]);
-      setDocuments(prev => prev.map(d => d.id === documentId ? { ...d, status: 'REQUESTED' } : d));
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data?.id) throw new Error(data?.error || 'Failed to submit borrow request.');
+      await refreshEntities('checkouts', 'documents', 'auditLogs');
       addNotification('info', `Borrow request submitted for Document #${doc.documentNumber}`);
-      return chk;
-    } catch (e) {
-      const newChk: CheckoutRecord = {
-        id: 'chk-' + Date.now(), documentId, documentNumber: doc.documentNumber, documentTitle: doc.title,
-        requestedByUserId: currentUser.id, requestedByUserName: currentUser.fullName, requestedByDepartment: currentUser.departmentName,
-        requestDate: new Date().toISOString().split('T')[0], dueDate, status: 'REQUESTED', purpose, conditionOut: doc.condition
-      };
-      setCheckouts(prev => [newChk, ...prev]);
-      setDocuments(prev => prev.map(d => d.id === documentId ? { ...d, status: 'REQUESTED' } : d));
-      addNotification('info', `Borrow request submitted for Document #${doc.documentNumber}`);
-      return newChk;
+      return data;
+    } catch (e: any) {
+      addNotification('error', e?.message || 'Failed to submit borrow request.');
+      throw e;
     }
   };
 
@@ -1299,36 +1198,37 @@ export const ArchiveProvider: React.FC<{ children: React.ReactNode }> = ({ child
     const chk = checkouts.find(c => c.id === checkoutId);
     if (!chk) return;
 
-    setCheckouts(prev => prev.map(c => c.id === checkoutId ? { ...c, status: 'APPROVED', approvedByUserId: currentUser.id, approvedByUserName: currentUser.fullName } : c));
-    setDocuments(prev => prev.map(d => d.id === chk.documentId ? { ...d, status: 'APPROVED' } : d));
-
     try {
-      await fetch(`/api/checkouts/${checkoutId}/approve`, {
+      const res = await fetch(`/api/checkouts/${checkoutId}/approve`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user: currentUser })
+        headers: { 'Content-Type': 'application/json' }
       });
-    } catch (e) {}
-
-    addNotification('success', `Borrow request for #${chk.documentNumber} approved.`);
+      const data = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(data?.error || 'Failed to approve borrow request.');
+      await refreshEntities('checkouts', 'documents', 'auditLogs');
+      addNotification('success', `Borrow request for #${chk.documentNumber} approved.`);
+    } catch (e: any) {
+      addNotification('error', e?.message || 'Failed to approve borrow request.');
+    }
   };
 
   const rejectCheckout = async (checkoutId: string, reason: string): Promise<void> => {
     const chk = checkouts.find(c => c.id === checkoutId);
     if (!chk) return;
 
-    setCheckouts(prev => prev.map(c => c.id === checkoutId ? { ...c, status: 'REJECTED', notes: reason } : c));
-    setDocuments(prev => prev.map(d => d.id === chk.documentId ? { ...d, status: 'AVAILABLE' } : d));
-
     try {
-      await fetch(`/api/checkouts/${checkoutId}/reject`, {
+      const res = await fetch(`/api/checkouts/${checkoutId}/reject`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ reason, user: currentUser })
+        body: JSON.stringify({ reason })
       });
-    } catch (e) {}
-
-    addNotification('warning', `Request for #${chk.documentNumber} rejected.`);
+      const data = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(data?.error || 'Failed to reject borrow request.');
+      await refreshEntities('checkouts', 'documents', 'auditLogs');
+      addNotification('warning', `Request for #${chk.documentNumber} rejected.`);
+    } catch (e: any) {
+      addNotification('error', e?.message || 'Failed to reject borrow request.');
+    }
   };
 
   const processCheckoutDispatch = async (checkoutId: string, tempLocationId?: string): Promise<void> => {
@@ -1337,23 +1237,19 @@ export const ArchiveProvider: React.FC<{ children: React.ReactNode }> = ({ child
     const doc = documents.find(d => d.id === chk.documentId);
     if (!doc) return;
 
-    const targetTempLocId = tempLocationId || 'loc-dept-eng-office';
-    const fromPath = calculatePath(doc.currentLocationId);
-    const toPath = calculatePath(targetTempLocId);
-
-    setCheckouts(prev => prev.map(c => c.id === checkoutId ? { ...c, status: 'CHECKED_OUT', checkoutDate: new Date().toISOString().split('T')[0], checkedOutByUserId: currentUser.id, checkedOutByUserName: currentUser.fullName } : c));
-    setDocuments(prev => prev.map(d => d.id === chk.documentId ? { ...d, currentLocationId: targetTempLocId, status: 'CHECKED_OUT', custodianName: `${chk.requestedByDepartment} (${chk.requestedByUserName})` } : d));
-
     try {
-      await fetch(`/api/checkouts/${checkoutId}/dispatch`, {
+      const res = await fetch(`/api/checkouts/${checkoutId}/dispatch`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tempLocationId: targetTempLocId, user: currentUser, fromPath, toPath })
+        body: JSON.stringify({ tempLocationId })
       });
-      await fetchAllFromBackend();
-    } catch (e) {}
-
-    addNotification('success', `Document #${doc.documentNumber} checked out successfully.`);
+      const data = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(data?.error || 'Failed to dispatch checkout.');
+      await refreshEntities('checkouts', 'documents', 'movements', 'locations', 'auditLogs');
+      addNotification('success', `Document #${doc.documentNumber} checked out successfully.`);
+    } catch (e: any) {
+      addNotification('error', e?.message || 'Failed to dispatch checkout.');
+    }
   };
 
   const processCheckInReturn = async (checkoutId: string, conditionIn: DocumentItem['condition'], returnLocationId: string, notes?: string): Promise<void> => {
@@ -1362,22 +1258,19 @@ export const ArchiveProvider: React.FC<{ children: React.ReactNode }> = ({ child
     const doc = documents.find(d => d.id === chk.documentId);
     if (!doc) return;
 
-    const fromPath = calculatePath(doc.currentLocationId);
-    const toPath = calculatePath(returnLocationId);
-
-    setCheckouts(prev => prev.map(c => c.id === checkoutId ? { ...c, status: 'RETURNED', returnDate: new Date().toISOString().split('T')[0], returnedByUserName: currentUser.fullName, conditionIn, notes: notes || c.notes } : c));
-    setDocuments(prev => prev.map(d => d.id === chk.documentId ? { ...d, currentLocationId: returnLocationId, status: 'AVAILABLE', condition: conditionIn, custodianName: 'Records Office' } : d));
-
     try {
-      await fetch(`/api/checkouts/${checkoutId}/return`, {
+      const res = await fetch(`/api/checkouts/${checkoutId}/return`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ conditionIn, returnLocationId, notes, user: currentUser, fromPath, toPath })
+        body: JSON.stringify({ conditionIn, returnLocationId, notes })
       });
-      await fetchAllFromBackend();
-    } catch (e) {}
-
-    addNotification('success', `Document #${doc.documentNumber} returned to archive location.`);
+      const data = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(data?.error || 'Failed to process return.');
+      await refreshEntities('checkouts', 'documents', 'movements', 'locations', 'auditLogs');
+      addNotification('success', `Document #${doc.documentNumber} returned to archive location.`);
+    } catch (e: any) {
+      addNotification('error', e?.message || 'Failed to process return.');
+    }
   };
 
   const lookupByQR = (qrString: string) => {
@@ -1405,6 +1298,23 @@ export const ArchiveProvider: React.FC<{ children: React.ReactNode }> = ({ child
     if (foundLoc) return { type: 'LOCATION' as const, data: foundLoc };
 
     return null;
+  };
+
+  // Remote scan lookup fallback: resolves codes the local cache does not know
+  // (e.g. records registered on another workstation) via the server, which
+  // also enforces confidentiality on the matched record.
+  const lookupByQRRemote = async (code: string): Promise<{ type: 'DOCUMENT' | 'LOCATION' | 'BUNDLE'; data: DocumentItem | LocationItem | DocumentBundle } | null> => {
+    try {
+      const res = await fetch(`/api/lookup?code=${encodeURIComponent(code.trim())}`);
+      if (!res.ok) return null;
+      const data = await res.json();
+      if (data?.type === 'document' && data.item) return { type: 'DOCUMENT', data: data.item };
+      if (data?.type === 'bundle' && data.item) return { type: 'BUNDLE', data: data.item };
+      if (data?.type === 'location' && data.item) return { type: 'LOCATION', data: data.item };
+      return null;
+    } catch {
+      return null;
+    }
   };
 
   return (
@@ -1474,6 +1384,7 @@ export const ArchiveProvider: React.FC<{ children: React.ReactNode }> = ({ child
         processCheckoutDispatch,
         processCheckInReturn,
         lookupByQR,
+        lookupByQRRemote,
         calculatePath,
         notifications,
         addNotification,

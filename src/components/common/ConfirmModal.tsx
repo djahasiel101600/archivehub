@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { AlertTriangle, X } from 'lucide-react';
 
 interface ConfirmModalProps {
@@ -22,6 +22,16 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
   cancelText = 'Cancel',
   variant = 'danger'
 }) => {
+  // Escape cancels the confirmation.
+  useEffect(() => {
+    if (!isOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [isOpen, onClose]);
+
   if (!isOpen) return null;
 
   const getVariantStyles = () => {
@@ -29,17 +39,17 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
       case 'danger':
         return {
           iconBg: 'bg-rose-100 text-rose-600 dark:bg-rose-950/60 dark:text-rose-400',
-          buttonBg: 'bg-rose-600 hover:bg-rose-700 text-white shadow-rose-600/20'
+          buttonBg: 'bg-rose-600 hover:bg-rose-700 text-white'
         };
       case 'warning':
         return {
           iconBg: 'bg-amber-100 text-amber-600 dark:bg-amber-950/60 dark:text-amber-400',
-          buttonBg: 'bg-amber-600 hover:bg-amber-700 text-white shadow-amber-600/20'
+          buttonBg: 'bg-amber-600 hover:bg-amber-700 text-white'
         };
       default:
         return {
-          iconBg: 'bg-indigo-100 text-indigo-600 dark:bg-indigo-950/60 dark:text-indigo-400',
-          buttonBg: 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-indigo-600/20'
+          iconBg: 'bg-teal-100 text-teal-600 dark:bg-teal-950/60 dark:text-teal-400',
+          buttonBg: 'bg-teal-600 hover:bg-teal-700 text-white'
         };
     }
   };
@@ -47,18 +57,21 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
   const styles = getVariantStyles();
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 animate-in fade-in">
+    <div className="fixed inset-0 z-50 bg-zinc-950/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 animate-in fade-in" onClick={onClose}>
       <div 
-        className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-md w-full max-h-[90vh] flex flex-col overflow-hidden shadow-2xl my-auto"
+        className="card max-w-md w-full max-h-[90vh] flex flex-col overflow-hidden shadow-2xl my-auto"
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex justify-between items-start gap-3 px-6 pt-6 pb-2 flex-shrink-0">
           <div className="flex items-center gap-3">
-            <div className={`p-2.5 rounded-2xl flex-shrink-0 ${styles.iconBg}`}>
-              <AlertTriangle className="w-5 h-5" />
+            <div className={`p-2.5 rounded-xl flex-shrink-0 ${styles.iconBg}`}>
+              <AlertTriangle className="w-5 h-5" aria-hidden="true" />
             </div>
             <div>
-              <h3 className="font-extrabold text-slate-900 dark:text-slate-100 text-base">
+              <h3 className="font-semibold text-zinc-900 dark:text-zinc-100 text-base">
                 {title}
               </h3>
             </div>
@@ -66,21 +79,22 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
           <button
             type="button"
             onClick={onClose}
-            className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1 rounded-lg transition-colors"
+            aria-label="Close dialog"
+            className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 p-1 rounded-lg transition-colors"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
-        <div className="px-6 py-2 text-xs text-slate-600 dark:text-slate-300 leading-relaxed overflow-y-auto flex-1">
+        <div className="px-6 py-2 text-xs text-zinc-600 dark:text-zinc-300 leading-relaxed overflow-y-auto flex-1">
           {message}
         </div>
 
-        <div className="px-6 py-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 flex justify-end gap-2.5 flex-shrink-0">
+        <div className="px-6 py-4 border-t border-zinc-100 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-800/50 flex justify-end gap-2.5 flex-shrink-0">
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-2 text-xs font-semibold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-xl transition-colors"
+            className="btn-secondary"
           >
             {cancelText}
           </button>
@@ -90,7 +104,7 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
               onConfirm();
               onClose();
             }}
-            className={`px-5 py-2 text-xs font-bold rounded-xl shadow-md transition-colors ${styles.buttonBg}`}
+            className={`btn ${styles.buttonBg}`}
           >
             {confirmText}
           </button>
