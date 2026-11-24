@@ -12,7 +12,6 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ onClose }) => {
   const [fullName, setFullName] = useState(currentUser.fullName || '');
   const [email, setEmail] = useState(currentUser.email || '');
   const [title, setTitle] = useState(currentUser.title || '');
-  const [departmentId, setDepartmentId] = useState(currentUser.departmentId || '');
 
   // Password change (optional)
   const [showPasswordSection, setShowPasswordSection] = useState(false);
@@ -40,8 +39,6 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ onClose }) => {
       fullName: fullName.trim(),
       email: email.trim().toLowerCase(),
       title: title.trim(),
-      departmentId,
-      departmentName: departments.find(d => d.id === departmentId)?.name || currentUser.departmentName
     };
 
     if (showPasswordSection && newPassword) {
@@ -149,22 +146,6 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ onClose }) => {
                 placeholder="e.g. Records Officer II"
                 className="input font-medium"
               />
-            </div>
-
-            <div>
-              <label className="label flex items-center gap-1.5">
-                <Building2 className="w-3.5 h-3.5 text-zinc-400" />
-                Department
-              </label>
-              <select
-                value={departmentId}
-                onChange={(e) => setDepartmentId(e.target.value)}
-                className="input font-semibold"
-              >
-                {departments.map(d => (
-                  <option key={d.id} value={d.id}>{d.name}</option>
-                ))}
-              </select>
             </div>
 
             {/* Optional Password Change Section */}

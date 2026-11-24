@@ -96,11 +96,6 @@ export const CameraQRScannerModal: React.FC<CameraQRScannerModalProps> = ({
     }
   };
 
-  const handleSampleScan = (sampleCode: string) => {
-    setManualInput(sampleCode);
-    handleProcessCode(sampleCode);
-  };
-
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-900/70 backdrop-blur-sm p-4 animate-in fade-in duration-200">
       <div className="card max-w-xl w-full overflow-hidden flex flex-col max-h-[90vh] my-auto" role="dialog" aria-modal="true">
@@ -222,29 +217,6 @@ export const CameraQRScannerModal: React.FC<CameraQRScannerModalProps> = ({
                 </div>
               </div>
 
-              {/* Preset Sample Quick Buttons */}
-              <div>
-                <span className="block text-[11px] text-zinc-400 uppercase font-semibold tracking-wider mb-2">
-                  Try Demo Physical QR Tags:
-                </span>
-                <div className="flex flex-wrap gap-2">
-                  {[
-                    { label: 'Doc: ENG-ARCH-0001', code: 'DOC-ENG-ARCH-0001' },
-                    { label: 'Doc: Dam Blueprint (DOC-8F29A1)', code: 'DOC-8F29A1' },
-                    { label: 'Box: Box B-017', code: 'LOC-BOX-B017' },
-                    { label: 'Folder: Folder F-2026-003', code: 'LOC-FLD-003' }
-                  ].map(sample => (
-                    <button
-                      key={sample.code}
-                      type="button"
-                      onClick={() => handleSampleScan(sample.code)}
-                      className="btn btn-secondary btn-xs font-mono"
-                    >
-                      {sample.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
             </form>
           )}
 

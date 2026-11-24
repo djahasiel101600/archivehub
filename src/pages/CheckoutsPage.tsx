@@ -12,7 +12,10 @@ import {
   Clock,
   RotateCcw,
   Check,
-  X
+  X,
+  ChevronDown,
+  PlusCircle,
+  Loader2
 } from 'lucide-react';
 
 interface CheckoutsPageProps {
@@ -27,10 +30,12 @@ export const CheckoutsPage: React.FC<CheckoutsPageProps> = ({ onSelectDocument }
   const {
     checkouts,
     documents,
+    locations,
     approveCheckout,
     rejectCheckout,
     processCheckoutDispatch,
-    processCheckInReturn
+    processCheckInReturn,
+    addNotification
   } = useArchive();
 
   const [activeTab, setActiveTab] = useState<CirculationTab>('all');
@@ -44,6 +49,11 @@ export const CheckoutsPage: React.FC<CheckoutsPageProps> = ({ onSelectDocument }
   // Reject confirmation state
   const [rejectChkId, setRejectChkId] = useState<string | null>(null);
 
+  // Release loan dialog state
+  const [releaseChkId, setReleaseChkId] = useState<string | null>(null);
+  const [releaseTempLocationId, setReleaseTempLocationId] = useState('');
+  const [isReleasing, setIsReleasing] = useState(false);
+
   const pendingList = checkouts.filter(c => c.status === 'REQUESTED');
   const activeList = checkouts.filter(c => c.status === 'CHECKED_OUT');
   const overdueList = checkouts.filter(c => c.status === 'OVERDUE');
@@ -52,7 +62,12 @@ export const CheckoutsPage: React.FC<CheckoutsPageProps> = ({ onSelectDocument }
   const filteredCheckouts = checkouts.filter(c => {
     if (activeTab === 'pending') return c.status === 'REQUESTED';
     if (activeTab === 'active') return c.status === 'CHECKED_OUT';
-    if (activeTab === 'overdue') return c.status === 'OVERDUE';
+    if (activeTab === 'overdue') {
+      // Derive OVERDUE: checked out with due date in the past
+      const due = new Date(c.dueDate);
+      const today = new Date();
+      return c.status === 'CHECKED_OUT' && due < today;
+    }
     if (activeTab === 'returned') return c.status === 'RETURNED';
     return true;
   });
@@ -89,6 +104,32 @@ export const CheckoutsPage: React.FC<CheckoutsPageProps> = ({ onSelectDocument }
       setReturnChkId(null);
     } finally {
       setIsReturning(false);
+    }
+  };
+
+  // Release loan dialog handlers
+  const openReleaseDialog = (chkId: string) => {
+    setReleaseChkId(chkId);
+    setReleaseTempLocationId('');
+  };
+
+  const confirmReleaseLoan = async () => {
+    if (!releaseChkId || !releaseTempLocationId || isReleasing) return;
+    const chk = checkouts.find(c => c.id === releaseChkId);
+    if (!chk) return;
+    setIsReleasing(true);
+    try {
+      // Step 1: Approve the checkout request
+      await approveCheckout(releaseChkId);
+      // Step 2: Dispatch with the staging location (sequential, awaited)
+      await processCheckoutDispatch(releaseChkId, releaseTempLocationId);
+      setReleaseChkId(null);
+      setReleaseTempLocationId('');
+    } catch (err: any) {
+      // On failure, stay on the page — do not advance to a dead state
+      addNotification('error', err?.message || 'Failed to release loan.');
+    } finally {
+      setIsReleasing(false);
     }
   };
 
@@ -186,7 +227,7 @@ export const CheckoutsPage: React.FC<CheckoutsPageProps> = ({ onSelectDocument }
                   </div>
                 </div>
 
-                {(chk.status === 'REQUESTED' || chk.status === 'CHECKED_OUT' || chk.status === 'OVERDUE') && (
+                {(chk.status === 'REQUESTED' || chk.status === 'APPROVED' || chk.status === 'CHECKED_OUT' || chk.status === 'OVERDUE') && (
                   <div className="flex flex-wrap items-center justify-end gap-1.5 pt-1">
                     {chk.status === 'REQUESTED' && (
                       <>
@@ -200,14 +241,32 @@ export const CheckoutsPage: React.FC<CheckoutsPageProps> = ({ onSelectDocument }
                         </button>
                         <button
                           type="button"
-                          onClick={() => {
-                            approveCheckout(chk.id);
-                            processCheckoutDispatch(chk.id);
-                          }}
+                          onClick={() => openReleaseDialog(chk.id)}
                           className="btn-primary btn-sm"
                         >
                           <Check className="w-3.5 h-3.5" aria-hidden="true" />
                           Approve & Release
+                        </button>
+                      </>
+                    )}
+
+                    {chk.status === 'APPROVED' && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => openReleaseDialog(chk.id)}
+                          className="btn btn-sm bg-amber-600 text-white hover:bg-amber-700"
+                        >
+                          <PlusCircle className="w-3.5 h-3.5" aria-hidden="true" />
+                          Release to Borrower
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setRejectChkId(chk.id)}
+                          className="btn-danger-outline btn-sm"
+                        >
+                          <X className="w-3.5 h-3.5" aria-hidden="true" />
+                          Cancel Approval
                         </button>
                       </>
                     )}
@@ -307,6 +366,77 @@ export const CheckoutsPage: React.FC<CheckoutsPageProps> = ({ onSelectDocument }
               >
                 <CheckCircle2 className="w-4 h-4" aria-hidden="true" />
                 {isReturning ? 'Processing…' : 'Confirm Return'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Release loan dialog: collect staging location, then approve + dispatch sequentially */}
+      {releaseChkId && (
+        <div className="fixed inset-0 z-50 bg-zinc-950/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 animate-in fade-in">
+          <div className="card max-w-md w-full max-h-[90vh] flex flex-col overflow-hidden shadow-2xl my-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="flex justify-between items-start gap-3 px-6 pt-6 pb-2">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="p-2.5 rounded-xl bg-amber-100 text-amber-600 dark:bg-amber-950/60 dark:text-amber-400 flex-shrink-0">
+                  <PlusCircle className="w-5 h-5" aria-hidden="true" />
+                </div>
+                <div className="min-w-0">
+                  <h3 className="font-semibold text-zinc-900 dark:text-zinc-100 text-base">Release Loan to Borrower</h3>
+                  <p className="text-xs text-zinc-500 dark:text-zinc-400 truncate">
+                    {checkouts.find(c => c.id === releaseChkId)?.documentNumber} · {checkouts.find(c => c.id === releaseChkId)?.documentTitle}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setReleaseChkId(null)}
+                aria-label="Close release dialog"
+                className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 p-1 rounded-lg transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="px-6 py-3 space-y-4 overflow-y-auto flex-1 text-sm">
+              <div className="text-xs text-zinc-600 dark:text-zinc-300 space-y-1">
+                <p>
+                  Borrower: <span className="font-medium">{checkouts.find(c => c.id === releaseChkId)?.requestedByUserName}</span> ({checkouts.find(c => c.id === releaseChkId)?.requestedByDepartment})
+                </p>
+                <p className="flex items-center gap-1.5 flex-wrap">
+                  Staging/temporary location (required):
+                  <select
+                    value={releaseTempLocationId}
+                    onChange={(e) => setReleaseTempLocationId(e.target.value)}
+                    className="input"
+                  >
+                    <option value="">Select a location…</option>
+                    {locations.map(loc => (
+                      <option key={loc.id} value={loc.id}>
+                        [{loc.type}] {loc.name}
+                      </option>
+                    ))}
+                  </select>
+                </p>
+                <p className="field-hint">The physical document moves to this staging location upon release.</p>
+              </div>
+            </div>
+
+            <div className="px-6 py-4 border-t border-zinc-100 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-800/50 flex justify-end gap-2">
+              <button type="button" onClick={() => setReleaseChkId(null)} className="btn-secondary">
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmReleaseLoan}
+                disabled={isReleasing || !releaseTempLocationId}
+                className="btn bg-amber-600 text-white hover:bg-amber-700"
+              >
+                {isReleasing ? (
+                  <><Loader2 className="w-4 h-4 animate-spin" /><span>Releasing…</span></>
+                ) : (
+                  <><Check className="w-4 h-4" /><span>Release to Borrower</span></>
+                )}
               </button>
             </div>
           </div>

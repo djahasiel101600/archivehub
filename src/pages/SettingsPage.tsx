@@ -91,6 +91,8 @@ export const SettingsPage: React.FC = () => {
     approveUser,
     rejectUser,
     signupUser,
+    createUser,
+    refreshEntities,
     deleteUser,
     currentUser,
     documents,
@@ -384,6 +386,7 @@ export const SettingsPage: React.FC = () => {
   const [newUserRole, setNewUserRole] = useState<RoleCode>('DEPT_USER');
   const [newUserTitle, setNewUserTitle] = useState('');
   const [newUserAutoApprove, setNewUserAutoApprove] = useState(true);
+  const [editUserRole, setEditUserRole] = useState<{ id: string; role: string } | null>(null);
   const [userFilterTab, setUserFilterTab] = useState<'ALL' | 'APPROVED' | 'PENDING' | 'REJECTED'>('ALL');
   const [formError, setFormError] = useState('');
 
@@ -398,14 +401,15 @@ export const SettingsPage: React.FC = () => {
 
     const dept = departments.find(d => d.id === newUserDeptId);
 
-    const res = await signupUser({
-      fullName: newUserName.trim(),
+    const res = await createUser({
       email: newUserEmail.trim(),
-      password: newUserPassword,
+      fullName: newUserName.trim(),
+      password: newUserPassword || undefined,
       role: newUserRole,
       departmentId: newUserDeptId,
       departmentName: dept ? dept.name : 'General Staff',
-      title: newUserTitle.trim() || 'Archive Staff'
+      title: newUserTitle.trim() || 'Archive Staff',
+      autoApprove: newUserAutoApprove
     });
 
     if (!res.success) {
@@ -422,6 +426,27 @@ export const SettingsPage: React.FC = () => {
       setNewUserEmail('');
       setNewUserPassword('');
       setNewUserTitle('');
+    }
+  };
+
+  const handleRoleChange = async (userId: string, newRole: string) => {
+    setEditUserRole(null);
+    try {
+      const res = await fetch(`/api/users/${userId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ role: newRole })
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(data?.error || data?.message || 'Failed to update role.');
+      const chk = availableUsers.find(u => u.id === userId);
+      if (chk) {
+        setEditUserRole({ id: userId, role: chk.role });
+      }
+      setEditUserRole(null);
+      addNotification('success', `Role updated to ${newRole}.`);
+    } catch (e: any) {
+      addNotification('error', e?.message || 'Failed to update role.');
     }
   };
 

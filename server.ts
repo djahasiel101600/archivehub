@@ -304,6 +304,49 @@ async function startServer() {
     }
   });
 
+  // Admin-only: create a staff account with the chosen role.
+  // Public signup is restricted to DEPT_USER/AUDITOR; admins use this endpoint
+  // to provision RECORDS_OFFICER, RECORDS_ADMIN, ADMIN, and AUDITOR accounts.
+  app.post("/api/users", async (req, res) => {
+    try {
+      if (!req.authUser || req.authUser.role !== "ADMIN") {
+        return res.status(403).json({ error: "Administrator access required." });
+      }
+      const { email, fullName, password, role, departmentId, departmentName, title, autoApprove } = req.body;
+      if (!email || !fullName) {
+        return res.status(400).json({ success: false, message: "Email and full name are required." });
+      }
+      const validRoles: string[] = ["ADMIN", "RECORDS_ADMIN", "RECORDS_OFFICER", "DEPT_USER", "AUDITOR"];
+      if (!validRoles.includes(role)) {
+        return res.status(400).json({ success: false, message: "Invalid role specified." });
+      }
+      const existing = await repo.getUserByEmail(String(email).trim().toLowerCase());
+      if (existing) {
+        return res.status(400).json({ success: false, message: "An account with this email address already exists." });
+      }
+      const tempPassword = password || "ArchiveHub-" + Math.random().toString(36).slice(2, 10);
+      const user = await repo.createUser({
+        email: String(email).trim().toLowerCase(),
+        fullName,
+        password: tempPassword,
+        role,
+        departmentId: departmentId || "",
+        departmentName: departmentName || "",
+        title: title || "",
+        avatarUrl: undefined,
+        approvalStatus: autoApprove === false ? "PENDING_APPROVAL" : "APPROVED",
+      });
+      res.status(201).json({
+        success: true,
+        user: sanitizeUser(user),
+        tempPassword: autoApprove === false ? undefined : tempPassword,
+        message: `Account created for ${user.fullName} with role ${role}.`,
+      });
+    } catch (err: any) {
+      res.status(500).json({ success: false, message: err.message });
+    }
+  });
+
   // Full-database backup export (all tables as raw rows)
   app.get("/api/export", async (req, res) => {
     try {
@@ -558,9 +601,11 @@ async function startServer() {
     try {
       const { currentPassword, newPassword, ...rest } = req.body;
 
-      // Only profile fields the account owner may self-update (role & approval stay admin-controlled)
+      // Only profile fields the account owner may self-update (role & approval stay admin-controlled).
+      // departmentId/departmentName are intentionally EXCLUDED: a user must not be able to
+      // self-grant access to another department's CONFIDENTIAL records (see C-03).
       const allowed: repo.UserProfileUpdates = {};
-      (['fullName', 'email', 'title', 'avatarUrl', 'departmentId', 'departmentName'] as const).forEach((key) => {
+      (['fullName', 'email', 'title', 'avatarUrl'] as const).forEach((key) => {
         if (rest[key] !== undefined) (allowed as any)[key] = rest[key];
       });
 
@@ -905,7 +950,7 @@ async function startServer() {
       }
       const toPath = calculateLocationPath(locations, toLocationId);
       const result = await repo.batchMoveDocuments(documentIds, toLocationId, reason, req.authUser, fromPaths, toPath);
-      res.json({ success: true, moved: result.moved, errors: [] });
+      res.json({ success: true, moved: result.moved, errors: result.errors });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }

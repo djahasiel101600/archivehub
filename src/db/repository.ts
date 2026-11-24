@@ -61,7 +61,12 @@ function refreshMemoryOccupancy(): void {
 /** DATE columns arrive as Date objects; normalize back to YYYY-MM-DD strings. */
 function dateStr(value: any): any {
   if (value === null || value === undefined || value === '') return null;
-  if (value instanceof Date) return value.toISOString().slice(0, 10);
+  if (value instanceof Date) {
+    const y = value.getFullYear();
+    const m = String(value.getMonth() + 1).padStart(2, '0');
+    const d = String(value.getDate()).padStart(2, '0');
+    return y + '-' + m + '-' + d;
+  }
   return String(value).slice(0, 10);
 }
 
@@ -1129,9 +1134,11 @@ export async function deleteDocument(id: string, user: User): Promise<boolean> {
   const disposalDate = now.slice(0, 10);
   const certificateNumber = 'DEL-' + randomUUID().slice(0, 8).toUpperCase();
 
+  const ACTIVE_CHECKOUT_STATUSES = ['REQUESTED', 'APPROVED', 'CHECKED_OUT', 'OVERDUE'];
+
   if (!isDbAvailable()) {
     const doc = memoryDocuments.find(d => d.id === id);
-    if (!doc || doc.status === 'CHECKED_OUT') return false;
+    if (!doc || ACTIVE_CHECKOUT_STATUSES.includes(doc.status)) return false;
     memoryDisposalRecords.unshift({
       id: 'disp-' + randomUUID(),
       documentId: id,
@@ -1172,7 +1179,7 @@ export async function deleteDocument(id: string, user: User): Promise<boolean> {
       return false;
     }
     const doc = res.rows[0];
-    if (doc.status === 'CHECKED_OUT') {
+    if (ACTIVE_CHECKOUT_STATUSES.includes(doc.status)) {
       await client.query('ROLLBACK');
       return false;
     }
@@ -2095,9 +2102,33 @@ export async function removeDocumentFromBundle(bundleId: string, docId: string, 
 // Each bulk operation runs as ONE transaction with set-based SQL, so hundreds
 // of records are handled in a handful of statements instead of N round-trips.
 
+// Fields safe for bulk update via the bulk-update API. Status, confidentiality
+// transitions and other lifecycle changes must go through their dedicated
+// endpoints so business rules and audit trails are enforced.
+const BULK_UPDATE_ALLOWED_FIELDS = new Set([
+  'confidentiality',
+  'condition',
+  'departmentId',
+  'departmentName',
+  'title',
+  'subject',
+  'description',
+  'custodianName',
+  'conditionNotes',
+]);
+
 export async function bulkUpdateDocuments(documentIds: string[], updates: Partial<DocumentItem>, user: User): Promise<{ updated: number }> {
   const ids = Array.from(new Set(documentIds));
   if (ids.length === 0) return { updated: 0 };
+
+  // Whitelist: strip any fields not explicitly allowed for bulk update.
+  const safeUpdates: Partial<DocumentItem> = {};
+  for (const key of Object.keys(updates)) {
+    if (BULK_UPDATE_ALLOWED_FIELDS.has(key)) {
+      (safeUpdates as any)[key] = (updates as any)[key];
+    }
+  }
+
   const now = new Date().toISOString();
 
   if (!isDbAvailable()) {
@@ -2105,17 +2136,17 @@ export async function bulkUpdateDocuments(documentIds: string[], updates: Partia
     memoryDocuments = memoryDocuments.map(d => {
       if (!ids.includes(d.id)) return d;
       updated++;
-      return { ...d, ...updates, updatedAt: now };
+      return { ...d, ...safeUpdates, updatedAt: now };
     });
     memoryAuditLogs.unshift({
       id: 'aud-' + randomUUID(), userId: user.id, userName: user.fullName, userRole: user.role,
       action: 'BULK_UPDATE', entityType: 'DOCUMENT', entityId: 'bulk', entityName: 'Bulk update',
-      timestamp: now, details: `Bulk-updated ${updated} document(s). Fields: ${Object.keys(updates).join(', ')}.`
+      timestamp: now, details: `Bulk-updated ${updated} document(s). Fields: ${Object.keys(safeUpdates).join(', ')}.`
     });
     return { updated };
   }
 
-  const { fields, values, nextIdx } = documentUpdateAssignments(updates, 1);
+  const { fields, values, nextIdx } = documentUpdateAssignments(safeUpdates, 1);
   if (fields.length === 0) return { updated: 0 };
 
   const client = await pgPool!.connect();
@@ -2130,7 +2161,7 @@ export async function bulkUpdateDocuments(documentIds: string[], updates: Partia
     await client.query(
       `INSERT INTO audit_logs (id, user_id, user_name, user_role, action, entity_type, entity_id, entity_name, details)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-      ['aud-' + randomUUID(), user.id, user.fullName, user.role, 'BULK_UPDATE', 'DOCUMENT', 'bulk', 'Bulk update', `Bulk-updated ${res.rowCount ?? 0} document(s). Fields: ${Object.keys(updates).join(', ')}.`]
+      ['aud-' + randomUUID(), user.id, user.fullName, user.role, 'BULK_UPDATE', 'DOCUMENT', 'bulk', 'Bulk update', `Bulk-updated ${res.rowCount ?? 0} document(s). Fields: ${Object.keys(safeUpdates).join(', ')}.`]
     );
     await client.query('COMMIT');
     return { updated: res.rowCount ?? 0 };
@@ -2142,6 +2173,11 @@ export async function bulkUpdateDocuments(documentIds: string[], updates: Partia
   }
 }
 
+export interface BatchMoveResult {
+  moved: number;
+  errors: Array<{ id: string; reason: string }>;
+}
+
 export async function batchMoveDocuments(
   documentIds: string[],
   toLocationId: string,
@@ -2149,17 +2185,21 @@ export async function batchMoveDocuments(
   user: User,
   fromPaths: Record<string, string>,
   toPath: string
-): Promise<{ moved: number }> {
+): Promise<BatchMoveResult> {
   const ids = Array.from(new Set(documentIds));
-  if (ids.length === 0) return { moved: 0 };
   const now = new Date().toISOString();
   const moveReason = reason || 'Batch Relocation Transfer';
+  const errors: Array<{ id: string; reason: string }> = [];
+  if (ids.length === 0) return { moved: 0, errors };
 
   if (!isDbAvailable()) {
     let moved = 0;
     for (const docId of ids) {
       const doc = memoryDocuments.find(d => d.id === docId);
-      if (!doc) continue;
+      if (!doc) {
+        errors.push({ id: docId, reason: 'record not found' });
+        continue;
+      }
       const previousLocationId = doc.currentLocationId;
       memoryDocuments = memoryDocuments.map(d => d.id === docId ? { ...d, currentLocationId: toLocationId, updatedAt: now } : d);
       memoryMovements.unshift({
@@ -2185,7 +2225,7 @@ export async function batchMoveDocuments(
       timestamp: now, details: `Batch-relocated ${moved} document(s) to [${toPath}]. Reason: ${moveReason}`
     });
     refreshMemoryOccupancy();
-    return { moved };
+    return { moved, errors };
   }
 
   const client = await pgPool!.connect();
@@ -2197,6 +2237,14 @@ export async function batchMoveDocuments(
     );
     if (prevRes.rows.length === 0) throw new Error('No matching documents found');
     const foundIds = prevRes.rows.map(r => r.id);
+    const foundIdSet = new Set(foundIds);
+
+    // Track which requested IDs were not found
+    for (const docId of ids) {
+      if (!foundIdSet.has(docId)) {
+        errors.push({ id: docId, reason: 'record not found' });
+      }
+    }
 
     // Record the movement trail BEFORE the location update so the SELECT still
     // sees each document's previous location.
@@ -2220,7 +2268,7 @@ export async function batchMoveDocuments(
 
     await refreshOccupancy(client, [...prevRes.rows.map(r => r.current_location_id), toLocationId]);
     await client.query('COMMIT');
-    return { moved: foundIds.length };
+    return { moved: foundIds.length, errors };
   } catch (err) {
     await client.query('ROLLBACK').catch(() => {});
     throw err;

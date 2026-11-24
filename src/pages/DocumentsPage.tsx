@@ -568,7 +568,7 @@ export const DocumentsPage: React.FC<DocumentsPageProps> = ({
 
           {/* Keyword Search */}
           <div className="relative flex-1 min-w-0 lg:min-w-[220px]">
-            <Search className="w-3.5 h-3.5 text-zinc-400 absolute left-3 top-1/2 -tranzinc-y-1/2 pointer-events-none" aria-hidden="true" />
+            <Search className="w-3.5 h-3.5 text-zinc-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" aria-hidden="true" />
             <input
               type="text"
               value={globalSearchQuery}

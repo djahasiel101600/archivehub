@@ -53,7 +53,8 @@ export const BatchRelocateModal: React.FC<BatchRelocateModalProps> = ({
   const [bundleTitle, setBundleTitle] = useState('');
   const [bundleNumber, setBundleNumber] = useState('');
   const [isExecuting, setIsExecuting] = useState(false);
-  const [resultMessage, setResultMessage] = useState('');
+  const [execResult, setExecResult] = useState<{ moved: number; errors: Array<{ id: string; reason: string }> } | null>(null);
+  const [execError, setExecError] = useState<string | null>(null);
 
   // Destination QR scan state (confirm step)
   const [showDestScanner, setShowDestScanner] = useState(false);
@@ -153,9 +154,11 @@ export const BatchRelocateModal: React.FC<BatchRelocateModalProps> = ({
   const handleExecute = async () => {
     if (!destinationId || scannedDocs.length === 0) return;
     setIsExecuting(true);
+    setExecError(null);
+    setExecResult(null);
     try {
       const docIds = scannedDocs.map(d => d.id);
-      await batchMoveDocuments(docIds, destinationId, reason);
+      const result = await batchMoveDocuments(docIds, destinationId, reason);
 
       if (wantBundle && bundleTitle.trim() && !isBundleMode) {
         const deptObj = departments[0];
@@ -181,10 +184,10 @@ export const BatchRelocateModal: React.FC<BatchRelocateModalProps> = ({
         });
       }
 
-      setResultMessage(`${scannedDocs.length} document(s) relocated to ${calculatePath(destinationId)}`);
+      setExecResult(result);
       setStep('done');
-    } catch (err) {
-      setResultMessage('Relocation failed. Please try again.');
+    } catch (err: any) {
+      setExecError(err?.message || 'Relocation failed. Please try again.');
       setStep('done');
     } finally {
       setIsExecuting(false);
@@ -199,7 +202,8 @@ export const BatchRelocateModal: React.FC<BatchRelocateModalProps> = ({
     setWantBundle(false);
     setBundleTitle('');
     setBundleNumber('');
-    setResultMessage('');
+    setExecResult(null);
+    setExecError(null);
   };
 
   const handleClose = () => {
@@ -531,16 +535,51 @@ export const BatchRelocateModal: React.FC<BatchRelocateModalProps> = ({
           {/* ===== STEP 3: DONE ===== */}
           {step === 'done' && (
             <div className="p-8 text-center space-y-4">
-              <div className="w-16 h-16 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mx-auto">
-                <CheckCircle2 className="w-8 h-8" />
-              </div>
-              <div>
-                <h4 className="font-bold text-zinc-900 dark:text-zinc-100 text-base">Relocation Complete</h4>
-                <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">{resultMessage}</p>
-              </div>
-              <p className="text-[11px] text-zinc-400">
-                Each document now has a RELOCATION entry in the audit trail.
-              </p>
+              {execError !== null ? (
+                <>
+                  <div className="w-16 h-16 rounded-full bg-rose-100 dark:bg-rose-950 text-rose-600 dark:text-rose-400 flex items-center justify-center mx-auto">
+                    <AlertTriangle className="w-8 h-8" />
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-zinc-900 dark:text-zinc-100 text-base">Relocation Failed</h4>
+                    <p className="text-xs text-rose-600 dark:text-rose-400 mt-1">{execError}</p>
+                  </div>
+                </>
+              ) : execResult?.errors && execResult.errors.length > 0 ? (
+                <>
+                  <div className="w-16 h-16 rounded-full bg-amber-100 dark:bg-amber-950 text-amber-600 dark:text-amber-400 flex items-center justify-center mx-auto">
+                    <AlertTriangle className="w-8 h-8" />
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-zinc-900 dark:text-zinc-100 text-base">Partial Relocation</h4>
+                    <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
+                      {execResult.moved} of {scannedDocs.length} document(s) relocated. {execResult.errors.length} failed.
+                    </p>
+                    <div className="mt-3 max-h-40 overflow-y-auto text-left w-full">
+                      {execResult.errors.map((err, idx) => (
+                        <div key={idx} className="flex gap-2 p-1.5 text-xs bg-rose-50 dark:bg-rose-950/30 rounded-lg">
+                          <span className="text-rose-600 dark:text-rose-400 font-mono">{err.reason}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="w-16 h-16 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mx-auto">
+                    <CheckCircle2 className="w-8 h-8" />
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-zinc-900 dark:text-zinc-100 text-base">Relocation Complete</h4>
+                    <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
+                      {execResult?.moved} document(s) relocated to {calculatePath(destinationId)}
+                    </p>
+                  </div>
+                  <p className="text-[11px] text-zinc-400">
+                    Each document now has a RELOCATION entry in the audit trail.
+                  </p>
+                </>
+              )}
             </div>
           )}
 

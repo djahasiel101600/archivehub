@@ -62,13 +62,15 @@ export const DocumentDetailPage: React.FC<DocumentDetailPageProps> = ({
     deleteDocument,
     calculatePath,
     lookupByQR,
-    lookupByQRRemote
+    lookupByQRRemote,
+    addNotification
   } = useArchive();
 
   const [activeTab, setActiveTab] = useState<'movements' | 'checkouts' | 'audit'>('movements');
   const [showQRModal, setShowQRModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [selectedPhotoIndex, setSelectedPhotoIndex] = useState(0);
   
   // Relocation Modal State
@@ -944,10 +946,21 @@ export const DocumentDetailPage: React.FC<DocumentDetailPageProps> = ({
       <ConfirmModal
         isOpen={showDeleteConfirm}
         onClose={() => setShowDeleteConfirm(false)}
-        onConfirm={() => {
-          const success = deleteDocument(doc.id);
-          if (success) {
-            onBack();
+        onConfirm={async () => {
+          setIsDeleting(true);
+          try {
+            const success = await deleteDocument(doc.id);
+            setIsDeleting(false);
+            if (success) {
+              addNotification('warning', `Record #${doc.documentNumber} deleted.`);
+              setShowDeleteConfirm(false);
+              onBack();
+            } else {
+              addNotification('error', `Could not delete record #${doc.documentNumber} — it may be checked out or in use.`);
+            }
+          } catch (err: any) {
+            setIsDeleting(false);
+            addNotification('error', err?.message || 'Delete failed.');
           }
         }}
         title="Delete Registered Document Record"

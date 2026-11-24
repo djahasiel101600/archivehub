@@ -33,8 +33,6 @@ export const Header: React.FC<HeaderProps> = ({
 }) => {
   const {
     currentUser,
-    setCurrentUser,
-    availableUsers,
     logoutUser,
     globalSearchQuery,
     setGlobalSearchQuery,
@@ -143,7 +141,7 @@ export const Header: React.FC<HeaderProps> = ({
         {/* Global Search Input on Desktop (Hidden on mobile) */}
         <div className="flex-1 max-w-md relative hidden md:block">
           <div className="relative">
-            <Search className="w-4 h-4 text-zinc-400 absolute left-3.5 top-1/2 -tranzinc-y-1/2 pointer-events-none" aria-hidden="true" />
+            <Search className="w-4 h-4 text-zinc-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" aria-hidden="true" />
             <input
               type="text"
               aria-label="Search archive"
@@ -157,7 +155,7 @@ export const Header: React.FC<HeaderProps> = ({
                 type="button"
                 onClick={() => setGlobalSearchQuery('')}
                 aria-label="Clear search"
-                className="absolute right-2.5 top-1/2 -tranzinc-y-1/2 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 p-0.5"
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 p-0.5"
               >
                 <X className="w-3.5 h-3.5" />
               </button>
@@ -320,37 +318,6 @@ export const Header: React.FC<HeaderProps> = ({
                   </span>
                 </div>
 
-                <div className="px-2">
-                  <p className="text-[10px] uppercase font-semibold text-zinc-400 tracking-wider mb-1">
-                    Switch Active Persona
-                  </p>
-                  <div className="max-h-48 overflow-y-auto space-y-1 pr-1">
-                    {availableUsers.map(u => (
-                      <button
-                        key={u.id}
-                        type="button"
-                        onClick={() => {
-                          setCurrentUser(u);
-                          setShowUserDropdown(false);
-                        }}
-                        className={`w-full text-left p-2 rounded-lg text-xs flex items-center justify-between transition-colors ${
-                          u.id === currentUser.id
-                            ? 'bg-teal-50 text-teal-900 font-semibold dark:bg-teal-950/60 dark:text-teal-200'
-                            : 'hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300'
-                        }`}
-                      >
-                        <span className="truncate">
-                          <span className="block font-medium truncate">{u.fullName}</span>
-                          <span className="text-[10px] text-zinc-500 truncate">{u.departmentName}</span>
-                        </span>
-                        <span className="text-[9px] font-mono font-bold uppercase bg-zinc-100 dark:bg-zinc-800 px-1 py-0.5 rounded text-zinc-500 dark:text-zinc-400 flex-shrink-0 ml-1">
-                          {u.role}
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
                 <div className="pt-2 border-t border-zinc-100 dark:border-zinc-800 space-y-0.5">
                   <button
                     type="button"
@@ -401,7 +368,7 @@ export const Header: React.FC<HeaderProps> = ({
       {showMobileSearch && (
         <div className="px-3 pb-3 pt-2 border-t border-zinc-100 dark:border-zinc-800 md:hidden bg-white/95 dark:bg-zinc-900/95 animate-in slide-in-from-top-2 duration-150">
           <div className="relative">
-            <Search className="w-4 h-4 text-zinc-400 absolute left-3 top-1/2 -tranzinc-y-1/2 pointer-events-none" aria-hidden="true" />
+            <Search className="w-4 h-4 text-zinc-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" aria-hidden="true" />
             <input
               type="text"
               autoFocus
@@ -416,7 +383,7 @@ export const Header: React.FC<HeaderProps> = ({
                 type="button"
                 onClick={() => setGlobalSearchQuery('')}
                 aria-label="Clear search"
-                className="absolute right-2.5 top-1/2 -tranzinc-y-1/2 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 p-1"
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 p-1"
               >
                 <X className="w-3.5 h-3.5" />
               </button>

@@ -174,7 +174,7 @@ export const DocumentTypeCombobox: React.FC<DocumentTypeComboboxProps> = ({
         }}
         className="input pr-8 font-semibold"
       />
-      <ChevronDown className="w-3.5 h-3.5 text-zinc-400 absolute right-3 top-1/2 -tranzinc-y-1/2 pointer-events-none" />
+      <ChevronDown className="w-3.5 h-3.5 text-zinc-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
 
       {open && (
         <div

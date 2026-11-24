@@ -49,6 +49,7 @@ interface ArchiveContextType {
   // Auth operations
   loginUser: (email: string, password?: string) => Promise<{ success: boolean; message?: string; user?: User; isPendingApproval?: boolean }>;
   signupUser: (userData: Omit<User, 'id'> & { password?: string }) => Promise<{ success: boolean; message?: string; user?: User; isPendingApproval?: boolean }>;
+  createUser: (userData: { email: string; fullName: string; password?: string; role: string; departmentId?: string; departmentName?: string; title?: string; autoApprove?: boolean }) => Promise<{ success: boolean; message?: string; user?: User; tempPassword?: string }>;
   logoutUser: () => void;
   approveUser: (userId: string) => Promise<void>;
   rejectUser: (userId: string) => Promise<void>;
@@ -104,7 +105,7 @@ interface ArchiveContextType {
   bulkUpdateDocuments: (documentIds: string[], updates: Partial<DocumentItem>) => Promise<{ updated: number; errors: string[] }>;
   bulkDeleteDocuments: (documentIds: string[]) => Promise<{ deleted: number; skipped: { id: string; reason: string }[] }>;
   moveDocument: (documentId: string, toLocationId: string, reason: string) => Promise<void>;
-  batchMoveDocuments: (documentIds: string[], toLocationId: string, reason: string) => Promise<void>;
+  batchMoveDocuments: (documentIds: string[], toLocationId: string, reason: string) => Promise<{ moved: number; errors: Array<{ id: string; reason: string }> }>;
   claimDocumentQr: (documentId: string) => Promise<{ success: boolean; message?: string; claimedAt?: string }>;
   unclaimDocumentQr: (documentId: string) => Promise<{ success: boolean; message?: string }>;
   
@@ -112,7 +113,7 @@ interface ArchiveContextType {
   requestCheckout: (documentId: string, purpose: string, dueDate: string) => Promise<CheckoutRecord>;
   approveCheckout: (checkoutId: string) => Promise<void>;
   rejectCheckout: (checkoutId: string, reason: string) => Promise<void>;
-  processCheckoutDispatch: (checkoutId: string, tempLocationId?: string) => Promise<void>;
+  processCheckoutDispatch: (checkoutId: string, tempLocationId: string) => Promise<void>;
   processCheckInReturn: (checkoutId: string, conditionIn: DocumentItem['condition'], returnLocationId: string, notes?: string) => Promise<void>;
   
   // Helper Lookups
@@ -493,6 +494,30 @@ export const ArchiveProvider: React.FC<{ children: React.ReactNode }> = ({ child
       }
     } catch (e: any) {
       return { success: false, message: e?.message || 'Unable to reach the registration service. Please try again.' };
+    }
+  };
+
+  const createUser = async (userData: {
+    email: string; fullName: string; password?: string; role: string;
+    departmentId?: string; departmentName?: string; title?: string; autoApprove?: boolean
+  }): Promise<{ success: boolean; message?: string; user?: User; tempPassword?: string }> => {
+    try {
+      const res = await fetch('/api/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(userData)
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(data?.error || data?.message || 'Failed to create user account.');
+      await refreshEntities('users', 'auditLogs');
+      const tempPassword = data.tempPassword;
+      if (data.user) {
+        addNotification('success', `Account created for ${data.user.fullName} (${data.user.role}).`);
+      }
+      return { success: true, message: data.message, user: data.user, tempPassword };
+    } catch (e: any) {
+      addNotification('error', e?.message || 'Failed to create user account.');
+      return { success: false, message: e?.message || 'Failed to create user account.' };
     }
   };
 
@@ -1101,7 +1126,7 @@ export const ArchiveProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }
   };
 
-  const batchMoveDocuments = async (documentIds: string[], toLocationId: string, reason: string): Promise<void> => {
+  const batchMoveDocuments = async (documentIds: string[], toLocationId: string, reason: string): Promise<{ moved: number; errors: Array<{ id: string; reason: string }> }> => {
     const toPath = calculatePath(toLocationId);
     try {
       const res = await fetch('/api/documents/batch-move', {
@@ -1113,9 +1138,16 @@ export const ArchiveProvider: React.FC<{ children: React.ReactNode }> = ({ child
       if (!res.ok) throw new Error(result?.error || 'Batch relocation failed.');
       await refreshEntities('documents', 'movements', 'locations', 'auditLogs');
       const movedCount = result.moved ?? documentIds.length;
-      addNotification('success', `Batch relocated ${movedCount} document(s) to ${toPath}.`);
+      const errors = result.errors || [];
+      if (errors.length > 0) {
+        addNotification('warning', `Batch relocated ${movedCount} document(s) to ${toPath}. ${errors.length} item(s) could not be moved.`);
+      } else {
+        addNotification('success', `Batch relocated ${movedCount} document(s) to ${toPath}.`);
+      }
+      return { moved: movedCount, errors };
     } catch (e: any) {
       addNotification('error', e?.message || 'Batch relocation failed.');
+      return { moved: 0, errors: documentIds.map(id => ({ id, reason: e?.message || 'Batch relocation failed.' })) };
     }
   };
 
@@ -1231,11 +1263,16 @@ export const ArchiveProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }
   };
 
-  const processCheckoutDispatch = async (checkoutId: string, tempLocationId?: string): Promise<void> => {
+  const processCheckoutDispatch = async (checkoutId: string, tempLocationId: string): Promise<void> => {
     const chk = checkouts.find(c => c.id === checkoutId);
     if (!chk) return;
     const doc = documents.find(d => d.id === chk.documentId);
     if (!doc) return;
+
+    if (!tempLocationId) {
+      addNotification('error', 'A staging location is required to release the loan.');
+      return;
+    }
 
     try {
       const res = await fetch(`/api/checkouts/${checkoutId}/dispatch`, {
@@ -1329,6 +1366,7 @@ export const ArchiveProvider: React.FC<{ children: React.ReactNode }> = ({ child
         pendingUsersCount,
         loginUser,
         signupUser,
+        createUser,
         logoutUser,
         approveUser,
         rejectUser,
